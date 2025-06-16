@@ -398,6 +398,7 @@ install_from_source(sqlite3 *db, const char *source_file)
 int main(int argc, char **argv)
 {
         ++argv, --argc;
+        clap_init(argc, argv);
 
         if (cio_file_exists(DB_FP) && argc == 0) {
                 usage();

@@ -45,7 +45,7 @@ fn compile_pkgs() {
 @const let sqlite3 = "sqlite-autoconf-3500100";
 @const let flags = "-Iinclude" + case debug of { true = " -ggdb -O0"; _ = ""; };
 @const let name = "-o cpm";
-@const let ld = "-pthread -ldl";
+@const let ld = f"-L{sqlite3} -lsqlite3 -pthread -ldl";
 get_sqlite3();
 compile_pkgs();
-$f"cc {flags} {name} *.c {sqlite3}/sqlite3.c {ld}";
+$f"cc {flags} {name} *.c {ld}";
