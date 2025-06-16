@@ -6,6 +6,9 @@ import "std/system.rl"; as sys
 
 set_flag("-xe");
 
+let debug = false;
+try { debug = ("g", "d", "ggdb", "debug").contains(argv()[1]); }
+
 fn compile_pkgs() {
     $"pwd" |> let oldcwd;
     cd("pkgs");
@@ -40,7 +43,7 @@ fn compile_pkgs() {
 }
 
 @const let sqlite3 = "sqlite-autoconf-3500100";
-@const let flags = "-Iinclude";
+@const let flags = "-Iinclude" + case debug of { true = " -ggdb -O0"; _ = ""; };
 @const let name = "-o cpm";
 @const let ld = "-pthread -ldl";
 get_sqlite3();

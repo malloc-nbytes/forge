@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <dlfcn.h>
@@ -7,13 +8,28 @@
 #include "sqlite3.h"
 #include "cpm.h"
 #include "graph.h"
+#include "flags.h"
+#include "utils.h"
 #define CIO_IMPL
 #include "cio.h"
+#define CLAP_IMPL
+#include "clap.h"
 
 #define DB_FP "cpm.db"
 #define PACKAGE_DIR "pkgs/build/"
 #define CHECK_SQLITE(rc, db) if (rc != SQLITE_OK) { fprintf(stderr, "SQLite error: %s\n", sqlite3_errmsg(db)); sqlite3_close(db); exit(1); }
 #define MAX_PKGS 100
+
+static char *cpm_filepath = NULL;
+
+void
+cd(const char *path)
+{
+        if (cpm_filepath) {
+                free(cpm_filepath);
+        }
+        cpm_filepath = strdup(path);
+}
 
 sqlite3 *
 init_db(const char *dbname)
@@ -321,6 +337,7 @@ scan_packages(sqlite3 *db)
 
         dep_graph *graph = dep_graph_alloc(num_packages);
         for (int i = 0; i < num_packages; i++) {
+                if (!packages[i].pkg->deps) { continue; }
                 char **deps = packages[i].pkg->deps();
                 if (deps) {
                         for (int j = 0; deps[j]; j++) {
@@ -377,12 +394,36 @@ install_from_source(sqlite3 *db, const char *source_file)
         free(base_name);
 }
 
-int main(void)
+
+int main(int argc, char **argv)
 {
+        ++argv, --argc;
+
+        if (cio_file_exists(DB_FP) && argc == 0) {
+                usage();
+        }
+
         sqlite3 *db = init_db(DB_FP);
         scan_packages(db);
-        list_deps(db, "gf");
+
+        Clap_Arg arg = {0};
+        while (clap_next(&arg)) {
+                if (arg.hyphc == 1 && arg.start[0] == FLAG_1HY_HELP) {
+                        usage();
+                } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_HELP)) {
+                        usage();
+                } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_LIST)) {
+                        assert(0);
+                } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_DEPS)) {
+                        if (!arg.eq) {
+                                err_wargs("--%s requires argument after (=)", FLAG_2HY_DEPS);
+                        }
+                        list_deps(db, arg.eq);
+                } else {
+                        err_wargs("unknown flag %s", arg.start);
+                }
+        }
+
         sqlite3_close(db);
-        printf("*** Done.\n");
         return 0;
 }

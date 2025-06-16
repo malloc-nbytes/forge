@@ -1,6 +1,6 @@
 #include "cpm.h"
 
-char *deps[] = {NULL}; // Explicitly define empty dependencies
+char *deps[] = {NULL};
 
 char *getname(void) { return "libcurl"; }
 char *getver(void) { return "34.53.1"; }
@@ -11,6 +11,6 @@ CPM_GLOBAL pkg package = {
         .name = getname,
         .ver = getver,
         .desc = getdesc,
-        .deps = getdeps,
+        .deps = NULL,
         .installed = 0,
 };

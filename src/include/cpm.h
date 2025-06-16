@@ -10,7 +10,12 @@ typedef struct {
         char *(*ver)(void);
         char *(*desc)(void);
         char **(*deps)(void);
+        void (*build)(void);
+        void (*install)(void);
+        void (*uninstall)(void);
         int installed;
 } pkg;
+
+void cd(const char *path);
 
 #endif // CPM_H_INCLUDED
