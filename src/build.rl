@@ -24,8 +24,7 @@ fn compile_pkgs() {
     cd(oldcwd);
 }
 
-fn get_sqlite3() {
-    @const let sqlite3 = "sqlite-autoconf-3500100";
+@world fn get_sqlite3() {
     if sys::ls(".").contains(f"./{sqlite3}") { return; }
     $f"wget https://www.sqlite.org/2025/{sqlite3}.tar.gz";
     $f"tar -vxzf ./{sqlite3}.tar.gz";
@@ -40,6 +39,10 @@ fn get_sqlite3() {
     $f"rm {sqlite3}.tar.gz";
 }
 
+@const let sqlite3 = "sqlite-autoconf-3500100";
+@const let flags = "-Iinclude";
+@const let name = "-o cpm";
+@const let ld = "-pthread -ldl";
 get_sqlite3();
 compile_pkgs();
-$"cc -O0 -ggdb -o cpm cpm.c sqlite-autoconf-3500100/sqlite3.c -pthread -ldl";
+$f"cc {flags} {name} *.c {sqlite3}/sqlite3.c {ld}";

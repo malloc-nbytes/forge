@@ -9,4 +9,4 @@ try     { name = argv()[1]; }
 catch _ { panic("A pkg name is required"); }
 
 $"mkdir -p build";
-$f"gcc -shared -fPIC {name}.c -o ./build/{name}.so -I../";
+$f"gcc -shared -fPIC {name}.c -o ./build/{name}.so -I../include";
