@@ -1,0 +1,4 @@
+cpm
+cpm.db
+*.so
+sqlite-autoconf*
