@@ -1,9 +1,9 @@
-#ifndef CPM_H_INCLUDED
-#define CPM_H_INCLUDED
+#ifndef FORGE_H_INCLUDED
+#define FORGE_H_INCLUDED
 
 #include <stddef.h>
 
-#define CPM_GLOBAL __attribute__((visibility("default")))
+#define FORGE_GLOBAL __attribute__((visibility("default")))
 
 typedef struct {
         char *(*name)(void);
@@ -17,4 +17,4 @@ typedef struct {
 
 void cd(const char *path);
 
-#endif // CPM_H_INCLUDED
+#endif // FORGE_H_INCLUDED

@@ -6,7 +6,7 @@
 #include <string.h>
 
 #include "sqlite3.h"
-#include "cpm.h"
+#include "forge.h"
 #include "flags.h"
 #include "utils.h"
 #define CIO_IMPL
@@ -14,20 +14,20 @@
 #define CLAP_IMPL
 #include "clap.h"
 
-#define DB_FP "cpm.db"
+#define DB_FP "forge.db"
 #define PACKAGE_DIR "pkgs/build/"
 #define CHECK_SQLITE(rc, db) if (rc != SQLITE_OK) { fprintf(stderr, "SQLite error: %s\n", sqlite3_errmsg(db)); sqlite3_close(db); exit(1); }
 #define MAX_PKGS 100
 
-static char *cpm_filepath = NULL;
+static char *forge_filepath = NULL;
 
 void
 cd(const char *path)
 {
-        if (cpm_filepath) {
-                free(cpm_filepath);
+        if (forge_filepath) {
+                free(forge_filepath);
         }
-        cpm_filepath = strdup(path);
+        forge_filepath = strdup(path);
 }
 
 sqlite3 *
