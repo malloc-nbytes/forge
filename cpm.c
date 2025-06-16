@@ -176,25 +176,86 @@ init_db(const char *dbname)
         return db;
 }
 
-void
-_insert_pkg(sqlite3 *db, const char *name, const char *ver, const char *desc, int installed)
+int
+is_pkg_installed(sqlite3 *db, const char *name)
 {
         sqlite3_stmt *stmt;
-        const char *sql = "INSERT OR REPLACE INTO Pkgs (name, version, description, installed) VALUES (?, ?, ?, ?);";
+        const char *sql = "SELECT installed FROM Pkgs WHERE name = ?;";
         int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
         CHECK_SQLITE(rc, db);
 
         sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
-        sqlite3_bind_text(stmt, 2, ver, -1, SQLITE_STATIC);
-        sqlite3_bind_text(stmt, 3, desc, -1, SQLITE_STATIC);
-        sqlite3_bind_int(stmt, 4, installed);
 
-        rc = sqlite3_step(stmt);
-        if (rc != SQLITE_DONE) {
-                fprintf(stderr, "Insert error: %s\n", sqlite3_errmsg(db));
+        int installed = 0;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                installed = sqlite3_column_int(stmt, 0);
         }
 
         sqlite3_finalize(stmt);
+        return installed;
+}
+
+void
+_insert_pkg(sqlite3 *db, const char *name, const char *ver, const char *desc, int installed)
+{
+        // Check if package exists
+        sqlite3_stmt *stmt;
+        const char *sql_select = "SELECT id FROM Pkgs WHERE name = ?;";
+        int rc = sqlite3_prepare_v2(db, sql_select, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, db);
+
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+        int id = -1;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                id = sqlite3_column_int(stmt, 0);
+        }
+        sqlite3_finalize(stmt);
+
+        if (id != -1) {
+                // Update existing package
+                const char *sql_update = "UPDATE Pkgs SET version = ?, description = ?, installed = ? WHERE name = ?;";
+                rc = sqlite3_prepare_v2(db, sql_update, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, db);
+
+                sqlite3_bind_text(stmt, 1, ver, -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 2, desc, -1, SQLITE_STATIC);
+                sqlite3_bind_int(stmt, 3, installed);
+                sqlite3_bind_text(stmt, 4, name, -1, SQLITE_STATIC);
+
+                rc = sqlite3_step(stmt);
+                if (rc != SQLITE_DONE) {
+                        fprintf(stderr, "Update error: %s\n", sqlite3_errmsg(db));
+                }
+                sqlite3_finalize(stmt);
+
+                // Clear existing dependencies to avoid foreign key issues
+                const char *sql_delete = "DELETE FROM Deps WHERE pkg_id = ?;";
+                rc = sqlite3_prepare_v2(db, sql_delete, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, db);
+
+                sqlite3_bind_int(stmt, 1, id);
+                rc = sqlite3_step(stmt);
+                if (rc != SQLITE_DONE) {
+                        fprintf(stderr, "Delete dependencies error: %s\n", sqlite3_errmsg(db));
+                }
+                sqlite3_finalize(stmt);
+        } else {
+                // Insert new package
+                const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed) VALUES (?, ?, ?, ?);";
+                rc = sqlite3_prepare_v2(db, sql_insert, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, db);
+
+                sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 2, ver, -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 3, desc, -1, SQLITE_STATIC);
+                sqlite3_bind_int(stmt, 4, installed);
+
+                rc = sqlite3_step(stmt);
+                if (rc != SQLITE_DONE) {
+                        fprintf(stderr, "Insert error: %s\n", sqlite3_errmsg(db));
+                }
+                sqlite3_finalize(stmt);
+        }
 }
 
 void
@@ -299,6 +360,13 @@ load_package(sqlite3 *db, const char *path)
                 return;
         }
 
+        // Skip if already installed
+        if (is_pkg_installed(db, package->name())) {
+                printf("Skipping installed package: %s v%s\n", package->name(), package->ver());
+                dlclose(handle);
+                return;
+        }
+
         _insert_pkg(db, package->name(), package->ver(), package->desc(), package->installed);
         printf("Loaded package: %s v%s\n", package->name(), package->ver());
 
@@ -354,6 +422,14 @@ scan_packages(sqlite3 *db)
                         char *error = dlerror();
                         if (error != NULL) {
                                 fprintf(stderr, "Error finding 'package' symbol in %s: %s\n", path, error);
+                                dlclose(handle);
+                                free(path);
+                                continue;
+                        }
+
+                        // Skip if already installed
+                        if (is_pkg_installed(db, package->name())) {
+                                printf("Skipping installed package: %s v%s\n", package->name(), package->ver());
                                 dlclose(handle);
                                 free(path);
                                 continue;
@@ -429,7 +505,7 @@ int main(void)
 {
         sqlite3 *db = init_db(DB_FP);
         scan_packages(db);
-        list_deps(db, "gf"); // List gf's dependencies to verify
+        list_deps(db, "gf");
         sqlite3_close(db);
         printf("*** Done.\n");
         return 0;
