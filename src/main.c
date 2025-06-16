@@ -7,7 +7,6 @@
 
 #include "sqlite3.h"
 #include "cpm.h"
-#include "graph.h"
 #include "flags.h"
 #include "utils.h"
 #define CIO_IMPL
@@ -87,8 +86,7 @@ void
 _insert_pkg(sqlite3    *db,
             const char *name,
             const char *ver,
-            const char *desc,
-            int         installed)
+            const char *desc)
 {
         // Check if package exists
         sqlite3_stmt *stmt;
@@ -105,14 +103,13 @@ _insert_pkg(sqlite3    *db,
 
         if (id != -1) {
                 // Update existing package
-                const char *sql_update = "UPDATE Pkgs SET version = ?, description = ?, installed = ? WHERE name = ?;";
+                const char *sql_update = "UPDATE Pkgs SET version = ?, description = ?, installed = 1 WHERE name = ?;";
                 rc = sqlite3_prepare_v2(db, sql_update, -1, &stmt, NULL);
                 CHECK_SQLITE(rc, db);
 
                 sqlite3_bind_text(stmt, 1, ver, -1, SQLITE_STATIC);
                 sqlite3_bind_text(stmt, 2, desc, -1, SQLITE_STATIC);
-                sqlite3_bind_int(stmt, 3, installed);
-                sqlite3_bind_text(stmt, 4, name, -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 3, name, -1, SQLITE_STATIC);
 
                 rc = sqlite3_step(stmt);
                 if (rc != SQLITE_DONE) {
@@ -133,14 +130,13 @@ _insert_pkg(sqlite3    *db,
                 sqlite3_finalize(stmt);
         } else {
                 // Insert new package
-                const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed) VALUES (?, ?, ?, ?);";
+                const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed) VALUES (?, ?, ?, 1);";
                 rc = sqlite3_prepare_v2(db, sql_insert, -1, &stmt, NULL);
                 CHECK_SQLITE(rc, db);
 
                 sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
                 sqlite3_bind_text(stmt, 2, ver, -1, SQLITE_STATIC);
                 sqlite3_bind_text(stmt, 3, desc, -1, SQLITE_STATIC);
-                sqlite3_bind_int(stmt, 4, installed);
 
                 rc = sqlite3_step(stmt);
                 if (rc != SQLITE_DONE) {
@@ -164,6 +160,44 @@ _insert_dep(sqlite3 *db, int pkg_id, int dep_id)
         rc = sqlite3_step(stmt);
         if (rc != SQLITE_DONE) {
                 fprintf(stderr, "Dependency insert error: %s\n", sqlite3_errmsg(db));
+        }
+
+        sqlite3_finalize(stmt);
+}
+
+void
+list_pkgs(sqlite3 *db)
+{
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT name, version, description, installed FROM Pkgs;";
+        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, db);
+
+        printf("Available packages:\n");
+        printf("Name\tVersion\tInstalled\tDescription\n");
+        printf("----\t-------\t---------\t-----------\n");
+
+        int found = 0;
+        while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+                const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                const char *version = (const char *)sqlite3_column_text(stmt, 1);
+                const char *description = (const char *)sqlite3_column_text(stmt, 2);
+                int installed = sqlite3_column_int(stmt, 3);
+
+                printf("%s\t%s\t%d\t\t%s\n",
+                       name,
+                       version,
+                       installed,
+                       description ? description : "(none)");
+                found = 1;
+        }
+
+        if (rc != SQLITE_DONE) {
+                fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(db));
+        }
+
+        if (!found) {
+                printf("No packages found in the database.\n");
         }
 
         sqlite3_finalize(stmt);
@@ -212,7 +246,7 @@ list_deps(sqlite3 *db, const char *pkg_name)
 void
 install_pkg(sqlite3 *db, pkg pkg)
 {
-        _insert_pkg(db, pkg.name(), pkg.ver(), pkg.desc(), pkg.installed);
+        _insert_pkg(db, pkg.name(), pkg.ver(), pkg.desc());
 }
 
 int
@@ -259,7 +293,7 @@ load_package(sqlite3 *db, const char *path)
                 return;
         }
 
-        _insert_pkg(db, package->name(), package->ver(), package->desc(), package->installed);
+        _insert_pkg(db, package->name(), package->ver(), package->desc());
         printf("Loaded package: %s v%s\n", package->name(), package->ver());
 
         if (package->deps) {
@@ -287,9 +321,6 @@ load_package(sqlite3 *db, const char *path)
 void
 scan_packages(sqlite3 *db)
 {
-        pkg_info packages[MAX_PKGS];
-        int num_packages = 0;
-
         DIR *dir = opendir(PACKAGE_DIR);
         if (!dir) {
                 perror("Failed to open package directory");
@@ -297,7 +328,7 @@ scan_packages(sqlite3 *db)
         }
 
         struct dirent *entry;
-        while ((entry = readdir(dir)) && num_packages < MAX_PKGS) {
+        while ((entry = readdir(dir))) {
                 if (strstr(entry->d_name, ".so")) {
                         char *path = malloc(256);
                         snprintf(path, 256, "%s%s", PACKAGE_DIR, entry->d_name);
@@ -321,79 +352,19 @@ scan_packages(sqlite3 *db)
 
                         // Skip if already installed
                         if (is_pkg_installed(db, package->name())) {
-                                printf("Skipping installed package: %s v%s\n", package->name(), package->ver());
+                                //printf("Skipping installed package: %s v%s\n", package->name(), package->ver());
                                 dlclose(handle);
                                 free(path);
                                 continue;
                         }
 
-                        packages[num_packages].pkg = package;
-                        packages[num_packages].handle = handle;
-                        packages[num_packages].path = path;
-                        num_packages++;
+                        load_package(db, path);
+                        dlclose(handle);
+                        free(path);
                 }
         }
         closedir(dir);
-
-        dep_graph *graph = dep_graph_alloc(num_packages);
-        for (int i = 0; i < num_packages; i++) {
-                if (!packages[i].pkg->deps) { continue; }
-                char **deps = packages[i].pkg->deps();
-                if (deps) {
-                        for (int j = 0; deps[j]; j++) {
-                                int dep_index = -1;
-                                for (int k = 0; k < num_packages; k++) {
-                                        if (strcmp(packages[k].pkg->name(), deps[j]) == 0) {
-                                                dep_index = k;
-                                                break;
-                                        }
-                                }
-                                if (dep_index != -1) {
-                                        add_edge(graph, i, dep_index);
-                                } else {
-                                        fprintf(stderr, "Warning: Dependency %s for %s not found in packages\n",
-                                                deps[j], packages[i].pkg->name());
-                                }
-                        }
-                }
-        }
-
-        int *order = malloc(num_packages * sizeof(int));
-        int order_size = 0;
-        topological_sort(graph, order, &order_size);
-
-        for (int i = 0; i < order_size; i++) {
-                int idx = order[i];
-                load_package(db, packages[idx].path);
-        }
-
-        dep_graph_free(graph);
-        free(order);
-        for (int i = 0; i < num_packages; i++) {
-                dlclose(packages[i].handle);
-                free(packages[i].path);
-        }
 }
-
-void
-install_from_source(sqlite3 *db, const char *source_file)
-{
-        char *base_name = strdup(source_file);
-        char *dot = strstr(base_name, ".c");
-        if (dot) *dot = '\0';
-
-        char cmd[256];
-        snprintf(cmd, sizeof(cmd), "gcc -shared -fPIC %s -o %s%s.so -I.", source_file, PACKAGE_DIR, base_name);
-        if (system(cmd) == 0) {
-                char path[256];
-                snprintf(path, sizeof(path), "%s%s.so", PACKAGE_DIR, base_name);
-                load_package(db, path);
-        } else {
-                fprintf(stderr, "Failed to compile %s\n", source_file);
-        }
-        free(base_name);
-}
-
 
 int main(int argc, char **argv)
 {
@@ -414,13 +385,17 @@ int main(int argc, char **argv)
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_HELP)) {
                         usage();
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_LIST)) {
-                        assert(0);
+                        list_pkgs(db);
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_DEPS)) {
                         if (!arg.eq) {
                                 err_wargs("--%s requires argument after (=)", FLAG_2HY_DEPS);
                         }
                         list_deps(db, arg.eq);
-                } else {
+                } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_INSTALL)) {
+                        if (!clap_next(&arg)) { err_wargs("flag --%s requires an argument", FLAG_2HY_INSTALL); }
+                        assert(0);
+                }
+                else {
                         err_wargs("unknown flag %s", arg.start);
                 }
         }

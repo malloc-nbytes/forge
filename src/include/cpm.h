@@ -13,7 +13,6 @@ typedef struct {
         void (*build)(void);
         void (*install)(void);
         void (*uninstall)(void);
-        int installed;
 } pkg;
 
 void cd(const char *path);

@@ -9,5 +9,4 @@ CPM_GLOBAL pkg package = {
         .ver = getver,
         .desc = getdesc,
         .deps = NULL,
-        .installed = 1,
 };

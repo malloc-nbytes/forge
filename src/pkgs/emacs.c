@@ -1,10 +1,10 @@
 #include "cpm.h"
 
-char *deps[] = {"libcurl", NULL};
+char *deps[] = {"libcurl", "gf", NULL};
 
-char *getname(void) { return "gf"; }
-char *getver(void) { return "1.0.0"; }
-char *getdesc(void) { return "A GDB frontend debugger"; }
+char *getname(void) { return "emacs"; }
+char *getver(void) { return "9.3.3"; }
+char *getdesc(void) { return "A GNU Text Editor"; }
 char **getdeps(void) { return deps; }
 
 CPM_GLOBAL pkg package = {
