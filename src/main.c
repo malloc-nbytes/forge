@@ -29,12 +29,18 @@
                 }                                                       \
         } while (0)
 
-DYN_ARRAY_TYPE(void, handle_array);
+DYN_ARRAY_TYPE(void *, handle_array);
+DYN_ARRAY_TYPE(char *, str_array);
+DYN_ARRAY_TYPE(pkg *, pkg_ptr_array);
 
 typedef struct {
         sqlite3 *db;
-        handle_array handles;
+        struct {
+                handle_array handles; // should be same len as paths
+                str_array paths;      // should be same len as handles
+        } dll;
         depgraph dg;
+        pkg_ptr_array pkgs;
 } forge_context;
 
 sqlite3 *
@@ -170,38 +176,79 @@ register_pkg(forge_context *ctx, pkg *pkg)
         }
 }
 
+/* void */
+/* register_pkg_from_dll(forge_context *ctx, const char *path) */
+/* { */
+/*         printf("*** Registering package from dll...\n"); */
+/*         void *handle = dlopen(path, RTLD_LAZY); */
+/*         if (!handle) { */
+/*                 fprintf(stderr, "Error loading dll path: %s, \n", path, dlerror()); */
+/*                 return; */
+/*         } */
+
+/*         dlerror(); */
+/*         pkg *pkg = dlsym(handle, "package"); */
+/*         char *error = dlerror(); */
+/*         if (error != NULL) { */
+/*                 fprintf(stderr, "Error finding 'package' symbol in %s: %s\n", path, error); */
+/*                 dlclose(handle); */
+/*                 return; */
+/*         } */
+
+/*         // Skip if already installed */
+/*         if (get_pkg_id(ctx, pkg->name()) != -1) { */
+/*                 dlclose(handle); */
+/*                 return; */
+/*         } */
+
+/*         register_pkg(ctx, pkg); */
+/* } */
+
+/* void */
+/* scan_packages(forge_context *ctx) */
+/* { */
+/*         printf("*** Scanning packages\n"); */
+/*         DIR *dir = opendir(PKG_DIR); */
+/*         if (!dir) { */
+/*                 perror("Failed to open package directory"); */
+/*                 return; */
+/*         } */
+
+/*         struct dirent *entry; */
+/*         while ((entry = readdir(dir))) { */
+/*                 if (strstr(entry->d_name, ".so")) { */
+/*                         char *path = malloc(256); */
+/*                         snprintf(path, 256, "%s%s", PKG_DIR, entry->d_name); */
+/*                         register_pkg_from_dll(ctx, path); */
+/*                         free(path); */
+/*                 } */
+/*         } */
+
+/*         closedir(dir); */
+/* } */
+
 void
-register_pkg_from_dll(forge_context *ctx, const char *path)
+construct_depgraph(forge_context *ctx)
 {
-        printf("*** Registering package from dll...\n");
-        void *handle = dlopen(path, RTLD_LAZY);
-        if (!handle) {
-                fprintf(stderr, "Error loading dll path: %s, \n", path, dlerror());
-                return;
+        for (size_t i = 0; i < ctx->pkgs.len; ++i) {
+                // TODO: assert name
+                depgraph_insert_pkg(&ctx->dg, ctx->pkgs.data[i]->name());
         }
 
-        dlerror();
-        pkg *pkg = dlsym(handle, "package");
-        char *error = dlerror();
-        if (error != NULL) {
-                fprintf(stderr, "Error finding 'package' symbol in %s: %s\n", path, error);
-                dlclose(handle);
-                return;
-        }
+        for (size_t i = 0; i < ctx->pkgs.len; ++i) {
+                if (!ctx->pkgs.data[i]->deps) continue;
 
-        // Skip if already installed
-        if (get_pkg_id(ctx, pkg->name()) != -1) {
-                dlclose(handle);
-                return;
+                char *name = ctx->pkgs.data[i]->name();
+                char **deps = ctx->pkgs.data[i]->deps();
+                for (size_t j = 0; deps[j]; ++j) {
+                        depgraph_add_dep(&ctx->dg, name, deps[j]);
+                }
         }
-
-        register_pkg(ctx, pkg);
 }
 
 void
-scan_packages(forge_context *ctx)
+obtain_handles_and_pkgs_from_dll(forge_context *ctx)
 {
-        printf("*** Scanning packages\n");
         DIR *dir = opendir(PKG_DIR);
         if (!dir) {
                 perror("Failed to open package directory");
@@ -211,10 +258,27 @@ scan_packages(forge_context *ctx)
         struct dirent *entry;
         while ((entry = readdir(dir))) {
                 if (strstr(entry->d_name, ".so")) {
-                        char *path = malloc(256);
+                        char *path = (char *)malloc(256);
                         snprintf(path, 256, "%s%s", PKG_DIR, entry->d_name);
-                        register_pkg_from_dll(ctx, path);
-                        free(path);
+
+                        void *handle = dlopen(path, RTLD_LAZY);
+                        if (!handle) {
+                                fprintf(stderr, "Error loading dll path: %s, \n", path, dlerror());
+                                return;
+                        }
+
+                        dlerror();
+                        pkg *pkg = dlsym(handle, "package");
+                        char *error = dlerror();
+                        if (error != NULL) {
+                                fprintf(stderr, "Error finding 'package' symbol in %s: %s\n", path, error);
+                                dlclose(handle);
+                                return;
+                        }
+
+                        dyn_array_append(ctx->dll.handles, handle);
+                        dyn_array_append(ctx->dll.paths, path);
+                        dyn_array_append(ctx->pkgs, pkg);
                 }
         }
 
@@ -234,9 +298,20 @@ main(int argc, char **argv)
 
         forge_context ctx = (forge_context) {
                 .db = db,
-                .handles = dyn_array_empty(handle_array),
+                .dll = {
+                        .handles = dyn_array_empty(handle_array),
+                        .paths = dyn_array_empty(str_array),
+                },
                 .dg = depgraph_create(),
+                .pkgs = dyn_array_empty(pkg_ptr_array),
         };
+
+        obtain_handles_and_pkgs_from_dll(&ctx);
+        assert(ctx.dll.handles.len == ctx.dll.paths.len);
+
+        construct_depgraph(&ctx);
+
+        depgraph_dump(&ctx.dg);
 
         /* scan_packages(db); */
 
