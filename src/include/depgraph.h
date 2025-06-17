@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include "ds/array.h"
+
 #define DEPGRAPH_DEFAULT_CAPACITY 256
 
 typedef struct depgraph_node {
@@ -29,6 +31,7 @@ void depgraph_insert_pkg(depgraph *dg, const char *name);
 
 // Does not take ownership of `from` and `todo`.
 void depgraph_add_dep(depgraph *dg, const char *from, const char *to);
+size_t_array depgraph_gen_order(const depgraph *dg);
 void depgraph_dump(const depgraph *dg);
 
 #endif // DEPGRAPH_H_INCLUDED

@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "depgraph.h"
+#include "dyn_array.h"
+#include "ds/array.h"
 
 depgraph_node *
 depgraph_node_alloc(const char *name)
@@ -89,6 +91,62 @@ depgraph_add_dep(depgraph   *dg,
                         break;
                 }
         }
+}
+
+static ssize_t
+get_index_of_pkg(const depgraph *dg,
+                 const char     *name)
+{
+        for (size_t i = 0; i < dg->len; ++i) {
+                if (!strcmp(dg->tbl[i]->name, name)) {
+                        return i;
+                }
+        }
+
+        return -1;
+}
+
+static void
+__depgraph_gen_order(const depgraph *dg,
+                     size_t_array   *ar,
+                     size_t          st)
+{
+        for (size_t i = st; i < dg->len; ++i) {
+
+                // TODO: use a hashset for track visited.
+                int found = 0;
+                for (size_t j = 0; j < ar->len; ++j) {
+                        for (size_t k = j; k < ar->len-1; ++k) {
+                                if (ar->data[j] == ar->data[k]) {
+                                        found = 1;
+                                        break;
+                                }
+                        }
+                        if (found) { break; }
+                }
+                if (found) { continue; }
+
+                depgraph_node *it = dg->tbl[i]->next;
+
+                while (it) {
+                        ssize_t index = get_index_of_pkg(dg, it->name);
+                        if (index == -1) {
+                                assert(0 && "something went horribly wrong");
+                        }
+                        __depgraph_gen_order(dg, ar, (size_t)index);
+                        it = it->next;
+                }
+
+                dyn_array_append(*ar, i);
+        }
+}
+
+size_t_array
+depgraph_gen_order(const depgraph *dg)
+{
+        size_t_array ar = dyn_array_empty(size_t_array);
+        __depgraph_gen_order(dg, &ar, 0);
+        return ar;
 }
 
 void

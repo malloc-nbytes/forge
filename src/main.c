@@ -278,6 +278,7 @@ main(int argc, char **argv)
         obtain_handles_and_pkgs_from_dll(&ctx);
         construct_depgraph(&ctx);
         depgraph_dump(&ctx.dg);
+        size_t_array indices = depgraph_gen_order(&ctx.dg);
 
         cleanup_forge_context(&ctx);
         return 0;
