@@ -11,6 +11,7 @@
 #include "depgraph.h"
 #include "flags.h"
 #include "utils.h"
+#include "dyn_array.h"
 #define CIO_IMPL
 #include "cio.h"
 #define CLAP_IMPL
@@ -27,6 +28,14 @@
                         exit(1);                                        \
                 }                                                       \
         } while (0)
+
+DYN_ARRAY_TYPE(void, handle_array);
+
+typedef struct {
+        sqlite3 *db;
+        handle_array handles;
+        depgraph dg;
+} forge_context;
 
 sqlite3 *
 init_db(const char *dbname)
@@ -62,12 +71,12 @@ init_db(const char *dbname)
 }
 
 int
-get_pkg_id(sqlite3 *db, const char *name)
+get_pkg_id(forge_context *ctx, const char *name)
 {
         sqlite3_stmt *stmt;
         const char *sql = "SELECT id FROM Pkgs WHERE name = ?;";
-        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, db);
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
 
         sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
 
@@ -81,19 +90,21 @@ get_pkg_id(sqlite3 *db, const char *name)
 }
 
 void
-add_dep(sqlite3 *db, int pkg_id, int dep_id)
+add_dep_to_db(forge_context *ctx,
+              int            pkg_id,
+              int            dep_id)
 {
         sqlite3_stmt *stmt;
         const char *sql = "INSERT OR IGNORE INTO Deps (pkg_id, dep_id) VALUES (?, ?);";
-        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, db);
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
 
         sqlite3_bind_int(stmt, 1, pkg_id);
         sqlite3_bind_int(stmt, 2, dep_id);
 
         rc = sqlite3_step(stmt);
         if (rc != SQLITE_DONE) {
-                fprintf(stderr, "Dependency insert error: %s\n", sqlite3_errmsg(db));
+                fprintf(stderr, "Dependency insert error: %s\n", sqlite3_errmsg(ctx->db));
         }
 
         sqlite3_finalize(stmt);
@@ -101,7 +112,7 @@ add_dep(sqlite3 *db, int pkg_id, int dep_id)
 
 // Note: This function should be called from `register_pkg_from_dll`!
 void
-register_pkg(sqlite3 *db, pkg *pkg)
+register_pkg(forge_context *ctx, pkg *pkg)
 {
         if (!pkg->name) {
                 err("register_pkg(): pkg (unknown) does not have a name");
@@ -119,8 +130,8 @@ register_pkg(sqlite3 *db, pkg *pkg)
 
         sqlite3_stmt *stmt;
         const char *sql_select = "SELECT id FROM Pkgs WHERE name = ?;";
-        int rc = sqlite3_prepare_v2(db, sql_select, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, db);
+        int rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
 
         sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
         int id = -1;
@@ -135,8 +146,8 @@ register_pkg(sqlite3 *db, pkg *pkg)
         } else {
                 // New package
                 const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed) VALUES (?, ?, ?, 0);";
-                int rc = sqlite3_prepare_v2(db, sql_insert, -1, &stmt, NULL);
-                CHECK_SQLITE(rc, db);
+                int rc = sqlite3_prepare_v2(ctx->db, sql_insert, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
 
                 sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
                 sqlite3_bind_text(stmt, 2, ver, -1, SQLITE_STATIC);
@@ -144,7 +155,7 @@ register_pkg(sqlite3 *db, pkg *pkg)
 
                 rc = sqlite3_step(stmt);
                 if (rc != SQLITE_DONE) {
-                        fprintf(stderr, "Insert error: %s\n", sqlite3_errmsg(db));
+                        fprintf(stderr, "Insert error: %s\n", sqlite3_errmsg(ctx->db));
                 }
                 sqlite3_finalize(stmt);
                 printf("*** Registered package: %s\n", name);
@@ -153,14 +164,14 @@ register_pkg(sqlite3 *db, pkg *pkg)
                         char **deps = pkg->deps();
                         for (size_t i = 0; deps[i]; ++i) {
                                 printf("adding dep: %s for %s\n", deps[i], name);
-                                add_dep(db, get_pkg_id(db, name), get_pkg_id(db, deps[i]));
+                                add_dep_to_db(ctx, get_pkg_id(ctx, name), get_pkg_id(ctx, deps[i]));
                         }
                 }
         }
 }
 
 void
-register_pkg_from_dll(sqlite3 *db, const char *path)
+register_pkg_from_dll(forge_context *ctx, const char *path)
 {
         printf("*** Registering package from dll...\n");
         void *handle = dlopen(path, RTLD_LAZY);
@@ -178,11 +189,17 @@ register_pkg_from_dll(sqlite3 *db, const char *path)
                 return;
         }
 
-        register_pkg(db, pkg);
+        // Skip if already installed
+        if (get_pkg_id(ctx, pkg->name()) != -1) {
+                dlclose(handle);
+                return;
+        }
+
+        register_pkg(ctx, pkg);
 }
 
 void
-scan_packages(sqlite3 *db)
+scan_packages(forge_context *ctx)
 {
         printf("*** Scanning packages\n");
         DIR *dir = opendir(PKG_DIR);
@@ -196,60 +213,31 @@ scan_packages(sqlite3 *db)
                 if (strstr(entry->d_name, ".so")) {
                         char *path = malloc(256);
                         snprintf(path, 256, "%s%s", PKG_DIR, entry->d_name);
-
-                        void *handle = dlopen(path, RTLD_LAZY);
-                        if (!handle) {
-                                fprintf(stderr, "Error loading %s: %s\n", path, dlerror());
-                                free(path);
-                                continue;
-                        }
-
-                        dlerror();
-                        pkg *package = dlsym(handle, "package");
-                        char *error = dlerror();
-                        if (error != NULL) {
-                                fprintf(stderr, "Error finding 'package' symbol in %s: %s\n", path, error);
-                                dlclose(handle);
-                                free(path);
-                                continue;
-                        }
-
-                        // Skip if already installed
-                        if (get_pkg_id(db, package->name()) != -1) {
-                                dlclose(handle);
-                                free(path);
-                                continue;
-                        }
-
-                        register_pkg_from_dll(db, path);
-                        dlclose(handle);
+                        register_pkg_from_dll(ctx, path);
                         free(path);
                 }
         }
+
         closedir(dir);
 }
 
 int
 main(int argc, char **argv)
 {
-        /* ++argv, --argc; */
-        /* clap_init(argc, argv); */
-
-        depgraph dg = depgraph_create();
-        depgraph_insert_pkg(&dg, "foo");
-        depgraph_insert_pkg(&dg, "bar");
-        depgraph_insert_pkg(&dg, "baz");
-        depgraph_add_dep(&dg, "foo", "bar");
-        depgraph_add_dep(&dg, "foo", "baz");
-        depgraph_add_dep(&dg, "baz", "bar");
-        depgraph_dump(&dg);
-        depgraph_destroy(&dg);
-
+        ++argv, --argc;
+        clap_init(argc, argv);
         /* if (cio_file_exists(DB_FP) && argc == 0) { */
         /*         usage(); */
         /* } */
 
-        /* sqlite3 *db = init_db(DB_FP); */
+        sqlite3 *db = init_db(DB_FP);
+
+        forge_context ctx = (forge_context) {
+                .db = db,
+                .handles = dyn_array_empty(handle_array),
+                .dg = depgraph_create(),
+        };
+
         /* scan_packages(db); */
 
         /* Clap_Arg arg = {0}; */
@@ -273,6 +261,6 @@ main(int argc, char **argv)
         /*         } */
         /* } */
 
-        /* sqlite3_close(db); */
+        sqlite3_close(db);
         return 0;
 }
