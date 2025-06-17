@@ -12,6 +12,7 @@
 #include "flags.h"
 #include "utils.h"
 #include "dyn_array.h"
+#include "ds/array.h"
 #define CIO_IMPL
 #include "cio.h"
 #define CLAP_IMPL
@@ -30,7 +31,6 @@
         } while (0)
 
 DYN_ARRAY_TYPE(void *, handle_array);
-DYN_ARRAY_TYPE(char *, str_array);
 DYN_ARRAY_TYPE(pkg *, pkg_ptr_array);
 
 typedef struct {
@@ -93,6 +93,12 @@ get_pkg_id(forge_context *ctx, const char *name)
 
         sqlite3_finalize(stmt);
         return id;
+}
+
+int
+pkg_is_installed(forge_context *ctx, pkg *pkg)
+{
+        return get_pkg_id(ctx, pkg->name()) != -1;
 }
 
 void
@@ -176,57 +182,6 @@ register_pkg(forge_context *ctx, pkg *pkg)
         }
 }
 
-/* void */
-/* register_pkg_from_dll(forge_context *ctx, const char *path) */
-/* { */
-/*         printf("*** Registering package from dll...\n"); */
-/*         void *handle = dlopen(path, RTLD_LAZY); */
-/*         if (!handle) { */
-/*                 fprintf(stderr, "Error loading dll path: %s, \n", path, dlerror()); */
-/*                 return; */
-/*         } */
-
-/*         dlerror(); */
-/*         pkg *pkg = dlsym(handle, "package"); */
-/*         char *error = dlerror(); */
-/*         if (error != NULL) { */
-/*                 fprintf(stderr, "Error finding 'package' symbol in %s: %s\n", path, error); */
-/*                 dlclose(handle); */
-/*                 return; */
-/*         } */
-
-/*         // Skip if already installed */
-/*         if (get_pkg_id(ctx, pkg->name()) != -1) { */
-/*                 dlclose(handle); */
-/*                 return; */
-/*         } */
-
-/*         register_pkg(ctx, pkg); */
-/* } */
-
-/* void */
-/* scan_packages(forge_context *ctx) */
-/* { */
-/*         printf("*** Scanning packages\n"); */
-/*         DIR *dir = opendir(PKG_DIR); */
-/*         if (!dir) { */
-/*                 perror("Failed to open package directory"); */
-/*                 return; */
-/*         } */
-
-/*         struct dirent *entry; */
-/*         while ((entry = readdir(dir))) { */
-/*                 if (strstr(entry->d_name, ".so")) { */
-/*                         char *path = malloc(256); */
-/*                         snprintf(path, 256, "%s%s", PKG_DIR, entry->d_name); */
-/*                         register_pkg_from_dll(ctx, path); */
-/*                         free(path); */
-/*                 } */
-/*         } */
-
-/*         closedir(dir); */
-/* } */
-
 void
 construct_depgraph(forge_context *ctx)
 {
@@ -236,7 +191,7 @@ construct_depgraph(forge_context *ctx)
         }
 
         for (size_t i = 0; i < ctx->pkgs.len; ++i) {
-                if (!ctx->pkgs.data[i]->deps) continue;
+                if (!ctx->pkgs.data[i]->deps) { continue; }
 
                 char *name = ctx->pkgs.data[i]->name();
                 char **deps = ctx->pkgs.data[i]->deps();
@@ -285,6 +240,20 @@ obtain_handles_and_pkgs_from_dll(forge_context *ctx)
         closedir(dir);
 }
 
+void
+cleanup_forge_context(forge_context *ctx)
+{
+        sqlite3_close(ctx->db);
+        for (size_t i = 0; i < ctx->dll.handles.len; ++i) {
+                dlclose(ctx->dll.handles.data[i]);
+                free(ctx->dll.paths.data[i]);
+        }
+        dyn_array_free(ctx->dll.handles);
+        dyn_array_free(ctx->dll.paths);
+        dyn_array_free(ctx->pkgs);
+        depgraph_destroy(&ctx->dg);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -307,35 +276,9 @@ main(int argc, char **argv)
         };
 
         obtain_handles_and_pkgs_from_dll(&ctx);
-        assert(ctx.dll.handles.len == ctx.dll.paths.len);
-
         construct_depgraph(&ctx);
-
         depgraph_dump(&ctx.dg);
 
-        /* scan_packages(db); */
-
-        /* Clap_Arg arg = {0}; */
-        /* while (clap_next(&arg)) { */
-        /*         if (arg.hyphc == 1 && arg.start[0] == FLAG_1HY_HELP) { */
-        /*                 usage(); */
-        /*         } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_HELP)) { */
-        /*                 usage(); */
-        /*         } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_LIST)) { */
-        /*                 assert(0); */
-        /*         } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_DEPS)) { */
-        /*                 if (!arg.eq) { */
-        /*                         err_wargs("--%s requires argument after (=)", FLAG_2HY_DEPS); */
-        /*                 } */
-        /*                 assert(0); */
-        /*         } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_INSTALL)) { */
-        /*                 if (!clap_next(&arg)) { err_wargs("flag --%s requires an argument", FLAG_2HY_INSTALL); } */
-        /*                 assert(0); */
-        /*         } else { */
-        /*                 err_wargs("unknown flag %s", arg.start); */
-        /*         } */
-        /* } */
-
-        sqlite3_close(db);
+        cleanup_forge_context(&ctx);
         return 0;
 }

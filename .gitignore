@@ -2,3 +2,4 @@ forge
 forge.db
 *.so
 sqlite-autoconf*
+tmp.txt
