@@ -1,14 +1,12 @@
+#include "forge/cmd.h"
+
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 
-#include "forge.h"
-
-#define FORGE_MAIN_DIR "/home/zdh/dev/forge/src";
-
-static char *g_forge_cwd = FORGE_MAIN_DIR;
+#include "forge/forge.h"
 
 int
 cd(const char *fp)

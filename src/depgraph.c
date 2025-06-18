@@ -4,8 +4,7 @@
 #include <string.h>
 
 #include "depgraph.h"
-#include "dyn_array.h"
-#include "ds/array.h"
+#include "forge/forge.h"
 
 depgraph_node *
 depgraph_node_alloc(const char *name)

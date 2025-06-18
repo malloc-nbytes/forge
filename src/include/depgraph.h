@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#include "ds/array.h"
+#include "forge/array.h"
 
 #define DEPGRAPH_DEFAULT_CAPACITY 256
 

@@ -47,7 +47,7 @@ fn log_bad(msg)  { println(clr::Tfc.Red, msg, clr::Te.Reset); }
 
 if clean {
     $"sudo rm /usr/local/lib/libforge.so";
-    $"sudo rm /usr/local/include/forge.h";
+    $"sudo rm -r /usr/include/forge";
     $"sudo rm -r /usr/src/forge/";
     $"sudo rm -r /usr/lib/forge/";
     $"sudo rm -r /var/lib/forge";
@@ -65,13 +65,14 @@ if clean {
 get_sqlite3();
 
 # Build shared library
-$f"cc {flags} {lib_flags} {lib_name} forge.c {ld}";
+$f"cc {flags} {lib_flags} {lib_name} *.c {ld}";
 
 # Build executable
 $f"cc {flags} {name} *.c {ld}";
 
 if install {
-    $"sudo cp include/forge.h /usr/local/include";
+    $"sudo mkdir -p /usr/local/include/forge/";
+    $"sudo cp -r include/forge /usr/include/forge/";
     $"sudo cp pkgs/*.c /usr/src/forge/modules";
 }
 

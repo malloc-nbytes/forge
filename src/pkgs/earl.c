@@ -1,4 +1,4 @@
-#include "forge.h"
+#include <forge/forge.h>
 
 char *getname(void) { return "EARL"; }
 char *getver(void) { return "0.9.7"; }

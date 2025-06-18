@@ -1,4 +1,5 @@
-#include "forge.h"
+#include <forge/pkg.h>
+#include <forge/cmd.h>
 
 char *getname(void) { return "AnimX"; }
 char *getver(void) { return "1.0"; }

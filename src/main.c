@@ -12,17 +12,39 @@
 
 #include "sqlite3.h"
 
-#include "forge.h"
+#include "forge/forge.h"
 #include "depgraph.h"
 #include "flags.h"
 #include "utils.h"
 #include "colors.h"
-#include "dyn_array.h"
-#include "ds/array.h"
 #define CIO_IMPL
 #include "cio.h"
 #define CLAP_IMPL
 #include "clap.h"
+
+#define FORGE_C_MODULE_TEMPLATE \
+        "#include <forge.h>\n" \
+        "\n" \
+        "char *deps[] = {NULL}; // Must be NULL terminated\n" \
+        "\n" \
+        "char *getname(void) { return \"mypackage\"; }\n" \
+        "char *getver(void) { return \"1.0.0\"; }\n" \
+        "char *getdesc(void) { return \"My Description\"; }\n" \
+        "char **getdeps(void) { return deps; }\n" \
+        "char *build(void) {}" \
+        "void build(void) {}\n" \
+        "void install(void) {}\n" \
+        "void uninstall(void) {}\n" \
+        "\n" \
+        "FORGE_GLOBAL pkg package = {\n" \
+        "        .name = getname,\n" \
+        "        .ver = getver,\n" \
+        "        .desc = getdesc,\n" \
+        "        .deps = NULL,\n" \
+        "        .build = build,\n" \
+        "        .install = install,\n" \
+        "        .uninstall = uninstall,\n" \
+        "};"
 
 #define DB_DIR "/var/lib/forge/"
 #define DB_FP DB_DIR "forge.db"
