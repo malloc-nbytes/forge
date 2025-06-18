@@ -5,6 +5,7 @@
 - [X] store downloaded code somewhere (not in =/tmp/=!)
 - [X] restore the working directory after each pkg function call
 - [X] detect cyclic dependency checking
+- [ ] add --edit option to edit C src modules
 - [ ] be able to update packages
 - [ ] install deps when installing a package
 - [ ] remove old deps when nothing depends on them
