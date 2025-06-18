@@ -8,6 +8,7 @@ char *getname(void) { return "emacs"; }
 char *getver(void) { return "9.3.3"; }
 char *getdesc(void) { return "A GNU Text Editor"; }
 char **getdeps(void) { return deps; }
+void download(void) {}
 void build(void) {
         printf("Building emacs\n");
         printf("Done\n");
@@ -26,6 +27,7 @@ FORGE_GLOBAL pkg package = {
         .ver = getver,
         .desc = getdesc,
         .deps = getdeps,
+        .download = download,
         .build = build,
         .install = install,
         .uninstall = uninstall,

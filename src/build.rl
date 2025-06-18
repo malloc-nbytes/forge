@@ -50,6 +50,7 @@ if clean {
     $"sudo rm /usr/local/include/forge.h";
     $"sudo rm -r /usr/src/forge/";
     $"sudo rm -r /var/lib/forge";
+    $"sudo rm -r /var/cache/forge";
     exit(0);
 }
 

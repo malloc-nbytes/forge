@@ -3,6 +3,7 @@
 char *getname(void) { return "libcurl"; }
 char *getver(void) { return "34.53.1"; }
 char *getdesc(void) { return "An HTTP library"; }
+void download(void) {}
 void build(void) {}
 void install(void) {}
 void uninstall(void) {}
@@ -12,6 +13,7 @@ FORGE_GLOBAL pkg package = {
         .ver = getver,
         .desc = getdesc,
         .deps = NULL,
+        .download = download,
         .build = build,
         .install = install,
         .uninstall = uninstall,

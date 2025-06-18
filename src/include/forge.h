@@ -33,6 +33,7 @@ typedef struct {
         char *(*ver)(void);
         char *(*desc)(void);
         char **(*deps)(void);
+        void (*download)(void);
         void (*build)(void);
         void (*install)(void);
         void (*uninstall)(void);

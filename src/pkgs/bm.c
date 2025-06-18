@@ -5,6 +5,9 @@
 char *getname(void) { return "bm"; }
 char *getver(void) { return "1.0.2"; }
 char *getdesc(void) { return "Keep track of your terminal bookmarks"; }
+void download(void) {
+        cmd("git clone https://www.github.com/malloc-nbytes/bm.git/");
+}
 void build(void) {
         printf("Building bm\n");
         cmd("git clone https://www.github.com/malloc-nbytes/bm.git/");
@@ -33,6 +36,7 @@ FORGE_GLOBAL pkg package = {
         .ver = getver,
         .desc = getdesc,
         .deps = NULL,
+        .download = download,
         .build = build,
         .install = install,
         .uninstall = uninstall,

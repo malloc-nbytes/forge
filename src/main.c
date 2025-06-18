@@ -29,6 +29,8 @@
 #define C_MODULE_DIR "/usr/src/forge/modules/"
 #define MODULE_LIB_DIR "/usr/lib/forge/modules/"
 
+#define PKG_SOURCE_DIR "/var/cache/forge/sources/"
+
 #define CHECK_SQLITE(rc, db)                                            \
         do {                                                            \
                 if (rc != SQLITE_OK) {                                  \
@@ -588,6 +590,11 @@ init_env(void)
                 fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
         }
         if (mkdir_p(C_MODULE_DIR, 0755) != 0 && errno != EEXIST) {
+                fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
+        }
+
+        // Pkg source location
+        if (mkdir_p(PKG_SOURCE_DIR, 0755) != 0 && errno != EEXIST) {
                 fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
         }
 }
