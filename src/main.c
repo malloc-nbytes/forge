@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "sqlite3.h"
 
@@ -30,7 +31,6 @@
 #define MODULE_LIB_DIR "/usr/lib/forge/modules/"
 
 #define PKG_SOURCE_DIR "/var/cache/forge/sources/"
-#define PKG_SOURCE_DIR_QUARANTINE "/var/cache/forge/sources/quarantine"
 
 #define CHECK_SQLITE(rc, db)                                            \
         do {                                                            \
@@ -474,8 +474,11 @@ uninstall_pkg(forge_context *ctx,
               const char    *name)
 {
         printf(GREEN BOLD "*** Uninstalling package %s\n" RESET, name);
+        fflush(stdout);
+        sleep(1);
 
         pkg *pkg = NULL;
+        char *pkg_src_loc = NULL;
         size_t pkg_id = get_pkg_id(ctx, name);
         if (pkg_id == -1) {
                 err_wargs("unregistered package `%s`", name);
@@ -487,12 +490,53 @@ uninstall_pkg(forge_context *ctx,
                 }
         }
         assert(pkg);
-        info_minor("Performing action: pkg->uninstall()", 1);
+
+        // Retrieve pkg_src_loc from database
+        sqlite3_stmt *stmt;
+        const char *sql_select = "SELECT pkg_src_loc FROM Pkgs WHERE name = ?;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *src_loc = (const char *)sqlite3_column_text(stmt, 0);
+                if (src_loc) {
+                        pkg_src_loc = strdup(src_loc);
+                }
+        }
+        sqlite3_finalize(stmt);
+
+        char base[256] = {0};
+
+        if (pkg_src_loc) {
+                const char *pkgname = get_filename_from_dir(pkg_src_loc);
+                snprintf(base, sizeof(base), "%s%s", PKG_SOURCE_DIR, pkgname);
+
+                // Check if directory exists
+                struct stat st;
+                if (stat(base, &st) == -1 || !S_ISDIR(st.st_mode)) {
+                        fprintf(stderr, "Could not find source code, please reinstall\n");
+                        return;
+                }
+        } else {
+                fprintf(stderr, "Could not find source code, please reinstall\n");
+                return;
+        }
+
+        // Change to package directory
+        if (!cd(base)) {
+                fprintf(stderr, "aborting...\n");
+                free(pkg_src_loc);
+                return;
+        }
+
+        // Perform uninstall
+        good_minor("Performing: pkg->uninstall()", 1);
         pkg->uninstall();
 
-        sqlite3_stmt *stmt;
-        const char *sql_select = "SELECT id FROM Pkgs WHERE name = ?;";
-        int rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
+        // Update installed status in database
+        sql_select = "SELECT id FROM Pkgs WHERE name = ?;";
+        rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
         CHECK_SQLITE(rc, ctx->db);
 
         sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
@@ -506,7 +550,6 @@ uninstall_pkg(forge_context *ctx,
         rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
         CHECK_SQLITE(rc, ctx->db);
 
-        // Bind package id
         sqlite3_bind_int(stmt, 1, id);
 
         rc = sqlite3_step(stmt);
@@ -514,6 +557,8 @@ uninstall_pkg(forge_context *ctx,
                 fprintf(stderr, "Update error: %s\n", sqlite3_errmsg(ctx->db));
         }
         sqlite3_finalize(stmt);
+
+        free(pkg_src_loc);
 }
 
 void
@@ -521,6 +566,8 @@ install_pkg(forge_context *ctx,
             const char    *name)
 {
         printf(GREEN BOLD "*** Installing package %s\n" RESET, name);
+        fflush(stdout);
+        sleep(1);
 
         pkg *pkg = NULL;
         char *pkg_src_loc = NULL;
@@ -757,7 +804,7 @@ init_env(void)
         }
 
         // Pkg source location
-        if (mkdir_p(PKG_SOURCE_DIR_QUARANTINE, 0755) != 0 && errno != EEXIST) {
+        if (mkdir_p(PKG_SOURCE_DIR, 0755) != 0 && errno != EEXIST) {
                 fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
         }
 }

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <unistd.h>
 
 #include "colors.h"
 
@@ -7,6 +8,7 @@ good_major(const char *msg, int newline)
 {
         printf(GREEN BOLD "*** %s" RESET, msg);
         if (newline) { putchar('\n'); }
+        sleep(1);
 }
 
 void
@@ -21,6 +23,7 @@ info_major(const char *msg, int newline)
 {
         printf(YELLOW BOLD "*** %s" RESET, msg);
         if (newline) { putchar('\n'); }
+        sleep(1);
 }
 
 void
@@ -35,6 +38,7 @@ bad_major(const char *msg, int newline)
 {
         printf(RED BOLD "*** %s" RESET, msg);
         if (newline) { putchar('\n'); }
+        sleep(1);
 }
 
 void
