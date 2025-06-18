@@ -145,18 +145,15 @@ depgraph_gen_order(const depgraph *dg)
 {
         size_t_array ar = dyn_array_empty(size_t_array);
 
-        // Initialize visited and recursion stack arrays
         int *visited = (int *)calloc(dg->len, sizeof(int));
         int *rec_stack = (int *)calloc(dg->len, sizeof(int));
 
-        // Process all nodes to handle disconnected components
         for (size_t i = 0; i < dg->len; ++i) {
                 if (!visited[i]) {
                         __depgraph_gen_order(dg, &ar, i, visited, rec_stack);
                 }
         }
 
-        // Free temporary arrays
         free(visited);
         free(rec_stack);
 

@@ -1,16 +1,15 @@
-* TODO [25%]
+* TODO [50%]
 - [X] store DB file in =/var/lib/forge/forge.db=
 - [X] store C module files in =/usr/src/forge/pkgs/*.c=
 - [X] store C mdoule .so files in =/usr/lib/forge/pkgs/*.so=
 - [X] store downloaded code somewhere (not in =/tmp/=!)
-- [ ] after downloading into quarantine, add that directory name to the db (new Pkg entry)
-- [ ] restore the working directory after each pkg function call
+- [X] restore the working directory after each pkg function call
+- [X] detect cyclic dependency checking
 - [ ] be able to update packages
 - [ ] install deps when installing a package
 - [ ] remove old deps when nothing depends on them
   - [ ] add --depclean equivalent
   - [ ] add new field in Pkg table (=is_dep=)
-- [ ] detect cyclic dependency checking
 - [ ] add dumping a module file
 - [ ] add a search feature
 - [ ] add =version= data structure to compare versions

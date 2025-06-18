@@ -10,8 +10,12 @@
 #define FLAG_2HY_INSTALL "install"
 #define FLAG_2HY_UNINSTALL "uninstall"
 #define FLAG_2HY_REBUILD "rebuild"
+#define FLAG_2HY_NEW "new"
 
-typedef enum { FT_NONE = 0, } flag_type;
+typedef enum {
+        FT_NONE = 1 << 0,
+        FT_NEW = 1 << 1,
+} flag_type;
 
 void usage(void);
 

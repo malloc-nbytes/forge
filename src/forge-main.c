@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdint.h>
 
 #include "sqlite3.h"
 
@@ -31,7 +32,7 @@
         "char *getver(void) { return \"1.0.0\"; }\n" \
         "char *getdesc(void) { return \"My Description\"; }\n" \
         "char **getdeps(void) { return deps; }\n" \
-        "char *build(void) {}" \
+        "char *download(void) {}\n" \
         "void build(void) {}\n" \
         "void install(void) {}\n" \
         "void uninstall(void) {}\n" \
@@ -41,6 +42,7 @@
         "        .ver = getver,\n" \
         "        .desc = getdesc,\n" \
         "        .deps = NULL,\n" \
+        "        .download = download,\n" \
         "        .build = build,\n" \
         "        .install = install,\n" \
         "        .uninstall = uninstall,\n" \
@@ -76,6 +78,12 @@ typedef struct {
         depgraph dg;
         pkg_ptr_array pkgs;
 } forge_context;
+
+static struct {
+        uint32_t flags;
+} g_config = {
+        .flags = 0x00000000,
+};
 
 char *
 get_filename_from_dir(char *path)
@@ -831,6 +839,26 @@ init_env(void)
         }
 }
 
+void
+new_pkg(forge_context *ctx, const char *name)
+{
+        char fp[256] = {0};
+        sprintf(fp, C_MODULE_DIR "%s.c", name);
+        if (cio_file_exists(fp)) {
+                err_wargs("file %s already exists", fp);
+        }
+        if (!cio_write_file(fp, FORGE_C_MODULE_TEMPLATE)) {
+                err_wargs("failed to write to file %s, %s", fp, strerror(errno));
+        }
+
+        // Open in Vim
+        char cmd[512] = {0};
+        snprintf(cmd, sizeof(cmd), "vim %s", fp);
+        if (system(cmd) == -1) {
+                fprintf(stderr, "Failed to open %s in Vim: %s\n", fp, strerror(errno));
+        }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -917,6 +945,12 @@ main(int argc, char **argv)
                         for (size_t i = 0; i < indices.len; ++i) {
                                 register_pkg(&ctx, ctx.pkgs.data[indices.data[i]]);
                         }
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_NEW)) {
+                        if (!clap_next(&arg)) {
+                                err_wargs("flag `%s` requires an argument", FLAG_2HY_NEW);
+                        }
+                        assert_sudo();
+                        new_pkg(&ctx, arg.start);
                 } else {
                         err_wargs("unknown flag `%s`", arg.start);
                 }

@@ -56,19 +56,19 @@ if clean {
 }
 
 @const let sqlite3 = "sqlite-autoconf-3500100";
-@const let flags = "-Iinclude" + case debug of { true = " -ggdb -O0"; _ = ""; };
+@const let flags = "-Iinclude $(pkg-config --cflags ncurses)" + case debug of { true = " -ggdb -O0"; _ = ""; };
 @const let name = "-o forge";
 @const let lib_name = "-o libforge.so";
 @const let lib_flags = "-fPIC -shared";
-@const let ld = f"-L{sqlite3} -lsqlite3 -pthread -ldl";
+@const let ld = f"-L{sqlite3} -lsqlite3 -pthread -ldl $(pkg-config --libs ncurses)";
 
 get_sqlite3();
 
 # Build shared library
-$f"cc {flags} {lib_flags} {lib_name} *.c {ld}";
+$f"cc {flags} {lib_flags} {lib_name} *.c forge-headers-src/*.c {ld}";
 
 # Build executable
-$f"cc {flags} {name} *.c {ld}";
+$f"cc {flags} {name} *.c forge-headers-src/*.c {ld}";
 
 if install {
     $"sudo mkdir -p /usr/local/include/forge/";
