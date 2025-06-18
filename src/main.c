@@ -157,6 +157,8 @@ register_pkg(forge_context *ctx, pkg *pkg)
 
         if (id != -1) {
                 // Update existing package
+                //printf(GREEN BOLD "*** Updating package registration: %s\n" RESET, name);
+
                 //const char *sql_update = "UPDATE Pkgs SET version = ?, description = ?, installed = 1 WHERE name = ?;";
                 const char *sql_update = "UPDATE Pkgs SET version = ?, description = ? WHERE name = ?;";
                 rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
@@ -185,6 +187,8 @@ register_pkg(forge_context *ctx, pkg *pkg)
                 /* sqlite3_finalize(stmt); */
         } else {
                 // New package
+                printf(GREEN BOLD "*** Registered package: %s\n" RESET, name);
+
                 const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed) VALUES (?, ?, ?, 0);";
                 int rc = sqlite3_prepare_v2(ctx->db, sql_insert, -1, &stmt, NULL);
                 CHECK_SQLITE(rc, ctx->db);
@@ -198,12 +202,11 @@ register_pkg(forge_context *ctx, pkg *pkg)
                         fprintf(stderr, "Insert error: %s\n", sqlite3_errmsg(ctx->db));
                 }
                 sqlite3_finalize(stmt);
-                printf("*** Registered package: %s\n", name);
 
                 if (pkg->deps) {
                         char **deps = pkg->deps();
                         for (size_t i = 0; deps[i]; ++i) {
-                                printf("*** Adding dependency: %s for %s\n", deps[i], name);
+                                printf(GREEN BOLD "*** Adding dependency %s for %s\n" RESET, deps[i], name);
                                 add_dep_to_db(ctx, get_pkg_id(ctx, name), get_pkg_id(ctx, deps[i]));
                         }
                 }
