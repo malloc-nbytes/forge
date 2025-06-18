@@ -1,0 +1,4 @@
+* TODO [0%]
+- [ ] store DB file in =/var/lib/forge/forge.db=
+- [ ] store C module files in =/usr/src/forge/pkgs/*.c=
+- [ ] store C mdoule .so files in =/usr/lib/forge/pkgs/*.so=
