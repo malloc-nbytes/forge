@@ -594,205 +594,211 @@ construct_depgraph(forge_context *ctx)
 
 void
 uninstall_pkg(forge_context *ctx,
-              const char    *name)
+              str_array     *names)
 {
-        printf(GREEN BOLD "*** Uninstalling package %s\n" RESET, name);
-        fflush(stdout);
-        sleep(1);
+        for (size_t i = 0; i < names->len; ++i) {
+                const char *name = names->data[i];
+                printf(GREEN BOLD "*** Uninstalling package %s [%zu of %zu]\n" RESET, name, i+1, names->len);
+                fflush(stdout);
+                sleep(1);
 
-        pkg *pkg = NULL;
-        char *pkg_src_loc = NULL;
-        size_t pkg_id = get_pkg_id(ctx, name);
-        if (pkg_id == -1) {
-                err_wargs("unregistered package `%s`", name);
-        }
-        for (size_t i = 0; i < ctx->pkgs.len; ++i) {
-                if (!strcmp(ctx->pkgs.data[i]->name(), name)) {
-                        pkg = ctx->pkgs.data[i];
-                        break;
+                pkg *pkg = NULL;
+                char *pkg_src_loc = NULL;
+                size_t pkg_id = get_pkg_id(ctx, name);
+                if (pkg_id == -1) {
+                        err_wargs("unregistered package `%s`", name);
                 }
-        }
-        assert(pkg);
-
-        // Retrieve pkg_src_loc from database
-        sqlite3_stmt *stmt;
-        const char *sql_select = "SELECT pkg_src_loc FROM Pkgs WHERE name = ?;";
-        int rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, ctx->db);
-
-        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
-                const char *src_loc = (const char *)sqlite3_column_text(stmt, 0);
-                if (src_loc) {
-                        pkg_src_loc = strdup(src_loc);
+                for (size_t i = 0; i < ctx->pkgs.len; ++i) {
+                        if (!strcmp(ctx->pkgs.data[i]->name(), name)) {
+                                pkg = ctx->pkgs.data[i];
+                                break;
+                        }
                 }
-        }
-        sqlite3_finalize(stmt);
+                assert(pkg);
 
-        char base[256] = {0};
+                // Retrieve pkg_src_loc from database
+                sqlite3_stmt *stmt;
+                const char *sql_select = "SELECT pkg_src_loc FROM Pkgs WHERE name = ?;";
+                int rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
 
-        if (pkg_src_loc) {
-                const char *pkgname = get_filename_from_dir(pkg_src_loc);
-                snprintf(base, sizeof(base), "%s%s", PKG_SOURCE_DIR, pkgname);
+                sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+                if (sqlite3_step(stmt) == SQLITE_ROW) {
+                        const char *src_loc = (const char *)sqlite3_column_text(stmt, 0);
+                        if (src_loc) {
+                                pkg_src_loc = strdup(src_loc);
+                        }
+                }
+                sqlite3_finalize(stmt);
 
-                // Check if directory exists
-                struct stat st;
-                if (stat(base, &st) == -1 || !S_ISDIR(st.st_mode)) {
+                char base[256] = {0};
+
+                if (pkg_src_loc) {
+                        const char *pkgname = get_filename_from_dir(pkg_src_loc);
+                        snprintf(base, sizeof(base), "%s%s", PKG_SOURCE_DIR, pkgname);
+
+                        // Check if directory exists
+                        struct stat st;
+                        if (stat(base, &st) == -1 || !S_ISDIR(st.st_mode)) {
+                                fprintf(stderr, "Could not find source code, please reinstall\n");
+                                return;
+                        }
+                } else {
                         fprintf(stderr, "Could not find source code, please reinstall\n");
                         return;
                 }
-        } else {
-                fprintf(stderr, "Could not find source code, please reinstall\n");
-                return;
-        }
 
-        // Change to package directory
-        if (!cd(base)) {
-                fprintf(stderr, "aborting...\n");
+                // Change to package directory
+                if (!cd(base)) {
+                        fprintf(stderr, "aborting...\n");
+                        free(pkg_src_loc);
+                        return;
+                }
+
+                // Perform uninstall
+                good_minor("Performing: pkg->uninstall()", 1);
+                pkg->uninstall();
+
+                // Update installed status in database
+                sql_select = "SELECT id FROM Pkgs WHERE name = ?;";
+                rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+                int id = -1;
+                if (sqlite3_step(stmt) == SQLITE_ROW) {
+                        id = sqlite3_column_int(stmt, 0);
+                }
+                sqlite3_finalize(stmt);
+
+                const char *sql_update = "UPDATE Pkgs SET installed = 0 WHERE id = ?;";
+                rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_int(stmt, 1, id);
+
+                rc = sqlite3_step(stmt);
+                if (rc != SQLITE_DONE) {
+                        fprintf(stderr, "Update error: %s\n", sqlite3_errmsg(ctx->db));
+                }
+                sqlite3_finalize(stmt);
+
                 free(pkg_src_loc);
-                return;
         }
-
-        // Perform uninstall
-        good_minor("Performing: pkg->uninstall()", 1);
-        pkg->uninstall();
-
-        // Update installed status in database
-        sql_select = "SELECT id FROM Pkgs WHERE name = ?;";
-        rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, ctx->db);
-
-        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
-        int id = -1;
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
-                id = sqlite3_column_int(stmt, 0);
-        }
-        sqlite3_finalize(stmt);
-
-        const char *sql_update = "UPDATE Pkgs SET installed = 0 WHERE id = ?;";
-        rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, ctx->db);
-
-        sqlite3_bind_int(stmt, 1, id);
-
-        rc = sqlite3_step(stmt);
-        if (rc != SQLITE_DONE) {
-                fprintf(stderr, "Update error: %s\n", sqlite3_errmsg(ctx->db));
-        }
-        sqlite3_finalize(stmt);
-
-        free(pkg_src_loc);
 }
 
 void
 install_pkg(forge_context *ctx,
-            const char    *name)
+            str_array     *names)
 {
-        printf(GREEN BOLD "*** Installing package %s\n" RESET, name);
-        fflush(stdout);
-        sleep(1);
+        for (size_t i = 0; i < names->len; ++i) {
+                const char *name = names->data[i];
+                printf(GREEN BOLD "*** Installing package %s [%zu of %zu]\n" RESET, name, i+1, names->len);
+                fflush(stdout);
+                sleep(1);
 
-        pkg *pkg = NULL;
-        char *pkg_src_loc = NULL;
-        size_t pkg_id = get_pkg_id(ctx, name);
-        if (pkg_id == -1) {
-                err_wargs("unregistered package `%s`", name);
-        }
-        for (size_t i = 0; i < ctx->pkgs.len; ++i) {
-                if (!strcmp(ctx->pkgs.data[i]->name(), name)) {
-                        pkg = ctx->pkgs.data[i];
-                        break;
+                pkg *pkg = NULL;
+                char *pkg_src_loc = NULL;
+                size_t pkg_id = get_pkg_id(ctx, name);
+                if (pkg_id == -1) {
+                        err_wargs("unregistered package `%s`", name);
                 }
-        }
-        assert(pkg);
-
-        sqlite3_stmt *stmt;
-        const char *sql_select = "SELECT pkg_src_loc FROM Pkgs WHERE name = ?;";
-        int rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, ctx->db);
-
-        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
-                const char *src_loc = (const char *)sqlite3_column_text(stmt, 0);
-                if (src_loc) {
-                        pkg_src_loc = strdup(src_loc);
+                for (size_t i = 0; i < ctx->pkgs.len; ++i) {
+                        if (!strcmp(ctx->pkgs.data[i]->name(), name)) {
+                                pkg = ctx->pkgs.data[i];
+                                break;
+                        }
                 }
-        }
-        sqlite3_finalize(stmt);
+                assert(pkg);
 
-        if (!cd(PKG_SOURCE_DIR)) {
-                fprintf(stderr, "aborting...\n");
-                return;
-        }
+                sqlite3_stmt *stmt;
+                const char *sql_select = "SELECT pkg_src_loc FROM Pkgs WHERE name = ?;";
+                int rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
 
-        const char *pkgname = NULL;
+                sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+                if (sqlite3_step(stmt) == SQLITE_ROW) {
+                        const char *src_loc = (const char *)sqlite3_column_text(stmt, 0);
+                        if (src_loc) {
+                                pkg_src_loc = strdup(src_loc);
+                        }
+                }
+                sqlite3_finalize(stmt);
 
-        if (pkg_src_loc) {
-                pkgname = get_filename_from_dir(pkg_src_loc);
-        }
-        else {
-                good_minor("Performing: pkg->download()", 1);
-                pkgname = pkg->download();
-        }
-
-        if (!cd_silent(pkgname)) {
-                pkg->download();
-                if (!cd(pkgname)) {
+                if (!cd(PKG_SOURCE_DIR)) {
                         fprintf(stderr, "aborting...\n");
                         return;
                 }
+
+                const char *pkgname = NULL;
+
+                if (pkg_src_loc) {
+                        pkgname = get_filename_from_dir(pkg_src_loc);
+                }
+                else {
+                        good_minor("Performing: pkg->download()", 1);
+                        pkgname = pkg->download();
+                }
+
+                if (!cd_silent(pkgname)) {
+                        pkg->download();
+                        if (!cd(pkgname)) {
+                                fprintf(stderr, "aborting...\n");
+                                return;
+                        }
+                }
+
+                char base[256] = {0};
+                sprintf(base, PKG_SOURCE_DIR "%s", pkgname);
+
+                good_minor("Performing: pkg->build()", 1);
+                pkg->build();
+                if (!cd(base)) {
+                        fprintf(stderr, "aborting...\n");
+                        return;
+                }
+                good_minor("Performing: pkg->install()", 1);
+                pkg->install();
+
+                // Update pkg_src_loc in database
+                const char *sql_update = "UPDATE Pkgs SET pkg_src_loc = ? WHERE name = ?;";
+                rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_text(stmt, 1, base, -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
+
+                rc = sqlite3_step(stmt);
+                if (rc != SQLITE_DONE) {
+                        fprintf(stderr, "Update pkg_src_loc error: %s\n", sqlite3_errmsg(ctx->db));
+                }
+                sqlite3_finalize(stmt);
+
+                // Update the installed flag
+                sql_select = "SELECT id FROM Pkgs WHERE name = ?;";
+                rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+                int id = -1;
+                if (sqlite3_step(stmt) == SQLITE_ROW) {
+                        id = sqlite3_column_int(stmt, 0);
+                }
+                sqlite3_finalize(stmt);
+
+                sql_update = "UPDATE Pkgs SET installed = 1 WHERE id = ?;";
+                rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                // Bind package id
+                sqlite3_bind_int(stmt, 1, id);
+
+                rc = sqlite3_step(stmt);
+                if (rc != SQLITE_DONE) {
+                        fprintf(stderr, "Update error: %s\n", sqlite3_errmsg(ctx->db));
+                }
+                sqlite3_finalize(stmt);
         }
-
-        char base[256] = {0};
-        sprintf(base, PKG_SOURCE_DIR "%s", pkgname);
-
-        good_minor("Performing: pkg->build()", 1);
-        pkg->build();
-        if (!cd(base)) {
-                fprintf(stderr, "aborting...\n");
-                return;
-        }
-        good_minor("Performing: pkg->install()", 1);
-        pkg->install();
-
-        // Update pkg_src_loc in database
-        const char *sql_update = "UPDATE Pkgs SET pkg_src_loc = ? WHERE name = ?;";
-        rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, ctx->db);
-
-        sqlite3_bind_text(stmt, 1, base, -1, SQLITE_STATIC);
-        sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
-
-        rc = sqlite3_step(stmt);
-        if (rc != SQLITE_DONE) {
-                fprintf(stderr, "Update pkg_src_loc error: %s\n", sqlite3_errmsg(ctx->db));
-        }
-        sqlite3_finalize(stmt);
-
-        // Update the installed flag
-        sql_select = "SELECT id FROM Pkgs WHERE name = ?;";
-        rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, ctx->db);
-
-        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
-        int id = -1;
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
-                id = sqlite3_column_int(stmt, 0);
-        }
-        sqlite3_finalize(stmt);
-
-        sql_update = "UPDATE Pkgs SET installed = 1 WHERE id = ?;";
-        rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, ctx->db);
-
-        // Bind package id
-        sqlite3_bind_int(stmt, 1, id);
-
-        rc = sqlite3_step(stmt);
-        if (rc != SQLITE_DONE) {
-                fprintf(stderr, "Update error: %s\n", sqlite3_errmsg(ctx->db));
-        }
-        sqlite3_finalize(stmt);
 }
 
 void
@@ -998,17 +1004,21 @@ main(int argc, char **argv)
                         }
                         list_deps(&ctx, arg.start);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_INSTALL)) {
-                        if (!clap_next(&arg)) {
-                                err_wargs("flag `%s` requires an argument", FLAG_2HY_INSTALL);
+                        str_array names = dyn_array_empty(str_array);
+                        while (clap_next(&arg)) {
+                                dyn_array_append(names, strdup(arg.start));
                         }
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_INSTALL);
                         assert_sudo();
-                        install_pkg(&ctx, arg.start);
+                        install_pkg(&ctx, &names);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_UNINSTALL)) {
-                        if (!clap_next(&arg)) {
-                                err_wargs("flag `%s` requires an argument", FLAG_2HY_UNINSTALL);
+                        str_array names = dyn_array_empty(str_array);
+                        while (clap_next(&arg)) {
+                                dyn_array_append(names, strdup(arg.start));
                         }
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_INSTALL);
                         assert_sudo();
-                        uninstall_pkg(&ctx, arg.start);
+                        uninstall_pkg(&ctx, &names);
                 } else if ((arg.hyphc == 1 && arg.start[0] == FLAG_1HY_REBUILD) ||
                            (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_REBUILD))) {
                         assert_sudo();
