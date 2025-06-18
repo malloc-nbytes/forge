@@ -10,8 +10,6 @@ void download(void) {
 }
 void build(void) {
         printf("Building bm\n");
-        cmd("git clone https://www.github.com/malloc-nbytes/bm.git/");
-        cd("bm");
         cmd("mkdir build");
         cd("build");
         cmd("cmake -S .. -B .");
@@ -20,13 +18,13 @@ void build(void) {
 }
 void install(void) {
         printf("Installing bm\n");
-        cd("bm/build");
+        cd("build");
         cmd("sudo make install");
         printf("Done\n");
 }
 void uninstall(void) {
         printf("Uninstalling bm\n");
-        cd("bm/build");
+        cd("build");
         cmd("sudo make uninstall");
         printf("Done\n");
 }

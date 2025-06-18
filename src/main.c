@@ -30,6 +30,7 @@
 #define MODULE_LIB_DIR "/usr/lib/forge/modules/"
 
 #define PKG_SOURCE_DIR "/var/cache/forge/sources/"
+#define PKG_SOURCE_DIR_QUARANTINE "/var/cache/forge/sources/quarantine"
 
 #define CHECK_SQLITE(rc, db)                                            \
         do {                                                            \
@@ -53,6 +54,90 @@ typedef struct {
         depgraph dg;
         pkg_ptr_array pkgs;
 } forge_context;
+
+str_array
+get_dirs_in_dir(const char *fp)
+{
+        str_array res = dyn_array_empty(str_array);
+        DIR *dir = opendir(fp);
+        if (!dir) {
+                fprintf(stderr, "Failed to open directory %s: %s\n", fp, strerror(errno));
+                return res;
+        }
+
+        struct dirent *entry;
+        struct stat st;
+        char full_path[256];
+
+        while ((entry = readdir(dir))) {
+                // Skip "." and ".." entries
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                        continue;
+                }
+
+                snprintf(full_path, sizeof(full_path), "%s/%s", fp, entry->d_name);
+
+                if (stat(full_path, &st) == -1) {
+                        fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
+                        continue;
+                }
+
+                // Check if it's a directory
+                if (S_ISDIR(st.st_mode)) {
+                        char *dirname = strdup(entry->d_name);
+                        if (!dirname) {
+                                fprintf(stderr, "Failed to allocate memory for %s\n", entry->d_name);
+                                continue;
+                        }
+                        dyn_array_append(res, dirname);
+                }
+        }
+
+        closedir(dir);
+        return res;
+}
+
+str_array
+get_files_in_dir(const char *fp)
+{
+        str_array res = dyn_array_empty(str_array);
+        DIR *dir = opendir(fp);
+        if (!dir) {
+                fprintf(stderr, "Failed to open directory %s: %s\n", fp, strerror(errno));
+                return res;
+        }
+
+        struct dirent *entry;
+        struct stat st;
+        char full_path[256];
+
+        while ((entry = readdir(dir))) {
+                // Skip "." and ".." entries
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                        continue;
+                }
+
+                snprintf(full_path, sizeof(full_path), "%s/%s", fp, entry->d_name);
+
+                if (stat(full_path, &st) == -1) {
+                        fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
+                        continue;
+                }
+
+                // Check if it's a regular file
+                if (S_ISREG(st.st_mode)) {
+                        char *filename = strdup(entry->d_name);
+                        if (!filename) {
+                                fprintf(stderr, "Failed to allocate memory for %s\n", entry->d_name);
+                                continue;
+                        }
+                        dyn_array_append(res, filename);
+                }
+        }
+
+        closedir(dir);
+        return res;
+}
 
 // Create directory and all parent directories, `mkdir -p`.
 int
@@ -431,10 +516,47 @@ install_pkg(forge_context *ctx,
         }
         assert(pkg);
 
+        if (!cd(PKG_SOURCE_DIR_QUARANTINE)) {
+                fprintf(stderr, "aborting...\n");
+                return;
+        }
+
+        info_minor("Performing action: pkg->download()", 1);
+        pkg->download();
+        str_array one_dir = get_dirs_in_dir(PKG_SOURCE_DIR_QUARANTINE);
+        if (!cd(one_dir.data[0])) { fprintf(stderr, "aborting...\n"); return; }
+
+        char pkg_dir[256] = {0};
+        sprintf(pkg_dir, PKG_SOURCE_DIR_QUARANTINE "/%s", one_dir.data[0]);
+
         info_minor("Performing action: pkg->build()", 1);
+        if (!cd(pkg_dir)) { fprintf(stderr, "aborting...\n"); return; }
         pkg->build();
+
         info_minor("Performing action: pkg->install()", 1);
+        if (!cd(pkg_dir)) { fprintf(stderr, "aborting...\n"); return; }
         pkg->install();
+
+        {
+                char buf[256];
+                if (getcwd(buf, sizeof(buf)) == NULL) {
+                        fprintf(stderr, "Failed to get current working directory: %s\n", strerror(errno));
+                        return;
+                }
+        }
+        {
+                if (!cd(PKG_SOURCE_DIR_QUARANTINE)) {
+                        fprintf(stderr, "aborting...\n");
+                        return;
+                }
+                char buf[256] = {0};
+                sprintf(buf, "../%s", one_dir.data[0]);
+                if (rename(one_dir.data[0], buf) == -1) {
+                        fprintf(stderr, "could not rename %s to %s: %s, aborting...\n", one_dir.data[0], buf, strerror(errno));
+                        return;
+                }
+        }
+        dyn_array_free(one_dir);
 
         sqlite3_stmt *stmt;
         const char *sql_select = "SELECT id FROM Pkgs WHERE name = ?;";
@@ -594,7 +716,7 @@ init_env(void)
         }
 
         // Pkg source location
-        if (mkdir_p(PKG_SOURCE_DIR, 0755) != 0 && errno != EEXIST) {
+        if (mkdir_p(PKG_SOURCE_DIR_QUARANTINE, 0755) != 0 && errno != EEXIST) {
                 fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
         }
 }
