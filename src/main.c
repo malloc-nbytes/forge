@@ -836,6 +836,7 @@ main(int argc, char **argv)
                 .pkgs = dyn_array_empty(pkg_ptr_array),
         };
 
+        // Load existing .so files and packages
         obtain_handles_and_pkgs_from_dll(&ctx);
         construct_depgraph(&ctx);
         size_t_array indices = depgraph_gen_order(&ctx.dg);
@@ -865,15 +866,36 @@ main(int argc, char **argv)
                         }
                         assert_sudo();
                         uninstall_pkg(&ctx, arg.start);
-                } else if ((arg.hyphc == 1 && arg.start[0] == FLAG_1HY_REBUILD)
-                           || (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_REBUILD))) {
+                } else if ((arg.hyphc == 1 && arg.start[0] == FLAG_1HY_REBUILD) ||
+                           (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_REBUILD))) {
                         assert_sudo();
+                        // Clean up existing context to avoid stale handles
+                        for (size_t i = 0; i < ctx.dll.handles.len; ++i) {
+                                dlclose(ctx.dll.handles.data[i]);
+                                free(ctx.dll.paths.data[i]);
+                        }
+                        dyn_array_free(ctx.dll.handles);
+                        dyn_array_free(ctx.dll.paths);
+                        dyn_array_free(ctx.pkgs);
+                        depgraph_destroy(&ctx.dg);
+
+                        // Reinitialize context
+                        ctx.dll.handles = dyn_array_empty(handle_array);
+                        ctx.dll.paths = dyn_array_empty(str_array);
+                        ctx.pkgs = dyn_array_empty(pkg_ptr_array);
+                        ctx.dg = depgraph_create();
+
+                        // Rebuild packages and load new .so files
                         rebuild_pkgs(&ctx);
+                        obtain_handles_and_pkgs_from_dll(&ctx);
+                        construct_depgraph(&ctx);
+                        indices = depgraph_gen_order(&ctx.dg);
+
+                        // Register packages
                         for (size_t i = 0; i < indices.len; ++i) {
                                 register_pkg(&ctx, ctx.pkgs.data[indices.data[i]]);
                         }
-                }
-                else {
+                } else {
                         err_wargs("unknown flag `%s`", arg.start);
                 }
         }

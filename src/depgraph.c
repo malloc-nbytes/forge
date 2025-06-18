@@ -110,7 +110,7 @@ __depgraph_gen_order(const depgraph *dg, size_t_array *ar, size_t st, int *visit
 {
         if (rec_stack[st]) {
                 // Cycle detected, but we can skip for topological sort purposes
-                // Optionally, you can handle this differently (e.g., report an error)
+                // Optionally, you can handle this differently (report an error)
                 return;
         }
 
