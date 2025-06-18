@@ -80,7 +80,6 @@ depgraph_add_dep(depgraph   *dg,
                  const char *to)
 {
         // TODO: check for not found
-        // TODO: check for cyclic graph
 
         for (size_t i = 0; i < dg->len; ++i) {
                 if (!strcmp(dg->tbl[i]->name, from)) {
@@ -111,6 +110,8 @@ __depgraph_gen_order(const depgraph *dg,
                      size_t_array   *ar,
                      size_t          st)
 {
+        // TODO: detect cyclic order
+
         for (size_t i = st; i < dg->len; ++i) {
 
                 // TODO: use a hashset for track visited.
