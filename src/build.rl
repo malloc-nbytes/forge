@@ -8,34 +8,14 @@ import "std/colors.rl"; as clr
 
 set_flag("-xe");
 
-let debug = false;
+let debug, clean, install = (false, false, false);
 try { debug = ("g", "d", "ggdb", "debug").contains(argv()[1]); }
+try { clean = argv()[1] == "clean"; }
+try { install = argv()[1] == "install"; }
 
 fn log_ok(msg)   { println(clr::Tfc.Green, msg, clr::Te.Reset); }
 fn log_info(msg) { println(clr::Tfc.Yellow, msg, clr::Te.Reset); }
 fn log_bad(msg)  { println(clr::Tfc.Red, msg, clr::Te.Reset); }
-
-fn compile_pkgs() {
-    log_info("Compiling pkgs");
-
-    $"pwd" |> let oldcwd;
-    cd("pkgs");
-
-    let cfiles = sys::get_all_files_by_ext(".", "c");
-
-    foreach f in cfiles {
-        with parts = sys::name_and_ext(f),
-             name = parts[0].unwrap(),
-             ext = parts[1]
-        in if ext && ext.unwrap() == "c" {
-            $f"earl build.rl -- {name}";
-        }
-    }
-
-    cd(oldcwd);
-
-    log_ok("ok");
-}
 
 @world fn get_sqlite3() {
     log_info(f"Checking for {sqlite3}");
@@ -65,19 +45,32 @@ fn compile_pkgs() {
     log_ok("ok");
 }
 
+if clean {
+    $"sudo rm /usr/local/lib/libforge.so";
+    $"sudo rm /usr/local/include/forge.h";
+    $"sudo rm -r /usr/src/forge/";
+    $"sudo rm -r /var/lib/forge";
+    exit(0);
+}
+
 @const let sqlite3 = "sqlite-autoconf-3500100";
 @const let flags = "-Iinclude" + case debug of { true = " -ggdb -O0"; _ = ""; };
 @const let name = "-o forge";
-# @const let lib_name = "-o libforge.so";
-# @const let lib_flags = "-fPIC -shared";
+@const let lib_name = "-o libforge.so";
+@const let lib_flags = "-fPIC -shared";
 @const let ld = f"-L{sqlite3} -lsqlite3 -pthread -ldl";
 
 get_sqlite3();
 
 # Build shared library
-# $f"cc {flags} {lib_flags} {lib_name} forge.c {ld}";
+$f"cc {flags} {lib_flags} {lib_name} forge.c {ld}";
 
 # Build executable
 $f"cc {flags} {name} *.c {ld}";
 
-# compile_pkgs();
+if install {
+    $"sudo cp include/forge.h /usr/local/include";
+    $"sudo cp pkgs/*.c /usr/src/forge/modules";
+}
+
+$"sudo cp ./libforge.so /usr/local/lib/";

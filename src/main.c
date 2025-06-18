@@ -25,8 +25,10 @@
 
 #define DB_DIR "/var/lib/forge/"
 #define DB_FP DB_DIR "forge.db"
-#define PKG_LIB_DIR "pkgs/build/"
-#define PKG_DIR "pkgs/"
+
+#define C_MODULE_DIR "/usr/src/forge/modules/"
+#define MODULE_LIB_DIR "/usr/lib/forge/modules/"
+
 #define CHECK_SQLITE(rc, db)                                            \
         do {                                                            \
                 if (rc != SQLITE_OK) {                                  \
@@ -49,6 +51,44 @@ typedef struct {
         depgraph dg;
         pkg_ptr_array pkgs;
 } forge_context;
+
+// Create directory and all parent directories, `mkdir -p`.
+int
+mkdir_p(const char *path, mode_t mode)
+{
+        if (!path || !*path) return -1;
+
+        // Try to create the directory
+        if (mkdir(path, mode) == 0 || errno == EEXIST) {
+                return 0;
+        }
+
+        // If the error is not "parent doesn't exist", return failure
+        if (errno != ENOENT) {
+                return -1;
+        }
+
+        // Find the last '/' to get the parent directory
+        char *parent = strdup(path);
+        if (!parent) return -1;
+
+        char *last_slash = strrchr(parent, '/');
+        if (!last_slash || last_slash == parent) {
+                free(parent);
+                return -1;
+        }
+
+        *last_slash = '\0'; // Terminate at the parent path
+
+        // Recursively create parent directories
+        int result = mkdir_p(parent, mode);
+        free(parent);
+
+        if (result != 0) return -1;
+
+        // Try creating the directory again
+        return mkdir(path, mode) == 0 || errno == EEXIST ? 0 : -1;
+}
 
 sqlite3 *
 init_db(const char *dbname)
@@ -423,7 +463,7 @@ install_pkg(forge_context *ctx,
 void
 obtain_handles_and_pkgs_from_dll(forge_context *ctx)
 {
-        DIR *dir = opendir(PKG_LIB_DIR);
+        DIR *dir = opendir(MODULE_LIB_DIR);
         if (!dir) {
                 perror("Failed to open package directory");
                 return;
@@ -433,11 +473,11 @@ obtain_handles_and_pkgs_from_dll(forge_context *ctx)
         while ((entry = readdir(dir))) {
                 if (strstr(entry->d_name, ".so")) {
                         char *path = (char *)malloc(256);
-                        snprintf(path, 256, "%s%s", PKG_LIB_DIR, entry->d_name);
+                        snprintf(path, 256, "%s%s", MODULE_LIB_DIR, entry->d_name);
 
                         void *handle = dlopen(path, RTLD_LAZY);
                         if (!handle) {
-                                fprintf(stderr, "Error loading dll path: %s, %s\n", path, dlerror());
+                                fprintf(stderr, "Error loading dll path: `%s`, %s\n", path, dlerror());
                                 return;
                         }
 
@@ -486,7 +526,7 @@ rebuild_pkgs(forge_context *ctx)
 {
         good_major("Rebuilding package modules", 1);
 
-        DIR *dir = opendir(PKG_DIR);
+        DIR *dir = opendir(C_MODULE_DIR);
         if (!dir) {
                 perror("Failed to open directory");
                 return;
@@ -507,14 +547,16 @@ rebuild_pkgs(forge_context *ctx)
                 }
         }
 
-        if (!cd(PKG_DIR)) {
+        if (!cd(C_MODULE_DIR)) {
                 fprintf(stderr, "aborting...\n");
                 goto cleanup;
         }
 
         for (size_t i = 0; i < files.len; ++i) {
                 char buf[256] = {0};
-                sprintf(buf, "gcc -shared -fPIC %s.c ../forge.c -o ./build/%s.so -I../include",
+                // sprintf(buf, "gcc -shared -fPIC %s.c ../forge.c -o ./build/%s.so -I../include",
+                //         files.data[i], files.data[i]);
+                sprintf(buf, "gcc -shared -fPIC %s.c -lforge -L/usr/local/lib -o" MODULE_LIB_DIR "%s.so -I../include",
                         files.data[i], files.data[i]);
                 if (!cmd(buf)) {
                         fprintf(stderr, "command %s failed, aborting...\n", buf);
@@ -528,6 +570,28 @@ rebuild_pkgs(forge_context *ctx)
         closedir(dir);
 }
 
+void
+init_env(void)
+{
+        // Database location
+        if (mkdir(DB_DIR, 0755) != 0 && errno != EEXIST) {
+                fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
+        }
+        sqlite3 *db = init_db(DB_FP);
+        if (!db) {
+                fprintf(stderr, "could not initialize database: %s\n", DB_FP);
+        }
+        sqlite3_close(db);
+
+        // Module locations
+        if (mkdir_p(MODULE_LIB_DIR, 0755) != 0 && errno != EEXIST) {
+                fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
+        }
+        if (mkdir_p(C_MODULE_DIR, 0755) != 0 && errno != EEXIST) {
+                fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
+        }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -538,15 +602,8 @@ main(int argc, char **argv)
         if (exists && argc == 0) {
                 usage();
         } else if (!exists) {
-                if (mkdir(DB_DIR, 0755) != 0 && errno != EEXIST) {
-                        err_wargs("fatal: could not create path: %s, %s", DB_DIR, strerror(errno));
-                }
-                sqlite3 *db = init_db(DB_FP);
-                if (!db) {
-                        err_wargs("fatal: could not initialize database: %s", DB_FP);
-                }
-                printf("%s has been created, you can now use forge normally.\n", DB_FP);
-                sqlite3_close(db);
+                assert_sudo();
+                init_env();
                 return 0;
         }
 
