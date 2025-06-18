@@ -45,13 +45,27 @@ forge_str_append(forge_str *fs, char c)
         fs->data[fs->len++] = c;
 }
 
+int
+forge_str_eq(const forge_str *s0,
+             const forge_str *s1)
+{
+        return !strcmp(s0->data, s1->data);
+}
+
+int
+forge_str_eq_cstr(const forge_str *s0,
+                  const char      *s1)
+{
+        return !strcmp(s0->data, s1);
+}
+
 char *
 forge_str_to_cstr(const forge_str *fs)
 {
         return fs->data;
 }
 
-int
+char *
 forge_str_contains_substr(const forge_str *fs,
                           const char      *substr,
                           int              case_sensitive)
@@ -60,23 +74,23 @@ forge_str_contains_substr(const forge_str *fs,
 
         // Edge case: non-empty substring, empty forge_str
         if (fs->len == 0 && substr_n != 0) {
-                return 0;
+                return NULL;
         }
 
         // Edge case: empty substring
         if (substr_n == 0) {
-                return 1;
+                return fs->data;
         }
 
         // Edge case: forge_str length less than substring length
         if (fs->len < substr_n) {
-                return 0;
+                return NULL;
         }
 
         if (case_sensitive) {
                 for (size_t i = 0; i <= fs->len - substr_n; i++) {
                         if (strncmp(fs->data + i, substr, substr_n) == 0) {
-                                return 1;
+                                return fs->data + i;
                         }
                 }
         } else {
@@ -90,10 +104,10 @@ forge_str_contains_substr(const forge_str *fs,
                                 }
                         }
                         if (match) {
-                                return 1;
+                                return fs->data + i;
                         }
                 }
         }
 
-        return 0;
+        return NULL;
 }
