@@ -56,11 +56,11 @@ if clean {
 }
 
 @const let sqlite3 = "sqlite-autoconf-3500100";
-@const let flags = "-Iinclude $(pkg-config --cflags ncurses)" + case debug of { true = " -ggdb -O0"; _ = ""; };
+@const let flags = "-Iinclude" + case debug of { true = " -ggdb -O0"; _ = ""; };
 @const let name = "-o forge";
 @const let lib_name = "-o libforge.so";
 @const let lib_flags = "-fPIC -shared";
-@const let ld = f"-L{sqlite3} -lsqlite3 -pthread -ldl $(pkg-config --libs ncurses)";
+@const let ld = f"-L{sqlite3} -lsqlite3 -pthread -ldl";
 
 get_sqlite3();
 
