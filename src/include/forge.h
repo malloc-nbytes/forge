@@ -12,6 +12,7 @@
         "char *getver(void) { return \"1.0.0\"; }\n" \
         "char *getdesc(void) { return \"My Description\"; }\n" \
         "char **getdeps(void) { return deps; }\n" \
+        "char *build(void) {}" \
         "void build(void) {}\n" \
         "void install(void) {}\n" \
         "void uninstall(void) {}\n" \
@@ -33,13 +34,14 @@ typedef struct {
         char *(*ver)(void);
         char *(*desc)(void);
         char **(*deps)(void);
-        void (*download)(void);
+        char *(*download)(void);
         void (*build)(void);
         void (*install)(void);
         void (*uninstall)(void);
 } pkg;
 
 int cd(const char *fp);
+int cd_silent(const char *fp);
 int cmd(const char *cmd);
 
 #endif // FORGE_H_INCLUDED

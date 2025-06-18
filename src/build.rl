@@ -6,7 +6,7 @@ import "std/system.rl"; as sys
 import "std/script.rl"; as scr
 import "std/colors.rl"; as clr
 
-set_flag("-xe");
+set_flag("-x");
 
 let debug, clean, install = (false, false, false);
 try { debug = ("g", "d", "ggdb", "debug").contains(argv()[1]); }

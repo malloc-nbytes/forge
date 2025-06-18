@@ -8,7 +8,7 @@ char *getname(void) { return "emacs"; }
 char *getver(void) { return "9.3.3"; }
 char *getdesc(void) { return "A GNU Text Editor"; }
 char **getdeps(void) { return deps; }
-void download(void) {}
+char *download(void) {return NULL;}
 void build(void) {
         printf("Building emacs\n");
         printf("Done\n");

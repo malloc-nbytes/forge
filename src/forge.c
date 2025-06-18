@@ -21,6 +21,15 @@ cd(const char *fp)
         return 1;
 }
 
+int
+cd_silent(const char *fp)
+{
+        if (chdir(fp) != 0) {
+                return 0;
+        }
+        return 1;
+}
+
 /* int */
 /* cmd(const char *cmd) */
 /* { */

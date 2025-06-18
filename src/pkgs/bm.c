@@ -5,8 +5,9 @@
 char *getname(void) { return "bm"; }
 char *getver(void) { return "1.0.2"; }
 char *getdesc(void) { return "Keep track of your terminal bookmarks"; }
-void download(void) {
+char *download(void) {
         cmd("git clone https://www.github.com/malloc-nbytes/bm.git/");
+        return "bm";
 }
 void build(void) {
         printf("Building bm\n");
