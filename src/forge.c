@@ -21,8 +21,34 @@ cd(const char *fp)
         return 1;
 }
 
+/* int */
+/* cmd(const char *cmd) */
+/* { */
+/*         return system(cmd) != -1; */
+/* } */
+
 int
 cmd(const char *cmd)
 {
-        return system(cmd) != -1;
+        printf("%s\n", cmd);
+
+        FILE *fp = popen(cmd, "r");
+        if (fp == NULL) {
+                fprintf(stderr, "Failed to execute command '%s': %s\n", cmd, strerror(errno));
+                return 0;
+        }
+
+        char buffer[1024];
+        while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+                printf("%s", buffer);
+        }
+
+        // Get exit status
+        int status = pclose(fp);
+        if (status == -1) {
+                fprintf(stderr, "Failed to close pipe for command '%s': %s\n", cmd, strerror(errno));
+                return 0;
+        }
+
+        return WEXITSTATUS(status) == 0;
 }

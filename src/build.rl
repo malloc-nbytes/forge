@@ -80,4 +80,4 @@ get_sqlite3();
 # Build executable
 $f"cc {flags} {name} *.c {ld}";
 
-compile_pkgs();
+# compile_pkgs();

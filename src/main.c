@@ -4,6 +4,8 @@
 #include <dlfcn.h>
 #include <dirent.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <errno.h>
 
 #include "sqlite3.h"
 
@@ -11,6 +13,7 @@
 #include "depgraph.h"
 #include "flags.h"
 #include "utils.h"
+#include "colors.h"
 #include "dyn_array.h"
 #include "ds/array.h"
 #define CIO_IMPL
@@ -19,7 +22,8 @@
 #include "clap.h"
 
 #define DB_FP "forge.db"
-#define PKG_DIR "pkgs/build/"
+#define PKG_LIB_DIR "pkgs/build/"
+#define PKG_DIR "pkgs/"
 #define CHECK_SQLITE(rc, db)                                            \
         do {                                                            \
                 if (rc != SQLITE_OK) {                                  \
@@ -307,6 +311,8 @@ void
 uninstall_pkg(forge_context *ctx,
               const char    *name)
 {
+        printf(GREEN BOLD "*** Uninstalling package %s\n" RESET, name);
+
         pkg *pkg = NULL;
         size_t pkg_id = get_pkg_id(ctx, name);
         if (pkg_id == -1) {
@@ -319,6 +325,7 @@ uninstall_pkg(forge_context *ctx,
                 }
         }
         assert(pkg);
+        info_minor("Performing action: pkg->uninstall()", 1);
         pkg->uninstall();
 
         sqlite3_stmt *stmt;
@@ -351,6 +358,8 @@ void
 install_pkg(forge_context *ctx,
             const char    *name)
 {
+        printf(GREEN BOLD "*** Installing package %s\n" RESET, name);
+
         pkg *pkg = NULL;
         size_t pkg_id = get_pkg_id(ctx, name);
         if (pkg_id == -1) {
@@ -363,7 +372,10 @@ install_pkg(forge_context *ctx,
                 }
         }
         assert(pkg);
+
+        info_minor("Performing action: pkg->build()", 1);
         pkg->build();
+        info_minor("Performing action: pkg->install()", 1);
         pkg->install();
 
         sqlite3_stmt *stmt;
@@ -395,7 +407,7 @@ install_pkg(forge_context *ctx,
 void
 obtain_handles_and_pkgs_from_dll(forge_context *ctx)
 {
-        DIR *dir = opendir(PKG_DIR);
+        DIR *dir = opendir(PKG_LIB_DIR);
         if (!dir) {
                 perror("Failed to open package directory");
                 return;
@@ -405,7 +417,7 @@ obtain_handles_and_pkgs_from_dll(forge_context *ctx)
         while ((entry = readdir(dir))) {
                 if (strstr(entry->d_name, ".so")) {
                         char *path = (char *)malloc(256);
-                        snprintf(path, 256, "%s%s", PKG_DIR, entry->d_name);
+                        snprintf(path, 256, "%s%s", PKG_LIB_DIR, entry->d_name);
 
                         void *handle = dlopen(path, RTLD_LAZY);
                         if (!handle) {
@@ -451,6 +463,53 @@ assert_sudo(void)
         if (geteuid() != 0) {
                 err("This action requires sudo privileges");
         }
+}
+
+void
+rebuild_pkgs(forge_context *ctx)
+{
+        good_major("Rebuilding package modules", 1);
+
+        DIR *dir = opendir(PKG_DIR);
+        if (!dir) {
+                perror("Failed to open directory");
+                return;
+        }
+
+        str_array files = dyn_array_empty(str_array);
+        struct dirent *entry;
+        while ((entry = readdir(dir))) {
+                // Check if the file name ends with ".c"
+                if (entry->d_type == DT_REG && strstr(entry->d_name, ".c") != NULL) {
+                        size_t len = strlen(entry->d_name);
+                        if (len >= 2 && strcmp(entry->d_name + len - 2, ".c") == 0) {
+                                // Allocate memory for the filename without ".c"
+                                char *filename = strdup(entry->d_name);
+                                filename[len - 2] = '\0'; // Remove ".c" by null-terminating early
+                                dyn_array_append(files, filename);
+                        }
+                }
+        }
+
+        if (!cd(PKG_DIR)) {
+                fprintf(stderr, "aborting...\n");
+                goto cleanup;
+        }
+
+        for (size_t i = 0; i < files.len; ++i) {
+                char buf[256] = {0};
+                sprintf(buf, "gcc -shared -fPIC %s.c ../forge.c -o ./build/%s.so -I../include",
+                        files.data[i], files.data[i]);
+                if (!cmd(buf)) {
+                        fprintf(stderr, "command %s failed, aborting...\n", buf);
+                        goto cleanup;
+                }
+        }
+
+ cleanup:
+        for (size_t i = 0; i < files.len; ++i) { free(files.data[i]); }
+        dyn_array_free(files);
+        closedir(dir);
 }
 
 int
@@ -507,6 +566,9 @@ main(int argc, char **argv)
                         }
                         assert_sudo();
                         uninstall_pkg(&ctx, arg.start);
+                } else if ((arg.hyphc == 1 && arg.start[0] == FLAG_1HY_REBUILD)
+                           || (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_REBUILD))) {
+                        rebuild_pkgs(&ctx);
                 }
                 else {
                         err_wargs("unknown flag `%s`", arg.start);
