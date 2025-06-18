@@ -6,6 +6,8 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "sqlite3.h"
 
@@ -21,7 +23,8 @@
 #define CLAP_IMPL
 #include "clap.h"
 
-#define DB_FP "forge.db"
+#define DB_DIR "/var/lib/forge/"
+#define DB_FP DB_DIR "forge.db"
 #define PKG_LIB_DIR "pkgs/build/"
 #define PKG_DIR "pkgs/"
 #define CHECK_SQLITE(rc, db)                                            \
@@ -216,14 +219,18 @@ register_pkg(forge_context *ctx, pkg *pkg)
 void
 list_deps(forge_context *ctx, const char *pkg_name)
 {
+        sqlite3 *db;
+        int rc = sqlite3_open_v2(DB_FP, &db, SQLITE_OPEN_READONLY, NULL);
+        CHECK_SQLITE(rc, db);
+
         sqlite3_stmt *stmt;
         const char *sql =
                 "SELECT Pkgs.name, Pkgs.version, Pkgs.description, Pkgs.installed "
                 "FROM Deps "
                 "JOIN Pkgs ON Deps.dep_id = Pkgs.id "
                 "WHERE Deps.pkg_id = (SELECT id FROM Pkgs WHERE name = ?);";
-        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, ctx->db);
+        rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, db);
 
         sqlite3_bind_text(stmt, 1, pkg_name, -1, SQLITE_STATIC);
 
@@ -243,7 +250,7 @@ list_deps(forge_context *ctx, const char *pkg_name)
         }
 
         if (rc != SQLITE_DONE) {
-                fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(ctx->db));
+                fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(db));
         }
 
         if (!found) {
@@ -251,15 +258,20 @@ list_deps(forge_context *ctx, const char *pkg_name)
         }
 
         sqlite3_finalize(stmt);
+        sqlite3_close(db);
 }
 
 void
 list_registerd_pkgs(forge_context *ctx)
 {
+        sqlite3 *db;
+        int rc = sqlite3_open_v2(DB_FP, &db, SQLITE_OPEN_READONLY, NULL);
+        CHECK_SQLITE(rc, db);
+
         sqlite3_stmt *stmt;
         const char *sql = "SELECT name, version, description, installed FROM Pkgs;";
-        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, ctx->db);
+        rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, db);
 
         printf("Available packages:\n");
         printf("Name\tVersion\tInstalled\tDescription\n");
@@ -281,7 +293,7 @@ list_registerd_pkgs(forge_context *ctx)
         }
 
         if (rc != SQLITE_DONE) {
-                fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(ctx->db));
+                fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(db));
         }
 
         if (!found) {
@@ -289,6 +301,7 @@ list_registerd_pkgs(forge_context *ctx)
         }
 
         sqlite3_finalize(stmt);
+        sqlite3_close(db);
 }
 
 void
@@ -520,8 +533,21 @@ main(int argc, char **argv)
 {
         ++argv, --argc;
         clap_init(argc, argv);
-        if (cio_file_exists(DB_FP) && argc == 0) {
+        int exists = cio_file_exists(DB_FP);
+
+        if (exists && argc == 0) {
                 usage();
+        } else if (!exists) {
+                if (mkdir(DB_DIR, 0755) != 0 && errno != EEXIST) {
+                        err_wargs("fatal: could not create path: %s, %s", DB_DIR, strerror(errno));
+                }
+                sqlite3 *db = init_db(DB_FP);
+                if (!db) {
+                        err_wargs("fatal: could not initialize database: %s", DB_FP);
+                }
+                printf("%s has been created, you can now use forge normally.\n", DB_FP);
+                sqlite3_close(db);
+                return 0;
         }
 
         sqlite3 *db = init_db(DB_FP);
@@ -538,11 +564,7 @@ main(int argc, char **argv)
 
         obtain_handles_and_pkgs_from_dll(&ctx);
         construct_depgraph(&ctx);
-
         size_t_array indices = depgraph_gen_order(&ctx.dg);
-        for (size_t i = 0; i < indices.len; ++i) {
-                register_pkg(&ctx, ctx.pkgs.data[indices.data[i]]);
-        }
 
         Clap_Arg arg = {0};
         while (clap_next(&arg)) {
@@ -571,7 +593,11 @@ main(int argc, char **argv)
                         uninstall_pkg(&ctx, arg.start);
                 } else if ((arg.hyphc == 1 && arg.start[0] == FLAG_1HY_REBUILD)
                            || (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_REBUILD))) {
+                        assert_sudo();
                         rebuild_pkgs(&ctx);
+                        for (size_t i = 0; i < indices.len; ++i) {
+                                register_pkg(&ctx, ctx.pkgs.data[indices.data[i]]);
+                        }
                 }
                 else {
                         err_wargs("unknown flag `%s`", arg.start);

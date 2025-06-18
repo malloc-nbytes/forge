@@ -1,6 +1,6 @@
-* TODO [0%]
+* TODO [8%]
 - [ ] restore the working directory after each pkg function call
-- [ ] store DB file in =/var/lib/forge/forge.db=
+- [X] store DB file in =/var/lib/forge/forge.db=
 - [ ] store C module files in =/usr/src/forge/pkgs/*.c=
 - [ ] store C mdoule .so files in =/usr/lib/forge/pkgs/*.so=
 - [ ] store downloaded code somewhere (not in =/tmp/=!)
