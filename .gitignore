@@ -1,4 +1,4 @@
-forge
+src/forge
 forge.db
 *.so
 sqlite-autoconf*
