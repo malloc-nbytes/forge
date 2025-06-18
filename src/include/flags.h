@@ -7,6 +7,7 @@
 #define FLAG_2HY_LIST "list"
 #define FLAG_2HY_DEPS "deps"
 #define FLAG_2HY_INSTALL "install"
+#define FLAG_2HY_UNINSTALL "uninstall"
 
 typedef enum { FT_NONE = 0, } flag_type;
 

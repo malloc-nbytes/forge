@@ -15,4 +15,7 @@ typedef struct {
         void (*uninstall)(void);
 } pkg;
 
+int cd(const char *fp);
+int cmd(const char *cmd);
+
 #endif // FORGE_H_INCLUDED

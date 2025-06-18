@@ -304,6 +304,95 @@ construct_depgraph(forge_context *ctx)
 }
 
 void
+uninstall_pkg(forge_context *ctx,
+              const char    *name)
+{
+        pkg *pkg = NULL;
+        size_t pkg_id = get_pkg_id(ctx, name);
+        if (pkg_id == -1) {
+                err_wargs("unregistered package `%s`", name);
+        }
+        for (size_t i = 0; i < ctx->pkgs.len; ++i) {
+                if (!strcmp(ctx->pkgs.data[i]->name(), name)) {
+                        pkg = ctx->pkgs.data[i];
+                        break;
+                }
+        }
+        assert(pkg);
+        pkg->uninstall();
+
+        sqlite3_stmt *stmt;
+        const char *sql_select = "SELECT id FROM Pkgs WHERE name = ?;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+        int id = -1;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                id = sqlite3_column_int(stmt, 0);
+        }
+        sqlite3_finalize(stmt);
+
+        const char *sql_update = "UPDATE Pkgs SET installed = 0 WHERE id = ?;";
+        rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        // Bind package id
+        sqlite3_bind_int(stmt, 1, id);
+
+        rc = sqlite3_step(stmt);
+        if (rc != SQLITE_DONE) {
+                fprintf(stderr, "Update error: %s\n", sqlite3_errmsg(ctx->db));
+        }
+        sqlite3_finalize(stmt);
+}
+
+void
+install_pkg(forge_context *ctx,
+            const char    *name)
+{
+        pkg *pkg = NULL;
+        size_t pkg_id = get_pkg_id(ctx, name);
+        if (pkg_id == -1) {
+                err_wargs("unregistered package `%s`", name);
+        }
+        for (size_t i = 0; i < ctx->pkgs.len; ++i) {
+                if (!strcmp(ctx->pkgs.data[i]->name(), name)) {
+                        pkg = ctx->pkgs.data[i];
+                        break;
+                }
+        }
+        assert(pkg);
+        pkg->build();
+        pkg->install();
+
+        sqlite3_stmt *stmt;
+        const char *sql_select = "SELECT id FROM Pkgs WHERE name = ?;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+        int id = -1;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                id = sqlite3_column_int(stmt, 0);
+        }
+        sqlite3_finalize(stmt);
+
+        const char *sql_update = "UPDATE Pkgs SET installed = 1 WHERE id = ?;";
+        rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        // Bind package id
+        sqlite3_bind_int(stmt, 1, id);
+
+        rc = sqlite3_step(stmt);
+        if (rc != SQLITE_DONE) {
+                fprintf(stderr, "Update error: %s\n", sqlite3_errmsg(ctx->db));
+        }
+        sqlite3_finalize(stmt);
+}
+
+void
 obtain_handles_and_pkgs_from_dll(forge_context *ctx)
 {
         DIR *dir = opendir(PKG_DIR);
@@ -320,7 +409,7 @@ obtain_handles_and_pkgs_from_dll(forge_context *ctx)
 
                         void *handle = dlopen(path, RTLD_LAZY);
                         if (!handle) {
-                                fprintf(stderr, "Error loading dll path: %s, \n", path, dlerror());
+                                fprintf(stderr, "Error loading dll path: %s, %s\n", path, dlerror());
                                 return;
                         }
 
@@ -354,6 +443,14 @@ cleanup_forge_context(forge_context *ctx)
         dyn_array_free(ctx->dll.paths);
         dyn_array_free(ctx->pkgs);
         depgraph_destroy(&ctx->dg);
+}
+
+void
+assert_sudo(void)
+{
+        if (geteuid() != 0) {
+                err("This action requires sudo privileges");
+        }
 }
 
 int
@@ -399,8 +496,19 @@ main(int argc, char **argv)
                         }
                         list_deps(&ctx, arg.start);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_INSTALL)) {
-                        assert(0);
-                } else {
+                        if (!clap_next(&arg)) {
+                                err_wargs("flag `%s` requires an argument", FLAG_2HY_INSTALL);
+                        }
+                        assert_sudo();
+                        install_pkg(&ctx, arg.start);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_UNINSTALL)) {
+                        if (!clap_next(&arg)) {
+                                err_wargs("flag `%s` requires an argument", FLAG_2HY_UNINSTALL);
+                        }
+                        assert_sudo();
+                        uninstall_pkg(&ctx, arg.start);
+                }
+                else {
                         err_wargs("unknown flag `%s`", arg.start);
                 }
         }
