@@ -69,7 +69,7 @@
         "        .download = download,\n" \
         "        .build = build,\n" \
         "        .install = install,\n" \
-        "        .uninstall = uninstall\n" \
+        "        .uninstall = uninstall,\n" \
         "        .update = forge_pkg_git_update, // or define your own if not using git\n" \
         "};"
 
