@@ -47,6 +47,7 @@ fn log_bad(msg)  { println(clr::Tfc.Red, msg, clr::Te.Reset); }
 
 if clean {
     $"sudo rm /usr/local/lib/libforge.so";
+    $"sudo rm /usr/lib64/libforge.so";
     $"sudo rm -r /usr/include/forge";
     $"sudo rm -r /usr/src/forge/";
     $"sudo rm -r /usr/lib/forge/";

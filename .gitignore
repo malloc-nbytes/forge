@@ -1,5 +1,75 @@
-src/forge
 forge.db
 *.so
 sqlite-autoconf*
-tmp.txt
+
+# Autotools generated files
+Makefile
+Makefile.in
+/aclocal.m4
+/autom4te.cache/
+/compile
+/config.guess
+/config.h
+/config.h.in
+/config.log
+/config.status
+/config.sub
+/depcomp
+/install-sh
+/missing
+/stamp-h1
+/libtool
+/ltmain.sh
+*.la
+*.lo
+*.o
+*.Plo
+*.dirstamp
+ar-lib
+
+# Compiled binaries and libraries
+/src/forge_production
+/src/libforge.so*
+/src/.libs/
+
+# Object and dependency files
+*.o
+*.lo
+*.Plo
+*.Po
+.deps/
+
+# Temporary and backup files
+*~
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# Test and coverage files
+*.gcda
+*.gcno
+*.gcov
+/test-suite.log
+
+# Installed files (if accidentally created in repo)
+/usr/
+/usr/bin/forge
+/usr/lib64/libforge.*
+/usr/include/forge/
+/usr/src/forge/
+/usr/lib/forge/
+/var/lib/forge/
+/var/cache/forge/
+
+# Build directories
+/build/
+/dist/
+
+# SQLite custom directory (optional, if you don't want to track it)
+/src/sqlite-autoconf-3500100/
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.code-workspace
