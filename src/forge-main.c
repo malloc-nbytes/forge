@@ -1217,7 +1217,21 @@ void
 dump_module(const forge_context *ctx,
             const str_array     *names)
 {
-        
+        for (size_t i = 0; i < names->len; ++i) {
+                printf(GREEN BOLD "*** Dumping package %s [%zu of %zu]\n" RESET,
+                               names->data[i], i+1, names->len);
+                char fp[256] = {0};
+                sprintf(fp, C_MODULE_DIR "%s.c", names->data[i]);
+                if (!cio_file_exists(fp)) {
+                        fprintf(stderr, BOLD RED "C module %s does not exist\n" RESET, names->data[i]);
+                        continue;
+                }
+                size_t ret_len = 0;
+                char **lines = cio_file_to_lines_wnewlines(fp, &ret_len);
+                for (size_t j = 0; j < ret_len; ++j) {
+                        printf("  %zu: %s", j, lines[j]);
+                }
+        }
 }
 
 void
