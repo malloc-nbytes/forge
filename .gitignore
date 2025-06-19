@@ -35,7 +35,7 @@ src/stamp-h1
 /src/forge_production
 /src/libforge.so*
 /src/.libs/
-/src/sqlite-autoconf-3500100
+/src/sqlite-autoconf*
 
 # Object and dependency files
 *.o
