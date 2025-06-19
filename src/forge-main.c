@@ -69,7 +69,8 @@
         "        .download = download,\n" \
         "        .build = build,\n" \
         "        .install = install,\n" \
-        "        .uninstall = forge_pkg_git_update, // or define your own if not using git\n" \
+        "        .uninstall = uninstall\n" \
+        "        .update = forge_pkg_git_update, // or define your own if not using git\n" \
         "};"
 
 #define DB_DIR "/var/lib/forge/"
