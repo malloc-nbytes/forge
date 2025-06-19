@@ -22,7 +22,7 @@ autoreconf --install
 make
 ```
 
-Where `<prefix>` is your preferred installation prefix for the binary i.e., `/usr/bin`, `/usr/local/bin`.
+Where `<prefix>` is your preferred installation prefix for the binary i.e., `/usr`, `/usr/local`.
 Where `<libdir>` is your preferred installation location for the forge library i.e., `/usr/lib64`, `/usr/local/lib`.
 
 To install, run `sudo make install`. To uninstall, run `sudo make uninstall`.
