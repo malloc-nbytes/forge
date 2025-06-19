@@ -67,9 +67,6 @@ ar-lib
 /build/
 /dist/
 
-# SQLite custom directory (optional, if you don't want to track it)
-/src/sqlite-autoconf-3500100/
-
 # Editor and IDE files
 .vscode/
 .idea/

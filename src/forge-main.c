@@ -1,3 +1,22 @@
+/*
+ * forge: Forge your own packages
+ * Copyright (C) 2025  malloc-nbytes
+ * Contact: zdhdev@yahoo.com
+
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, see <https://www.gnu.org/licenses/>.
+*/
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1195,6 +1214,13 @@ update_pkgs(forge_context *ctx, str_array *names)
 }
 
 void
+dump_module(const forge_context *ctx,
+            const str_array     *names)
+{
+        
+}
+
+void
 clearln(void)
 {
         fflush(stdout);
@@ -1321,6 +1347,15 @@ main(int argc, char **argv)
                         }
                         assert_sudo();
                         update_pkgs(&ctx, &names);
+                        for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
+                        dyn_array_free(names);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DUMP)) {
+                        str_array names = dyn_array_empty(str_array);
+                        while (clap_next(&arg)) {
+                                dyn_array_append(names, strdup(arg.start));
+                        }
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_DUMP);
+                        dump_module(&ctx, &names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
                 }
