@@ -32,5 +32,5 @@ FORGE_GLOBAL pkg package = {
         .build = build,
         .install = install,
         .uninstall = uninstall,
-	.update = update,
+	.update = forge_pkg_git_update,
 };

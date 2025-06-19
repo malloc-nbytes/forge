@@ -17,6 +17,6 @@ typedef struct {
         int (*update)(void);
 } pkg;
 
-void forge_pkg_git_update(void);
+int forge_pkg_git_update(void);
 
 #endif // PKG_H_INCLUDED
