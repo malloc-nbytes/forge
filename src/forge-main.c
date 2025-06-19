@@ -38,6 +38,9 @@
         "void build(void) {}\n" \
         "void install(void) {}\n" \
         "void uninstall(void) {}\n" \
+        "void update(void) {\n" \
+        "        return 0; // return 1 if it needs a rebuild, 0 otherwise\n" \
+        "}\n" \
         "\n" \
         "FORGE_GLOBAL pkg package = {\n" \
         "        .name = getname,\n" \
@@ -47,7 +50,7 @@
         "        .download = download,\n" \
         "        .build = build,\n" \
         "        .install = install,\n" \
-        "        .uninstall = uninstall,\n" \
+        "        .uninstall = forge_pkg_git_update, // or define your own if not using git\n" \
         "};"
 
 #define DB_DIR "/var/lib/forge/"
