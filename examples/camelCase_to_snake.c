@@ -7,19 +7,19 @@ char *getver(void) { return "1.0.0"; }
 char *getdesc(void) { return "Kill those camels!"; }
 char **getdeps(void) { return deps; }
 char *download(void) {
-	cmd("git clone https://github.com/malloc-nbytes/camelCase_to_snake.git");
+        cmd("git clone https://github.com/malloc-nbytes/camelCase_to_snake.git");
         return "camelCase_to_snake";
 }
 void build(void) {
-	cd("src");
-	cmd("./build.sh");
+        cd("src");
+        cmd("./build.sh");
 }
 void install(void) {
-	cd("src");
-	cmd("./install.sh");
+        cd("src");
+        cmd("./install.sh");
 }
 void uninstall(void) {
-	cmd("rm /usr/local/bin/ccts");
+        cmd("rm /usr/local/bin/ccts");
 }
 
 FORGE_GLOBAL pkg package = {
@@ -30,5 +30,6 @@ FORGE_GLOBAL pkg package = {
         .download = download,
         .build = build,
         .install = install,
+        .uninstall = uninstall,
         .update = forge_pkg_git_update,
 };
