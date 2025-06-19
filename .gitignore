@@ -2,7 +2,6 @@ forge.db
 *.so
 
 # Autotools generated files
-./configure
 conf*
 Makefile
 Makefile.in
@@ -36,6 +35,7 @@ src/stamp-h1
 /src/forge_production
 /src/libforge.so*
 /src/.libs/
+/src/sqlite-autoconf-3500100
 
 # Object and dependency files
 *.o
