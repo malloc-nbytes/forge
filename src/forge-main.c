@@ -1035,6 +1035,163 @@ edit_c_module(forge_context *ctx, str_array *names)
 }
 
 void
+update_pkgs(forge_context *ctx, str_array *names)
+{
+        // If no names provided, update all installed packages
+        str_array pkg_names;
+        if (names->len == 0) {
+                pkg_names = dyn_array_empty(str_array);
+                sqlite3_stmt *stmt;
+                const char *sql = "SELECT name FROM Pkgs WHERE installed = 1;";
+                int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                while (sqlite3_step(stmt) == SQLITE_ROW) {
+                        const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                        dyn_array_append(pkg_names, strdup(name));
+                }
+                sqlite3_finalize(stmt);
+        } else {
+                pkg_names = *names;
+        }
+
+        for (size_t i = 0; i < pkg_names.len; ++i) {
+                const char *name = pkg_names.data[i];
+
+                // Check if package is installed
+                sqlite3_stmt *stmt;
+                const char *sql = "SELECT installed, pkg_src_loc FROM Pkgs WHERE name = ?;";
+                int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+                int installed = 0;
+                char *pkg_src_loc = NULL;
+
+                if (sqlite3_step(stmt) == SQLITE_ROW) {
+                        installed = sqlite3_column_int(stmt, 0);
+                        const char *src_loc = (const char *)sqlite3_column_text(stmt, 1);
+                        if (src_loc) {
+                                pkg_src_loc = strdup(src_loc);
+                        }
+                }
+                sqlite3_finalize(stmt);
+
+                if (!installed) {
+                        printf(YELLOW "*** Skipping update for %s: not installed\n" RESET, name);
+                        free(pkg_src_loc);
+                        continue;
+                }
+
+                printf(GREEN BOLD "*** Updating package %s [%zu of %zu]\n" RESET, name, i+1, pkg_names.len);
+                fflush(stdout);
+                sleep(1);
+
+                // Find the package
+                pkg *pkg = NULL;
+                for (size_t j = 0; j < ctx->pkgs.len; ++j) {
+                        if (!strcmp(ctx->pkgs.data[j]->name(), name)) {
+                                pkg = ctx->pkgs.data[j];
+                                break;
+                        }
+                }
+                if (!pkg) {
+                        err_wargs("package %s not found in loaded modules", name);
+                        free(pkg_src_loc);
+                        continue;
+                }
+
+                // Navigate to source directory
+                if (!pkg_src_loc) {
+                        fprintf(stderr, "No source location found for %s, please reinstall\n", name);
+                        continue;
+                }
+
+                const char *pkgname = get_filename_from_dir(pkg_src_loc);
+                char base[256] = {0};
+                snprintf(base, sizeof(base), "%s%s", PKG_SOURCE_DIR, pkgname);
+
+                if (!cd(base)) {
+                        fprintf(stderr, "Could not access source directory for %s, please reinstall\n", name);
+                        free(pkg_src_loc);
+                        continue;
+                }
+
+                int updated = 0;
+
+                // Perform update
+                info_minor("Performing: pkg->update()", 1);
+                if (pkg->update) {
+                        updated = pkg->update();
+                } else {
+                        printf(YELLOW "*** No update function defined for %s, skipping update step\n" RESET, name);
+                }
+
+                // Update dependencies and reinstall package
+                str_array install_names = dyn_array_empty(str_array);
+                dyn_array_append(install_names, strdup(name));
+
+                // Add dependencies to install list
+                if (pkg->deps) {
+                        good_minor("queueing dependencies for reinstall", 1);
+                        char **deps = pkg->deps();
+                        for (size_t j = 0; deps[j]; ++j) {
+                                // Check if dependency is installed before adding
+                                sql = "SELECT installed FROM Pkgs WHERE name = ?;";
+                                rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+                                CHECK_SQLITE(rc, ctx->db);
+
+                                sqlite3_bind_text(stmt, 1, deps[j], -1, SQLITE_STATIC);
+                                if (sqlite3_step(stmt) == SQLITE_ROW && sqlite3_column_int(stmt, 0)) {
+                                        dyn_array_append(install_names, strdup(deps[j]));
+                                }
+                                sqlite3_finalize(stmt);
+                        }
+                }
+
+                // Reinstall package and its dependencies
+                if (updated) {
+                        if (!install_pkg(ctx, &install_names, 0)) {
+                                fprintf(stderr, "Failed to reinstall %s and its dependencies\n", name);
+                        }
+                } else {
+                        good_major("Up-to-date", 1);
+                }
+
+                // Clean up install_names
+                for (size_t j = 0; j < install_names.len; ++j) {
+                        free(install_names.data[j]);
+                }
+                dyn_array_free(install_names);
+
+                // Update version and description in database
+                sql = "UPDATE Pkgs SET version = ?, description = ? WHERE name = ?;";
+                rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_text(stmt, 1, pkg->ver(), -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 2, pkg->desc(), -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 3, name, -1, SQLITE_STATIC);
+
+                rc = sqlite3_step(stmt);
+                if (rc != SQLITE_DONE) {
+                        fprintf(stderr, "Update package info error: %s\n", sqlite3_errmsg(ctx->db));
+                }
+                sqlite3_finalize(stmt);
+
+                free(pkg_src_loc);
+        }
+
+        // Clean up if we created the names array
+        if (names->len == 0) {
+                for (size_t i = 0; i < pkg_names.len; ++i) {
+                        free(pkg_names.data[i]);
+                }
+                dyn_array_free(pkg_names);
+        }
+}
+
+void
 clearln(void)
 {
         fflush(stdout);
@@ -1154,7 +1311,17 @@ main(int argc, char **argv)
                         edit_c_module(&ctx, &names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
-                } else {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_UPDATE)) {
+                        str_array names = dyn_array_empty(str_array);
+                        while (clap_next(&arg)) {
+                                dyn_array_append(names, strdup(arg.start));
+                        }
+                        assert_sudo();
+                        update_pkgs(&ctx, &names);
+                        for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
+                        dyn_array_free(names);
+                }
+                else {
                         err_wargs("unknown flag `%s`", arg.start);
                 }
         }

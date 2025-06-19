@@ -14,6 +14,7 @@ typedef struct {
         void (*build)(void);
         void (*install)(void);
         void (*uninstall)(void);
+        int (*update)(void);
 } pkg;
 
 void forge_pkg_git_update(void);

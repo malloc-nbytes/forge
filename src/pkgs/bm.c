@@ -24,6 +24,7 @@ void uninstall(void) {
 	cd("build");
 	cmd("make uninstall");
 }
+int update(void) { return 0; }
 
 FORGE_GLOBAL pkg package = {
         .name = getname,
@@ -33,5 +34,5 @@ FORGE_GLOBAL pkg package = {
         .download = download,
         .build = build,
         .install = install,
-        .uninstall = uninstall,
+        .update = update,
 };

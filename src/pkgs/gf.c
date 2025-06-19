@@ -19,6 +19,7 @@ void install(void) {
 void uninstall(void) {
 	cmd("rm /usr/local/bin/gf2");
 }
+int update(void) { return 0; }
 
 FORGE_GLOBAL pkg package = {
         .name = getname,
@@ -29,4 +30,5 @@ FORGE_GLOBAL pkg package = {
         .build = build,
         .install = install,
         .uninstall = uninstall,
+        .update = update,
 };

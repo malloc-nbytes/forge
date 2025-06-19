@@ -12,6 +12,7 @@
 #define FLAG_2HY_REBUILD "rebuild"
 #define FLAG_2HY_NEW "new"
 #define FLAG_2HY_EDIT "edit"
+#define FLAG_2HY_UPDATE "update"
 
 typedef enum { FT_NONE = 1 << 0, } flag_type;
 
