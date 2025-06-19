@@ -90,7 +90,7 @@ typedef struct {
 
 DYN_ARRAY_TYPE(pkg_info, pkg_info_array);
 
-static struct {
+struct {
         uint32_t flags;
 } g_config = {
         .flags = 0x00000000,
@@ -656,7 +656,7 @@ uninstall_pkg(forge_context *ctx,
                 }
 
                 // Perform uninstall
-                good_minor("Performing: pkg->uninstall()", 1);
+                info_minor("Performing: pkg->uninstall()", 1);
                 pkg->uninstall();
 
                 // Update installed status in database
@@ -736,7 +736,7 @@ install_pkg(forge_context *ctx,
                         pkgname = get_filename_from_dir(pkg_src_loc);
                 }
                 else {
-                        good_minor("Performing: pkg->download()", 1);
+                        info_minor("Performing: pkg->download()", 1);
                         pkgname = pkg->download();
                 }
 
@@ -751,13 +751,13 @@ install_pkg(forge_context *ctx,
                 char base[256] = {0};
                 sprintf(base, PKG_SOURCE_DIR "%s", pkgname);
 
-                good_minor("Performing: pkg->build()", 1);
+                info_minor("Performing: pkg->build()", 1);
                 pkg->build();
                 if (!cd(base)) {
                         fprintf(stderr, "aborting...\n");
                         return;
                 }
-                good_minor("Performing: pkg->install()", 1);
+                info_minor("Performing: pkg->install()", 1);
                 pkg->install();
 
                 // Update pkg_src_loc in database
@@ -897,11 +897,17 @@ rebuild_pkgs(forge_context *ctx)
                 char buf[256] = {0};
                 // sprintf(buf, "gcc -shared -fPIC %s.c ../forge.c -o ./build/%s.so -I../include",
                 //         files.data[i], files.data[i]);
-                sprintf(buf, "gcc -shared -fPIC %s.c -lforge -L/usr/local/lib -o" MODULE_LIB_DIR "%s.so -I../include",
+                sprintf(buf, "gcc -Wextra -Wall -Werror -shared -fPIC %s.c -lforge -L/usr/local/lib -o" MODULE_LIB_DIR "%s.so -I../include",
                         files.data[i], files.data[i]);
                 if (!cmd(buf)) {
-                        fprintf(stderr, "command %s failed, aborting...\n", buf);
-                        goto cleanup;
+                        fprintf(stderr, INVERT BOLD RED "In module %s:\n" RESET, files.data[i]);
+                        fprintf(stderr, INVERT BOLD RED "  located in: " MODULE_LIB_DIR "%s.c\n" RESET, files.data[i]);
+                        fprintf(stderr, INVERT BOLD RED "  use:\n" RESET);
+                        fprintf(stderr, INVERT BOLD RED "    forge edit %s\n" RESET, files.data[i]);
+                        fprintf(stderr, INVERT BOLD RED "  to fix your errors!\n" RESET);
+                        fprintf(stderr, BOLD YELLOW "  skipping %s module compilation...\n" RESET, files.data[i]);
+                        //fprintf(stderr, "command %s failed, aborting...\n", buf);
+                        //goto cleanup;
                 }
         }
 

@@ -1,12 +1,10 @@
-#include "forge/cmd.h"
-
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 
-#include "forge/forge.h"
+#include "forge/cmd.h"
 
 int
 cd(const char *fp)
