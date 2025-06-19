@@ -16,8 +16,12 @@ AC_CHECK_LIB([pthread], [pthread_create], [], [AC_MSG_ERROR([pthread library not
 AC_CHECK_LIB([dl], [dlopen], [], [AC_MSG_ERROR([dl library not found])])
 AC_CHECK_LIB([sqlite3], [sqlite3_open], [], [AC_MSG_ERROR([sqlite3 library not found])], [-L./src/sqlite-autoconf-3500100/.libs])
 
+AC_DEFINE_UNQUOTED([COMPILER_NAME], ["$CC"], [Name of the C compiler])
+AC_DEFINE_UNQUOTED([COMPILER_VERSION], ["`$CC --version | head -n1`"], [Version of the C compiler])
+AC_DEFINE_UNQUOTED([COMPILER_PATH], ["`which $CC`"], [Full path to the C compiler])
+
 # Add include directory
-AC_SUBST([AM_CFLAGS], ["-I./include -I./forge -I./sqlite-autoconf-3500100"])
+AC_SUBST([AM_CFLAGS], ["-I./include -I./forge -I./sqlite-autoconf-3500100 -march=native -pedantic -Werror -Wextra -Wall -Wno-maybe-uninitialized"])
 
 # Define output files
 AC_CONFIG_FILES([Makefile src/Makefile])

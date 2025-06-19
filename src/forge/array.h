@@ -48,7 +48,7 @@
         (arr_ty) {                              \
                 .data = NULL,                   \
                 .len = 0,                       \
-                .cap = 0,                       \
+                .cap = 1,                       \
         }
 
 //////////////////////////////////////////////////
@@ -103,7 +103,9 @@
 //   dyn_array_free(int_vector);
 #define dyn_array_free(da)       \
     do {                         \
-        free((da).data);         \
+        if ((da).data != NULL) { \
+                free((da).data); \
+        }                        \
         (da).len = (da).cap = 0; \
     } while (0)
 
