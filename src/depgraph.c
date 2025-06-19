@@ -1,3 +1,22 @@
+/*
+ * forge: Forge your own packages
+ * Copyright (C) 2025  malloc-nbytes
+ * Contact: zdhdev@yahoo.com
+
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, see <https://www.gnu.org/licenses/>.
+*/
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,28 +25,6 @@
 
 #include "depgraph.h"
 #include "forge/forge.h"
-
-/* depgraph_node * */
-/* depgraph_node_alloc(const char *name) */
-/* { */
-/*         if (!name) { */
-/*                 fprintf(stderr, "depgraph_node_alloc: NULL name\n"); */
-/*                 return NULL; */
-/*         } */
-/*         depgraph_node *n = (depgraph_node *)malloc(sizeof(depgraph_node)); */
-/*         if (!n) { */
-/*                 fprintf(stderr, "depgraph_node_alloc: Failed to allocate node (%s)\n", strerror(errno)); */
-/*                 return NULL; */
-/*         } */
-/*         n->name = strdup(name); */
-/*         if (!n->name) { */
-/*                 fprintf(stderr, "depgraph_node_alloc: Failed to strdup name '%s' (%s)\n", name, strerror(errno)); */
-/*                 free(n); */
-/*                 return NULL; */
-/*         } */
-/*         n->next = NULL; */
-/*         return n; */
-/* } */
 
 depgraph_node *
 depgraph_node_alloc(const char *name)
@@ -224,50 +221,6 @@ depgraph_gen_order(const depgraph *dg)
 
         return ar;
 }
-
-/* static void */
-/* __depgraph_gen_order(const depgraph *dg, */
-/*                      size_t_array   *ar, */
-/*                      size_t          st) */
-/* { */
-/*         // TODO: detect cyclic order */
-/*         // TODO: use a hashset for track visited. */
-/*         int found = 0; */
-/*         for (size_t j = 0; j < ar->len; ++j) { */
-/*                 for (size_t k = j; k < ar->len-1; ++k) { */
-/*                         if (ar->data[j] == ar->data[k]) { */
-/*                                 found = 1; */
-/*                                 break; */
-/*                         } */
-/*                 } */
-/*                 if (found) { break; } */
-/*         } */
-/*         if (found) { return; } */
-
-/*         depgraph_node *it = dg->tbl[st]->next; */
-
-/*         while (it) { */
-/*                 ssize_t index = get_index_of_pkg(dg, it->name); */
-/*                 if (index == -1) { */
-/*                         assert(0 && "something went horribly wrong"); */
-/*                 } */
-/*                 __depgraph_gen_order(dg, ar, (size_t)index); */
-/*                 it = it->next; */
-/*         } */
-
-/*         printf("adding: %zu\n", st); */
-/*         dyn_array_append(*ar, st); */
-/* } */
-
-/* size_t_array */
-/* depgraph_gen_order(const depgraph *dg) */
-/* { */
-/*         size_t_array ar = dyn_array_empty(size_t_array); */
-/*         for (size_t i = 0; i < dg->len; ++i) { */
-/*                 __depgraph_gen_order(dg, &ar, i); */
-/*         } */
-/*         return ar; */
-/* } */
 
 void
 depgraph_dump(const depgraph *dg)
