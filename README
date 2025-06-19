@@ -1,1 +1,52 @@
 # Forge
+
+Forge your system.
+
+## License
+`Forge` is licensed under the GNU General Public License v2 or later. See [COPYING](COPYING) for details.
+Forge also uses sqlite3. For more information, see https://sqlite.org/.
+
+## About
+Forge is a package manager where you "forge" your own packages in the form of C source files.
+Every package that you want to install must have an associated C file that contains rules
+and functions on how to build, install, uninstall, etc. To help with this, a suite of functions
+and data structures are supplied as the forge API.
+
+## Compiling
+Forge requires sqlite3. You must either download and untar it yourself, or just run `bootstrap.sh`.
+Once this is done, run the following:
+
+```
+autoreconf --install
+./configure --prefix=<prefix> --libdir=<dir>
+make
+```
+
+Where `<prefix>` is your preferred installation prefix for the binary i.e., `/usr/bin`, `/usr/local/bin`.
+Where `<libdir>` is your preferred installation location for the forge library i.e., `/usr/lib64`, `/usr/local/lib`.
+
+To install, run `sudo make install`. To uninstall, run `sudo make uninstall`.
+
+Forge installs files to these locations:
+- `<prefix>/forge` (binary)
+- `<prefix>/include/forge` (API Headers)
+- `<dir>/libforge.so` (forge library)
+- `/var/lib/forge/forge.db` (forge database)
+- `/var/cache/forge/sources/` (package sources)
+- `/usr/src/forge/modules/` (C package modules)
+
+## Getting Started
+The first time you run `forge` must be as root. This sets up the database. All subsequent calls do not need it
+(unless the action has an R tag, see `--help` for more information).
+
+To begin creating a new package, run `sudo forge new <pkg>`. This will open an editor to start definining the
+package rules and behavior. When you are finished, save and quit.
+
+When new packages are added, they must be built with `sudo forge --rebuild`. This will compile them and show
+any errors if needed.
+
+If there are errors, you can run `sudo forge edit <pkg>` to start editing it again.
+
+When all of your packages have been compiled, run `forge list` to see all available. You can then run the following to install them:
+`sudo forge install <pkg1> <pkg2>, ..., <pkgN>`. If you want to remove them, run `sudo forge uninstall <pkg1> <pkg2>, ..., <pkgN>`.
+If you want to update, do `sudo forge update <pkg1> <pkg2>, ..., <pkgN>` or have no arguments to update all of them.
