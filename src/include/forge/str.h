@@ -16,5 +16,4 @@ char *forge_str_to_cstr(const forge_str *fs);
 char *forge_str_contains_substr(const forge_str *fs,
                                 const char      *substr,
                                 int              case_sensitive);
-
 #endif // STR_H_INCLUDED

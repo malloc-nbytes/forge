@@ -16,4 +16,6 @@ typedef struct {
         void (*uninstall)(void);
 } pkg;
 
+void forge_pkg_git_update(void);
+
 #endif // PKG_H_INCLUDED
