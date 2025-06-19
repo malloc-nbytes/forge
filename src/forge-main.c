@@ -687,13 +687,18 @@ uninstall_pkg(forge_context *ctx,
         }
 }
 
-void
+int
 install_pkg(forge_context *ctx,
-            str_array     *names)
+            str_array     *names,
+            int            is_dep)
 {
         for (size_t i = 0; i < names->len; ++i) {
                 const char *name = names->data[i];
-                printf(GREEN BOLD "*** Installing package %s [%zu of %zu]\n" RESET, name, i+1, names->len);
+                if (is_dep) {
+                        printf(GREEN BOLD "*** Installing dependency %s [%zu of %zu]\n" RESET, name, i+1, names->len);
+                } else {
+                        printf(GREEN BOLD "*** Installing package %s [%zu of %zu]\n" RESET, name, i+1, names->len);
+                }
                 fflush(stdout);
                 sleep(1);
 
@@ -711,6 +716,21 @@ install_pkg(forge_context *ctx,
                 }
                 assert(pkg);
 
+                // Install deps
+                if (pkg->deps) {
+                        good_minor("installing dependencies", 1);
+                        info_minor("performing: pkg->deps()", 1);
+                        char **deps = pkg->deps();
+                        str_array depnames = dyn_array_empty(str_array);
+                        for (size_t i = 0; deps[i]; ++i) {
+                                dyn_array_append(depnames, deps[i]);
+                        }
+                        if (!install_pkg(ctx, &depnames, 1)) {
+                                err_wargs("could not install package %s, stopping...\n", names->data[i]);
+                                return 0;
+                        }
+                }
+
                 sqlite3_stmt *stmt;
                 const char *sql_select = "SELECT pkg_src_loc FROM Pkgs WHERE name = ?;";
                 int rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
@@ -727,7 +747,7 @@ install_pkg(forge_context *ctx,
 
                 if (!cd(PKG_SOURCE_DIR)) {
                         fprintf(stderr, "aborting...\n");
-                        return;
+                        return 0;
                 }
 
                 const char *pkgname = NULL;
@@ -744,7 +764,7 @@ install_pkg(forge_context *ctx,
                         pkg->download();
                         if (!cd(pkgname)) {
                                 fprintf(stderr, "aborting...\n");
-                                return;
+                                return 0;
                         }
                 }
 
@@ -755,7 +775,7 @@ install_pkg(forge_context *ctx,
                 pkg->build();
                 if (!cd(base)) {
                         fprintf(stderr, "aborting...\n");
-                        return;
+                        return 0;
                 }
                 info_minor("Performing: pkg->install()", 1);
                 pkg->install();
@@ -799,6 +819,8 @@ install_pkg(forge_context *ctx,
                 }
                 sqlite3_finalize(stmt);
         }
+
+        return 1;
 }
 
 void
@@ -1016,7 +1038,7 @@ main(int argc, char **argv)
                         }
                         if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_INSTALL);
                         assert_sudo();
-                        install_pkg(&ctx, &names);
+                        install_pkg(&ctx, &names, 0);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_UNINSTALL)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
