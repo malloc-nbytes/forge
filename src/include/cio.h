@@ -43,6 +43,39 @@ void cio_create_file(const char *fp, int force_overwrite) {
         fclose(f);
 }
 
+char *cio_file_to_cstr_wnewlines(const char *fp, size_t *ret_len) {
+        FILE *f = fopen(fp, "r");
+        char *line = NULL;
+        size_t len = 0;
+        ssize_t read;
+
+        struct {
+                char *data;
+                size_t len;
+                size_t cap;
+        } buf = {
+                .data = NULL,
+                .cap = 0,
+                .len = 0,
+        };
+
+        while ((read = getline(&line, &len, f)) != -1) {
+                for (size_t i = 0; line[i]; ++i) {
+                        if (buf.len >= buf.cap) {
+                                buf.cap = buf.cap == 0 ? 2 : buf.cap*2;
+                                buf.data = realloc(buf.data, buf.cap);
+                        }
+                        buf.data[buf.len++] = line[i];
+                }
+        }
+
+        free(line);
+        fclose(f);
+
+        *ret_len = buf.len;
+        return buf.data;
+}
+
 char *cio_file_to_cstr(const char *fp, size_t *ret_len) {
         FILE *f = fopen(fp, "r");
         char *line = NULL;
@@ -71,6 +104,37 @@ char *cio_file_to_cstr(const char *fp, size_t *ret_len) {
                         }
                         buf.data[buf.len++] = line[i];
                 }
+        }
+
+        free(line);
+        fclose(f);
+
+        *ret_len = buf.len;
+        return buf.data;
+}
+
+char **cio_file_to_lines_wnewlines(const char *fp, size_t *ret_len) {
+        FILE *f = fopen(fp, "r");
+        char *line = NULL;
+        size_t len = 0;
+        ssize_t read;
+
+        struct {
+                char **data;
+                size_t len;
+                size_t cap;
+        } buf = {
+                .data = NULL,
+                .cap = 0,
+                .len = 0,
+        };
+
+        while ((read = getline(&line, &len, f)) != -1) {
+                if (buf.len >= buf.cap) {
+                        buf.cap = buf.cap == 0 ? 2 : buf.cap*2;
+                        buf.data = realloc(buf.data, buf.cap * sizeof(char *));
+                }
+                buf.data[buf.len++] = strdup(line);
         }
 
         free(line);
