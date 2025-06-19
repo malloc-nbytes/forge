@@ -1,8 +1,14 @@
 # Add VPATH to find headers in src/include
 VPATH = $(top_srcdir)/src/include
 
+# Ensure SQLite is built before other targets
+all-local: sqlite-build
+
 # Define the library to be built
 lib_LTLIBRARIES = libforge.la
+
+sqlite-build:
+	$(MAKE) -C ./sqlite-autoconf-3500100
 
 # Sources for libforge.so
 libforge_la_SOURCES = colors.c depgraph.c flags.c forge-main.c \

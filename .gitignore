@@ -1,8 +1,9 @@
 forge.db
 *.so
-sqlite-autoconf*
 
 # Autotools generated files
+./configure
+conf*
 Makefile
 Makefile.in
 /aclocal.m4
