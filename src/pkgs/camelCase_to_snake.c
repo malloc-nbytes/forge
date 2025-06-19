@@ -1,30 +1,32 @@
 #include <forge/forge.h>
 
-char *deps[] = {NULL}; // Must be NULL terminated
+char *deps[] = {"far"}; // Must be NULL terminated
 
-char *getname(void) { return "gf"; }
+char *getname(void) { return "camelCase_to_snake"; }
 char *getver(void) { return "1.0.0"; }
-char *getdesc(void) { return "A GDB frontend for Linux"; }
+char *getdesc(void) { return "Kill those camels!"; }
 char **getdeps(void) { return deps; }
 char *download(void) {
-	cmd("git clone https://github.com/nakst/gf.git");
-        return "gf";
+	cmd("git clone https://github.com/malloc-nbytes/camelCase_to_snake.git");
+        return "camelCase_to_snake";
 }
 void build(void) {
+	cd("src");
 	cmd("./build.sh");
 }
 void install(void) {
-	cmd("cp ./gf2 /usr/local/bin/");
+	cd("src");
+	cmd("./install.sh");
 }
 void uninstall(void) {
-	cmd("rm /usr/local/bin/gf2");
+	cmd("rm /usr/local/bin/ccts");
 }
 
 FORGE_GLOBAL pkg package = {
         .name = getname,
         .ver = getver,
         .desc = getdesc,
-        .deps = NULL,
+        .deps = getdeps,
         .download = download,
         .build = build,
         .install = install,

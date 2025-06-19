@@ -2,22 +2,20 @@
 
 char *deps[] = {NULL}; // Must be NULL terminated
 
-char *getname(void) { return "gf"; }
+char *getname(void) { return "far"; }
 char *getver(void) { return "1.0.0"; }
-char *getdesc(void) { return "A GDB frontend for Linux"; }
+char *getdesc(void) { return "Find and replace"; }
 char **getdeps(void) { return deps; }
 char *download(void) {
-	cmd("git clone https://github.com/nakst/gf.git");
-        return "gf";
+	cmd("git clone https://github.com/malloc-nbytes/far.git");
+        return "far";
 }
-void build(void) {
-	cmd("./build.sh");
-}
+void build(void) {}
 void install(void) {
-	cmd("cp ./gf2 /usr/local/bin/");
+	cmd("./install.sh");
 }
 void uninstall(void) {
-	cmd("rm /usr/local/bin/gf2");
+	cmd("rm /usr/local/bin/far.py");
 }
 
 FORGE_GLOBAL pkg package = {

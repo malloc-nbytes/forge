@@ -2,22 +2,28 @@
 
 char *deps[] = {NULL}; // Must be NULL terminated
 
-char *getname(void) { return "gf"; }
-char *getver(void) { return "1.0.0"; }
-char *getdesc(void) { return "A GDB frontend for Linux"; }
+char *getname(void) { return "raylib"; }
+char *getver(void) { return "5.5"; }
+char *getdesc(void) { return "A simple and easy-to-use library to enjoy videogames programming"; }
 char **getdeps(void) { return deps; }
 char *download(void) {
-	cmd("git clone https://github.com/nakst/gf.git");
-        return "gf";
+	cmd("git clone https://github.com/raysan5/raylib.git");
+        return "raylib";
 }
 void build(void) {
-	cmd("./build.sh");
+	cmd("mkdir build");
+	cd("build");
+	cmd("cmake ..");
+	cmd("make -j12");
 }
 void install(void) {
-	cmd("cp ./gf2 /usr/local/bin/");
+	cd("build");
+	cmd("make install");
+	cmd("ldconfig");
 }
 void uninstall(void) {
-	cmd("rm /usr/local/bin/gf2");
+	cd("build");
+	cmd("make uninstall");
 }
 
 FORGE_GLOBAL pkg package = {

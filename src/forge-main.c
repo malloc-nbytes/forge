@@ -695,9 +695,11 @@ install_pkg(forge_context *ctx,
         for (size_t i = 0; i < names->len; ++i) {
                 const char *name = names->data[i];
                 if (is_dep) {
-                        printf(GREEN BOLD "*** Installing dependency %s [%zu of %zu]\n" RESET, name, i+1, names->len);
+                        printf(GREEN BOLD "*** Installing dependency %s [%zu of %zu]\n" RESET,
+                               name, i+1, names->len);
                 } else {
-                        printf(GREEN BOLD "*** Installing package %s [%zu of %zu]\n" RESET, name, i+1, names->len);
+                        printf(GREEN BOLD "*** Installing package %s [%zu of %zu]\n" RESET,
+                               name, i+1, names->len);
                 }
                 fflush(stdout);
                 sleep(1);
@@ -915,25 +917,51 @@ rebuild_pkgs(forge_context *ctx)
                 goto cleanup;
         }
 
+        str_array passed = dyn_array_empty(str_array),
+                failed = dyn_array_empty(str_array);
         for (size_t i = 0; i < files.len; ++i) {
                 char buf[256] = {0};
-                // sprintf(buf, "gcc -shared -fPIC %s.c ../forge.c -o ./build/%s.so -I../include",
-                //         files.data[i], files.data[i]);
                 sprintf(buf, "gcc -Wextra -Wall -Werror -shared -fPIC %s.c -lforge -L/usr/local/lib -o" MODULE_LIB_DIR "%s.so -I../include",
                         files.data[i], files.data[i]);
-                if (!cmd(buf)) {
-                        fprintf(stderr, INVERT BOLD RED "In module %s:\n" RESET, files.data[i]);
-                        fprintf(stderr, INVERT BOLD RED "  located in: " MODULE_LIB_DIR "%s.c\n" RESET, files.data[i]);
-                        fprintf(stderr, INVERT BOLD RED "  use:\n" RESET);
-                        fprintf(stderr, INVERT BOLD RED "    forge edit %s\n" RESET, files.data[i]);
-                        fprintf(stderr, INVERT BOLD RED "  to fix your errors!\n" RESET);
-                        fprintf(stderr, BOLD YELLOW "  skipping %s module compilation...\n" RESET, files.data[i]);
-                        //fprintf(stderr, "command %s failed, aborting...\n", buf);
-                        //goto cleanup;
+                printf("%s\n", buf);
+                fflush(stdout);
+                int status = system(buf);
+                if (status == -1) {
+                        perror("system");
+                        dyn_array_append(failed, files.data[i]);
+                } else {
+                        if (WIFEXITED(status)) {
+                                printf("\033[1A");
+                                printf("\033[2K");
+                                int exit_status = WEXITSTATUS(status);
+                                if (exit_status != 0) {
+                                        fflush(stdout);
+                                        fprintf(stderr, INVERT BOLD RED "In module %s:\n" RESET, files.data[i]);
+                                        fprintf(stderr, INVERT BOLD RED "  located in: " MODULE_LIB_DIR "%s.c\n" RESET, files.data[i]);
+                                        fprintf(stderr, INVERT BOLD RED "  use:\n" RESET);
+                                        fprintf(stderr, INVERT BOLD RED "    forge edit %s\n" RESET, files.data[i]);
+                                        fprintf(stderr, INVERT BOLD RED "  to fix your errors!\n" RESET);
+                                        fprintf(stderr, BOLD YELLOW "  skipping %s module compilation...\n" RESET, files.data[i]);
+                                        dyn_array_append(failed, files.data[i]);
+                                } else {
+                                        dyn_array_append(passed, files.data[i]);
+                                }
+                        } else {
+                                fprintf(stdout, INVERT BOLD RED "program did not exit normally\n" RESET);
+                                dyn_array_append(failed, files.data[i]);
+                        }
                 }
         }
 
+        if (failed.len > 0) {
+                printf("Results: [ " BOLD GREEN "%zu Passed" RESET ", " BOLD RED "%zu Failed" RESET " ]\n", passed.len, failed.len);
+        } else {
+                printf("Results: [ " BOLD GREEN "%zu Passed" RESET " ]\n", passed.len);
+        }
+
  cleanup:
+        dyn_array_free(passed);
+        dyn_array_free(failed);
         for (size_t i = 0; i < files.len; ++i) { free(files.data[i]); }
         dyn_array_free(files);
         closedir(dir);
@@ -967,23 +995,51 @@ init_env(void)
 }
 
 void
-new_pkg(forge_context *ctx, const char *name)
+new_pkg(forge_context *ctx, str_array *names)
 {
-        char fp[256] = {0};
-        sprintf(fp, C_MODULE_DIR "%s.c", name);
-        if (cio_file_exists(fp)) {
-                err_wargs("file %s already exists", fp);
-        }
-        if (!cio_write_file(fp, FORGE_C_MODULE_TEMPLATE)) {
-                err_wargs("failed to write to file %s, %s", fp, strerror(errno));
-        }
+        for (size_t i = 0; i < names->len; ++i) {
+                char fp[256] = {0};
+                sprintf(fp, C_MODULE_DIR "%s.c", names->data[i]);
+                if (cio_file_exists(fp)) {
+                        err_wargs("file %s already exists", fp);
+                }
+                if (!cio_write_file(fp, FORGE_C_MODULE_TEMPLATE)) {
+                        err_wargs("failed to write to file %s, %s", fp, strerror(errno));
+                }
 
-        // Open in Vim
-        char cmd[512] = {0};
-        snprintf(cmd, sizeof(cmd), "vim %s", fp);
-        if (system(cmd) == -1) {
-                fprintf(stderr, "Failed to open %s in Vim: %s\n", fp, strerror(errno));
+                // Open in Vim
+                char cmd[512] = {0};
+                snprintf(cmd, sizeof(cmd), "vim %s", fp);
+                if (system(cmd) == -1) {
+                        fprintf(stderr, "Failed to open %s in Vim: %s\n", fp, strerror(errno));
+                }
         }
+}
+
+void
+edit_c_module(forge_context *ctx, str_array *names)
+{
+        for (size_t i = 0; i < names->len; ++i) {
+                char fp[256] = {0};
+                sprintf(fp, C_MODULE_DIR "%s.c", names->data[i]);
+                if (!cio_file_exists(fp)) {
+                        err_wargs("C module %s does not exist", fp);
+                }
+
+                char cmd[512] = {0};
+                snprintf(cmd, sizeof(cmd), "vim %s", fp);
+                if (system(cmd) == -1) {
+                        fprintf(stderr, "Failed to open %s in Vim: %s\n", fp, strerror(errno));
+                }
+        }
+}
+
+void
+clearln(void)
+{
+        fflush(stdout);
+        printf("\033[1A");
+        printf("\033[2K");
 }
 
 int
@@ -1047,6 +1103,8 @@ main(int argc, char **argv)
                         if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_INSTALL);
                         assert_sudo();
                         uninstall_pkg(&ctx, &names);
+                        for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
+                        dyn_array_free(names);
                 } else if ((arg.hyphc == 1 && arg.start[0] == FLAG_1HY_REBUILD) ||
                            (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_REBUILD))) {
                         assert_sudo();
@@ -1077,11 +1135,25 @@ main(int argc, char **argv)
                                 register_pkg(&ctx, ctx.pkgs.data[indices.data[i]]);
                         }
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_NEW)) {
-                        if (!clap_next(&arg)) {
-                                err_wargs("flag `%s` requires an argument", FLAG_2HY_NEW);
+                        str_array names = dyn_array_empty(str_array);
+                        while (clap_next(&arg)) {
+                                dyn_array_append(names, strdup(arg.start));
                         }
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_NEW);
                         assert_sudo();
-                        new_pkg(&ctx, arg.start);
+                        new_pkg(&ctx, &names);
+                        for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
+                        dyn_array_free(names);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_EDIT)) {
+                        str_array names = dyn_array_empty(str_array);
+                        while (clap_next(&arg)) {
+                                dyn_array_append(names, strdup(arg.start));
+                        }
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_INSTALL);
+                        assert_sudo();
+                        edit_c_module(&ctx, &names);
+                        for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
+                        dyn_array_free(names);
                 } else {
                         err_wargs("unknown flag `%s`", arg.start);
                 }

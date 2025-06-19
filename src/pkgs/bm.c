@@ -2,22 +2,27 @@
 
 char *deps[] = {NULL}; // Must be NULL terminated
 
-char *getname(void) { return "gf"; }
+char *getname(void) { return "bm"; }
 char *getver(void) { return "1.0.0"; }
-char *getdesc(void) { return "A GDB frontend for Linux"; }
+char *getdesc(void) { return "Bookmark directories in the terminal"; }
 char **getdeps(void) { return deps; }
 char *download(void) {
-	cmd("git clone https://github.com/nakst/gf.git");
-        return "gf";
+	cmd("git clone https://www.github.com/malloc-nbytes/bm.git/");
+        return "bm";
 }
 void build(void) {
-	cmd("./build.sh");
+	cmd("mkdir build");
+	cd("build");
+	cmd("cmake -S .. -B .");
+	cmd("make");
 }
 void install(void) {
-	cmd("cp ./gf2 /usr/local/bin/");
+	cd("build");
+	cmd("make install");
 }
 void uninstall(void) {
-	cmd("rm /usr/local/bin/gf2");
+	cd("build");
+	cmd("make uninstall");
 }
 
 FORGE_GLOBAL pkg package = {
