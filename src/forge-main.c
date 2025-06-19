@@ -148,7 +148,7 @@ get_dirs_in_dir(const char *fp)
 
         struct dirent *entry;
         struct stat st;
-        char full_path[256];
+        char full_path[512] = {0};
 
         while ((entry = readdir(dir))) {
                 // Skip "." and ".." entries
@@ -190,7 +190,7 @@ get_files_in_dir(const char *fp)
 
         struct dirent *entry;
         struct stat st;
-        char full_path[256];
+        char full_path[512] = {0};
 
         while ((entry = readdir(dir))) {
                 // Skip "." and ".." entries
@@ -428,6 +428,8 @@ register_pkg(forge_context *ctx, pkg *pkg)
 void
 list_deps(forge_context *ctx, const char *pkg_name)
 {
+        (void)ctx;
+
         sqlite3 *db;
         int rc = sqlite3_open_v2(DB_FP, &db, SQLITE_OPEN_READONLY, NULL);
         CHECK_SQLITE(rc, db);
@@ -465,7 +467,7 @@ list_deps(forge_context *ctx, const char *pkg_name)
                 max_name_len = MAX(max_name_len, strlen(info.name));
                 max_version_len = MAX(max_version_len, strlen(info.version));
                 max_desc_len = MAX(max_desc_len, strlen(info.description));
-                max_installed_len = MAX(max_installed_len, snprintf(NULL, 0, "%d", installed));
+                max_installed_len = MAX((int)max_installed_len, snprintf(NULL, 0, "%d", installed));
 
                 dyn_array_append(rows, info);
         }
@@ -516,6 +518,8 @@ list_deps(forge_context *ctx, const char *pkg_name)
 void
 list_registerd_pkgs(forge_context *ctx)
 {
+        (void)ctx;
+
         sqlite3 *db;
         int rc = sqlite3_open_v2(DB_FP, &db, SQLITE_OPEN_READONLY, NULL);
         CHECK_SQLITE(rc, db);
@@ -547,7 +551,7 @@ list_registerd_pkgs(forge_context *ctx)
                 max_name_len = MAX(max_name_len, strlen(info.name));
                 max_version_len = MAX(max_version_len, strlen(info.version));
                 max_desc_len = MAX(max_desc_len, strlen(info.description));
-                max_installed_len = MAX(max_installed_len, snprintf(NULL, 0, "%d", installed));
+                max_installed_len = MAX((int)max_installed_len, snprintf(NULL, 0, "%d", installed));
 
                 dyn_array_append(rows, info);
         }
@@ -626,7 +630,7 @@ uninstall_pkg(forge_context *ctx,
 
                 pkg *pkg = NULL;
                 char *pkg_src_loc = NULL;
-                size_t pkg_id = get_pkg_id(ctx, name);
+                int pkg_id = get_pkg_id(ctx, name);
                 if (pkg_id == -1) {
                         err_wargs("unregistered package `%s`", name);
                 }
@@ -728,7 +732,7 @@ install_pkg(forge_context *ctx,
 
                 pkg *pkg = NULL;
                 char *pkg_src_loc = NULL;
-                size_t pkg_id = get_pkg_id(ctx, name);
+                int pkg_id = get_pkg_id(ctx, name);
                 if (pkg_id == -1) {
                         err_wargs("unregistered package `%s`", name);
                 }
@@ -859,8 +863,8 @@ obtain_handles_and_pkgs_from_dll(forge_context *ctx)
         struct dirent *entry;
         while ((entry = readdir(dir))) {
                 if (strstr(entry->d_name, ".so")) {
-                        char *path = (char *)malloc(256);
-                        snprintf(path, 256, "%s%s", MODULE_LIB_DIR, entry->d_name);
+                        char *path = (char *)malloc(512);
+                        snprintf(path, 512, "%s%s", MODULE_LIB_DIR, entry->d_name);
 
                         void *handle = dlopen(path, RTLD_LAZY);
                         if (!handle) {
@@ -911,6 +915,8 @@ assert_sudo(void)
 void
 rebuild_pkgs(forge_context *ctx)
 {
+        (void)ctx;
+
         good_major("Rebuilding package modules", 1);
 
         DIR *dir = opendir(C_MODULE_DIR);
@@ -1019,6 +1025,8 @@ init_env(void)
 void
 new_pkg(forge_context *ctx, str_array *names)
 {
+        (void)ctx;
+
         for (size_t i = 0; i < names->len; ++i) {
                 char fp[256] = {0};
                 sprintf(fp, C_MODULE_DIR "%s.c", names->data[i]);
@@ -1041,6 +1049,8 @@ new_pkg(forge_context *ctx, str_array *names)
 void
 edit_c_module(forge_context *ctx, str_array *names)
 {
+        (void)ctx;
+
         for (size_t i = 0; i < names->len; ++i) {
                 char fp[256] = {0};
                 sprintf(fp, C_MODULE_DIR "%s.c", names->data[i]);
@@ -1217,6 +1227,8 @@ void
 dump_module(const forge_context *ctx,
             const str_array     *names)
 {
+        (void)ctx;
+
         for (size_t i = 0; i < names->len; ++i) {
                 printf(GREEN BOLD "*** Dumping package %s [%zu of %zu]\n" RESET,
                                names->data[i], i+1, names->len);
@@ -1230,7 +1242,9 @@ dump_module(const forge_context *ctx,
                 char **lines = cio_file_to_lines_wnewlines(fp, &ret_len);
                 for (size_t j = 0; j < ret_len; ++j) {
                         printf("  %zu: %s", j, lines[j]);
+                        free(lines[j]);
                 }
+                free(lines);
         }
 }
 
@@ -1277,9 +1291,9 @@ main(int argc, char **argv)
         Clap_Arg arg = {0};
         while (clap_next(&arg)) {
                 if (arg.hyphc == 1 && arg.start[0] == FLAG_1HY_HELP) {
-                        assert(0);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_HELP)) {
-                        assert(0);
+                        usage();
+                } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_HELP)) {
+                        usage();
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIST)) {
                         list_registerd_pkgs(&ctx);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DEPS)) {

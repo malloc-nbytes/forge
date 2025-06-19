@@ -21,21 +21,28 @@
 #include <stdlib.h>
 
 #include "flags.h"
+#include "colors.h"
 
 void
 usage(void)
 {
-        printf("Usage: forge [options...] <command> [arguments...]\n");
-        printf("Commands:\n");
-        printf("    %s                  list installed packages\n", FLAG_2HY_LIST);
-        printf("    %s <pkg...>      install packages\n", FLAG_2HY_INSTALL);
-        printf("    %s <pkg...>    uninstall packages\n", FLAG_2HY_UNINSTALL);
-        printf("    %s <pkg...>       update packages or leave empty to update all\n", FLAG_2HY_UPDATE);
-        printf("    %s <pkg>            list dependencies of `pkg`\n", FLAG_2HY_DEPS);
-        printf("    %s <name>            create a new package module\n", FLAG_2HY_NEW);
-        printf("    %s <name>           edit an existing package module\n", FLAG_2HY_EDIT);
+        printf("Forge version 1.0, Copyright (C) 2025 malloc-nbytes.\n");
+        printf("Forge comes with ABSOLUTELY NO WARRANTY.\n");
+        printf("This is free software, and you are welcome to redistribute it\n");
+        printf("under certain conditions; see --copying\n\n");
+
+        printf("Usage: forge " YELLOW BOLD "[options...] " RESET GREEN BOLD "<command>" RESET " [arguments...]\n");
         printf("Options:\n");
-        printf("    -%c, --%s            display this message\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
-        printf("    -%c, --%s         rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
+        printf(YELLOW BOLD "    -%c, --%s" RESET "          display this message\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
+        printf(YELLOW BOLD "    -%c, --%s" RESET "       rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
+        printf("Commands:\n");
+        printf(GREEN BOLD "    %s          " RESET "      list installed packages\n", FLAG_2HY_LIST);
+        printf(GREEN BOLD "    %s <pkg...> " RESET "   install packages\n", FLAG_2HY_INSTALL);
+        printf(GREEN BOLD "    %s <pkg...> " RESET " uninstall packages\n", FLAG_2HY_UNINSTALL);
+        printf(GREEN BOLD "    %s <pkg...> " RESET "    update packages or leave empty to update all\n", FLAG_2HY_UPDATE);
+        printf(GREEN BOLD "    %s <pkg>    " RESET "      list dependencies of `pkg`\n", FLAG_2HY_DEPS);
+        printf(GREEN BOLD "    %s <name>   " RESET "       create a new package module\n", FLAG_2HY_NEW);
+        printf(GREEN BOLD "    %s <name>   " RESET "      edit an existing package module\n", FLAG_2HY_EDIT);
+        printf(GREEN BOLD "    %s <name...>" RESET "      dump a package module\n", FLAG_2HY_DUMP);
         exit(0);
 }
