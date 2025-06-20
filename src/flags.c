@@ -47,7 +47,7 @@ usage(void)
         printf("Options:\n");
         printf(YELLOW BOLD "    -%c, --%s" RESET "            display this message\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
         printf(YELLOW BOLD "    -%c, --%s       R"                         RESET  " rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
-        printf(YELLOW BOLD "        --%s          R"                         RESET " sync the C modules repository\n", FLAG_2HY_SYNC);
+        printf(YELLOW BOLD "    -%c, --%s          R"                         RESET " sync the C modules repository\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
         printf("Commands:\n");
         printf(GREEN BOLD "    %s          " RESET                                "        list installed packages\n", FLAG_2HY_LIST);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "   R "     RESET  "install packages\n", FLAG_2HY_INSTALL);
