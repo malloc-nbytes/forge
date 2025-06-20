@@ -2,6 +2,9 @@
 
 Forge your system.
 
+## Disclaimer
+THIS PROJECT IS A WIP. USE AT YOUR OWN RISK!
+
 ## License
 `Forge` is licensed under the GNU General Public License v2 or later. See [COPYING](COPYING) for details.
 Forge also uses sqlite3. For more information, see https://sqlite.org/.
@@ -34,6 +37,7 @@ Forge installs files to these locations:
 - `/var/lib/forge/forge.db` (forge database)
 - `/var/cache/forge/sources/` (package sources)
 - `/usr/src/forge/modules/` (C package modules)
+- `/usr/lib/forge/modules` (compiled C package modules)
 
 ## Getting Started
 The first time you run `forge` must be as root. This sets up the database. All subsequent calls do not need it

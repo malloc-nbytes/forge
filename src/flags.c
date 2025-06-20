@@ -45,18 +45,20 @@ usage(void)
 
         printf("Usage: forge " YELLOW BOLD "[options...] " RESET GREEN BOLD "<command>" RESET " [arguments...]\n");
         printf("Options:\n");
-        printf(YELLOW BOLD "    -%c, --%s" RESET "            display this message\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
-        printf(YELLOW BOLD "    -%c, --%s       R"                         RESET  " rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
-        printf(YELLOW BOLD "         --%s         R"                         RESET " sync the C modules repository\n", FLAG_2HY_SYNC);
+        printf(YELLOW BOLD "    -%c, --%s" RESET "                display this message\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
+        printf(YELLOW BOLD "    -%c, --%s           R"                         RESET  " rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
+        printf(YELLOW BOLD "    -%c, --%s              R"                         RESET " sync the C modules repository\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
+        printf(YELLOW BOLD "        --%s  R"                         RESET " remove all broken packages\n", FLAG_2HY_DROP_BROKEN_PKGS);
         printf("Commands:\n");
-        printf(GREEN BOLD "    %s          " RESET                                "        list installed packages\n", FLAG_2HY_LIST);
-        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "   R "     RESET  "install packages\n", FLAG_2HY_INSTALL);
-        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD " R "       RESET  "uninstall packages\n", FLAG_2HY_UNINSTALL);
-        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "    R "    RESET  "update packages or leave empty to update all\n", FLAG_2HY_UPDATE);
-        printf(GREEN BOLD "    %s <pkg>    " RESET                                "        list dependencies of `pkg`\n", FLAG_2HY_DEPS);
-        printf(GREEN BOLD "    %s <name>   " RESET YELLOW BOLD "       R " RESET  "create a new package module\n", FLAG_2HY_NEW);
-        printf(GREEN BOLD "    %s <name>   " RESET YELLOW BOLD "      R "  RESET  "edit an existing package module\n", FLAG_2HY_EDIT);
-        printf(GREEN BOLD "    %s <name...>" RESET                                "        dump a package module\n", FLAG_2HY_DUMP);
+        printf(GREEN BOLD "    %s          " RESET                                "            list available packages\n", FLAG_2HY_LIST);
+        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "       R "     RESET  "install packages\n", FLAG_2HY_INSTALL);
+        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "     R "       RESET  "uninstall packages\n", FLAG_2HY_UNINSTALL);
+        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "        R "    RESET  "update packages or leave empty to update all\n", FLAG_2HY_UPDATE);
+        printf(GREEN BOLD "    %s <pkg>    " RESET                                "            list dependencies of `pkg`\n", FLAG_2HY_DEPS);
+        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "        R " RESET  "create a new package module\n", FLAG_2HY_NEW);
+        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "       R "  RESET  "edit an existing package module\n", FLAG_2HY_EDIT);
+        printf(GREEN BOLD "    %s <name...>" RESET                                "            dump a package module\n", FLAG_2HY_DUMP);
+        printf(GREEN BOLD "    %s <name...>" RESET                                "            drop a package\n", FLAG_2HY_DROP);
         printf("Note: " YELLOW BOLD "R" RESET " requires root permissions\n");
         exit(0);
 }
