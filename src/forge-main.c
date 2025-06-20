@@ -1340,35 +1340,8 @@ main(int argc, char **argv)
                         uninstall_pkg(&ctx, &names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
-                } else if ((arg.hyphc == 1 && arg.start[0] == FLAG_1HY_REBUILD) ||
-                           (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_REBUILD))) {
-                        assert_sudo();
-                        // Clean up existing context to avoid stale handles
-                        for (size_t i = 0; i < ctx.dll.handles.len; ++i) {
-                                dlclose(ctx.dll.handles.data[i]);
-                                free(ctx.dll.paths.data[i]);
-                        }
-                        dyn_array_free(ctx.dll.handles);
-                        dyn_array_free(ctx.dll.paths);
-                        dyn_array_free(ctx.pkgs);
-                        depgraph_destroy(&ctx.dg);
-
-                        // Reinitialize context
-                        ctx.dll.handles = dyn_array_empty(handle_array);
-                        ctx.dll.paths = dyn_array_empty(str_array);
-                        ctx.pkgs = dyn_array_empty(pkg_ptr_array);
-                        ctx.dg = depgraph_create();
-
-                        // Rebuild packages and load new .so files
-                        rebuild_pkgs(&ctx);
-                        obtain_handles_and_pkgs_from_dll(&ctx);
-                        construct_depgraph(&ctx);
-                        indices = depgraph_gen_order(&ctx.dg);
-
-                        // Register packages
-                        for (size_t i = 0; i < indices.len; ++i) {
-                                register_pkg(&ctx, ctx.pkgs.data[indices.data[i]]);
-                        }
+                } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_REBUILD)) {
+                        g_config.flags |= FT_REBUILD;
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_NEW)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
@@ -1408,10 +1381,53 @@ main(int argc, char **argv)
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_SYNC)) {
-                        assert_sudo();
-                        sync();
-                } else {
+                        g_config.flags |= FT_SYNC;
+                } else if (arg.hyphc == 1) { // one hyph options
+                        for (size_t i = 0; arg.start[i]; ++i) {
+                                char c = arg.start[i];
+                                switch (c) {
+                                case FLAG_1HY_REBUILD: g_config.flags |= FT_REBUILD; break;
+                                case FLAG_1HY_SYNC: g_config.flags |= FT_SYNC; break;
+                                default: err_wargs("unknown option `%c`", c);
+                                }
+                        }
+                }
+                else {
                         err_wargs("unknown flag `%s`", arg.start);
+                }
+        }
+
+        if (g_config.flags & FT_SYNC) {
+                assert_sudo();
+                sync();
+        }
+        if (g_config.flags & FT_REBUILD) {
+                assert_sudo();
+                // Clean up existing context to avoid stale handles
+                for (size_t i = 0; i < ctx.dll.handles.len; ++i) {
+                        dlclose(ctx.dll.handles.data[i]);
+                        free(ctx.dll.paths.data[i]);
+                }
+                dyn_array_free(ctx.dll.handles);
+                dyn_array_free(ctx.dll.paths);
+                dyn_array_free(ctx.pkgs);
+                depgraph_destroy(&ctx.dg);
+
+                // Reinitialize context
+                ctx.dll.handles = dyn_array_empty(handle_array);
+                ctx.dll.paths = dyn_array_empty(str_array);
+                ctx.pkgs = dyn_array_empty(pkg_ptr_array);
+                ctx.dg = depgraph_create();
+
+                // Rebuild packages and load new .so files
+                rebuild_pkgs(&ctx);
+                obtain_handles_and_pkgs_from_dll(&ctx);
+                construct_depgraph(&ctx);
+                indices = depgraph_gen_order(&ctx.dg);
+
+                // Register packages
+                for (size_t i = 0; i < indices.len; ++i) {
+                        register_pkg(&ctx, ctx.pkgs.data[indices.data[i]]);
                 }
         }
 

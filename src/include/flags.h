@@ -22,6 +22,7 @@
 
 #define FLAG_1HY_HELP 'h'
 #define FLAG_1HY_REBUILD 'r'
+#define FLAG_1HY_SYNC 's'
 
 #define FLAG_2HY_HELP "help"
 #define FLAG_2HY_LIST "list"
@@ -35,7 +36,10 @@
 #define FLAG_2HY_DUMP "dump"
 #define FLAG_2HY_SYNC "sync"
 
-typedef enum { FT_NONE = 1 << 0, } flag_type;
+typedef enum {
+        FT_REBUILD = 1 << 0,
+        FT_SYNC = 1 << 1,
+} flag_type;
 
 void usage(void);
 
