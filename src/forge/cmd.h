@@ -7,5 +7,6 @@ int cmd(const char *cmd);
 char *cmdout(const char *cmd);
 char *git_clone(char *author, char *name);
 char *mkdirp(char *fp);
+char *env(const char *var);
 
 #endif // CMD_H_INCLUDED
