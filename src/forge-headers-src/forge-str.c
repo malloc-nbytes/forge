@@ -64,6 +64,15 @@ forge_str_append(forge_str *fs, char c)
         fs->data[fs->len++] = c;
 }
 
+void
+forge_str_concat(forge_str  *fs,
+                 const char *s)
+{
+        for (size_t i = 0; s[i]; ++i) {
+                forge_str_append(fs, s[i]);
+        }
+}
+
 int
 forge_str_eq(const forge_str *s0,
              const forge_str *s1)
