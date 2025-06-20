@@ -33,6 +33,7 @@
 #define FLAG_2HY_EDIT "edit"
 #define FLAG_2HY_UPDATE "update"
 #define FLAG_2HY_DUMP "dump"
+#define FLAG_2HY_SYNC "sync"
 
 typedef enum { FT_NONE = 1 << 0, } flag_type;
 

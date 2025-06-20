@@ -77,6 +77,7 @@
 #define DB_FP DB_DIR "forge.db"
 
 #define C_MODULE_DIR "/usr/src/forge/modules/"
+#define C_MODULE_DIR_PARENT "/usr/src/forge/"
 #define MODULE_LIB_DIR "/usr/lib/forge/modules/"
 
 #define PKG_SOURCE_DIR "/var/cache/forge/sources/"
@@ -941,7 +942,7 @@ rebuild_pkgs(forge_context *ctx)
                 }
         }
 
-        if (!cd(C_MODULE_DIR)) {
+        if (!cd_silent(C_MODULE_DIR)) {
                 fprintf(stderr, "aborting...\n");
                 goto cleanup;
         }
@@ -1015,6 +1016,12 @@ init_env(void)
         }
         if (mkdir_p(C_MODULE_DIR, 0755) != 0 && errno != EEXIST) {
                 fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
+        }
+        if (!cd(C_MODULE_DIR_PARENT)) {
+                fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR_PARENT, strerror(errno));
+        }
+        if (!cmd("git clone https://www.github.com/malloc-nbytes/forge-modules.git/ ./modules")) {
+                fprintf(stderr, "could not git clone forge-modules: %s\n", strerror(errno));
         }
 
         // Pkg source location
@@ -1250,6 +1257,19 @@ dump_module(const forge_context *ctx,
 }
 
 void
+sync(void)
+{
+        good_major("Pulling changes", 1);
+        if (!cd_silent(C_MODULE_DIR)) {
+                fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
+                return;
+        }
+        if (!cmd("git fetch origin && git pull origin main")) {
+                fprintf(stderr, "could not sync: %s\n", strerror(errno));
+        }
+}
+
+void
 clearln(void)
 {
         fflush(stdout);
@@ -1387,8 +1407,10 @@ main(int argc, char **argv)
                         dump_module(&ctx, &names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
-                }
-                else {
+                } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_SYNC)) {
+                        assert_sudo();
+                        sync();
+                } else {
                         err_wargs("unknown flag `%s`", arg.start);
                 }
         }
