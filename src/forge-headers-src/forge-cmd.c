@@ -158,3 +158,8 @@ mkdirp(char *fp)
         return fp;
 }
 
+char *
+env(const char *var)
+{
+        return getenv(var);
+}
