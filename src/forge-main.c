@@ -984,9 +984,9 @@ rebuild_pkgs(forge_context *ctx)
         }
 
         if (failed.len > 0) {
-                printf("Results: [ " BOLD GREEN "%zu Passed" RESET ", " BOLD RED "%zu Failed" RESET " ]\n", passed.len, failed.len);
+                printf("Results: [ " BOLD GREEN "%zu Compiled" RESET ", " BOLD RED "%zu Failed" RESET " ]\n", passed.len, failed.len);
         } else {
-                printf("Results: [ " BOLD GREEN "%zu Passed" RESET " ]\n", passed.len);
+                printf("Results: [ " BOLD GREEN "%zu Compiled" RESET " ]\n", passed.len);
         }
 
  cleanup:
