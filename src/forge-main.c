@@ -57,7 +57,7 @@
         "void build(void) {}\n" \
         "void install(void) {}\n" \
         "void uninstall(void) {}\n" \
-        "void update(void) {\n" \
+        "int update(void) {\n" \
         "        return 0; // return 1 if it needs a rebuild, 0 otherwise\n" \
         "}\n" \
         "\n" \
@@ -313,6 +313,48 @@ get_pkg_id(forge_context *ctx, const char *name)
         return id;
 }
 
+
+void
+drop_pkg(forge_context *ctx, const char *name)
+{
+        // Check if package exists
+        int pkg_id = get_pkg_id(ctx, name);
+        if (pkg_id == -1) {
+                err_wargs("package `%s` not found in database", name);
+        }
+
+        sqlite3_stmt *stmt;
+
+        // Delete dependencies associated with the package
+        const char *sql_delete_deps = "DELETE FROM Deps WHERE pkg_id = ? OR dep_id = ?;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql_delete_deps, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_int(stmt, 1, pkg_id);
+        sqlite3_bind_int(stmt, 2, pkg_id);
+
+        rc = sqlite3_step(stmt);
+        if (rc != SQLITE_DONE) {
+                fprintf(stderr, "Failed to delete dependencies for %s: %s\n", name, sqlite3_errmsg(ctx->db));
+        }
+        sqlite3_finalize(stmt);
+
+        // Delete the package
+        const char *sql_delete_pkg = "DELETE FROM Pkgs WHERE id = ?;";
+        rc = sqlite3_prepare_v2(ctx->db, sql_delete_pkg, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_int(stmt, 1, pkg_id);
+
+        rc = sqlite3_step(stmt);
+        if (rc != SQLITE_DONE) {
+                fprintf(stderr, "Failed to delete package %s: %s\n", name, sqlite3_errmsg(ctx->db));
+        } else {
+                printf(GREEN BOLD "*** Successfully dropped package %s from database\n" RESET, name);
+        }
+        sqlite3_finalize(stmt);
+}
+
 int
 pkg_is_installed(forge_context *ctx, pkg *pkg)
 {
@@ -371,9 +413,6 @@ register_pkg(forge_context *ctx, pkg *pkg)
 
         if (id != -1) {
                 // Update existing package
-                //printf(GREEN BOLD "*** Updating package registration: %s\n" RESET, name);
-
-                //const char *sql_update = "UPDATE Pkgs SET version = ?, description = ?, installed = 1 WHERE name = ?;";
                 const char *sql_update = "UPDATE Pkgs SET version = ?, description = ? WHERE name = ?;";
                 rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
                 CHECK_SQLITE(rc, ctx->db);
@@ -387,18 +426,6 @@ register_pkg(forge_context *ctx, pkg *pkg)
                         fprintf(stderr, "Update error: %s\n", sqlite3_errmsg(ctx->db));
                 }
                 sqlite3_finalize(stmt);
-
-                // Clear existing dependencies to avoid foreign key issues
-                /* const char *sql_delete = "DELETE FROM Deps WHERE pkg_id = ?;"; */
-                /* rc = sqlite3_prepare_v2(ctx->db, sql_delete, -1, &stmt, NULL); */
-                /* CHECK_SQLITE(rc, ctx->db); */
-
-                /* sqlite3_bind_int(stmt, 1, id); */
-                /* rc = sqlite3_step(stmt); */
-                /* if (rc != SQLITE_DONE) { */
-                /*         fprintf(stderr, "Delete dependencies error: %s\n", sqlite3_errmsg(ctx->db)); */
-                /* } */
-                /* sqlite3_finalize(stmt); */
         } else {
                 // New package
                 printf(GREEN BOLD "*** Registered package: %s\n" RESET, name);
@@ -984,9 +1011,9 @@ rebuild_pkgs(forge_context *ctx)
         }
 
         if (failed.len > 0) {
-                printf("Results: [ " BOLD GREEN "%zu Passed" RESET ", " BOLD RED "%zu Failed" RESET " ]\n", passed.len, failed.len);
+                printf("Results: [ " BOLD GREEN "%zu Compiled" RESET ", " BOLD RED "%zu Failed" RESET " ]\n", passed.len, failed.len);
         } else {
-                printf("Results: [ " BOLD GREEN "%zu Passed" RESET " ]\n", passed.len);
+                printf("Results: [ " BOLD GREEN "%zu Compiled" RESET " ]\n", passed.len);
         }
 
  cleanup:
@@ -1340,35 +1367,8 @@ main(int argc, char **argv)
                         uninstall_pkg(&ctx, &names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
-                } else if ((arg.hyphc == 1 && arg.start[0] == FLAG_1HY_REBUILD) ||
-                           (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_REBUILD))) {
-                        assert_sudo();
-                        // Clean up existing context to avoid stale handles
-                        for (size_t i = 0; i < ctx.dll.handles.len; ++i) {
-                                dlclose(ctx.dll.handles.data[i]);
-                                free(ctx.dll.paths.data[i]);
-                        }
-                        dyn_array_free(ctx.dll.handles);
-                        dyn_array_free(ctx.dll.paths);
-                        dyn_array_free(ctx.pkgs);
-                        depgraph_destroy(&ctx.dg);
-
-                        // Reinitialize context
-                        ctx.dll.handles = dyn_array_empty(handle_array);
-                        ctx.dll.paths = dyn_array_empty(str_array);
-                        ctx.pkgs = dyn_array_empty(pkg_ptr_array);
-                        ctx.dg = depgraph_create();
-
-                        // Rebuild packages and load new .so files
-                        rebuild_pkgs(&ctx);
-                        obtain_handles_and_pkgs_from_dll(&ctx);
-                        construct_depgraph(&ctx);
-                        indices = depgraph_gen_order(&ctx.dg);
-
-                        // Register packages
-                        for (size_t i = 0; i < indices.len; ++i) {
-                                register_pkg(&ctx, ctx.pkgs.data[indices.data[i]]);
-                        }
+                } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_REBUILD)) {
+                        g_config.flags |= FT_REBUILD;
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_NEW)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
@@ -1408,10 +1408,77 @@ main(int argc, char **argv)
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_SYNC)) {
+                        g_config.flags |= FT_SYNC;
+                } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_DROP_BROKEN_PKGS)) {
+                        g_config.flags |= FT_DROP_BROKEN_PKGS;
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DROP)) {
                         assert_sudo();
-                        sync();
-                } else {
+                        str_array names = dyn_array_empty(str_array);
+                        while (clap_next(&arg)) {
+                                dyn_array_append(names, strdup(arg.start));
+                        }
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_DROP);
+                        for (size_t i = 0; i < names.len; ++i)
+                                drop_pkg(&ctx, names.data[i]);
+                        for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
+                        dyn_array_free(names);
+                }
+                else if (arg.hyphc == 1) { // one hyph options
+                        for (size_t i = 0; arg.start[i]; ++i) {
+                                char c = arg.start[i];
+                                switch (c) {
+                                case FLAG_1HY_REBUILD: g_config.flags |= FT_REBUILD; break;
+                                case FLAG_1HY_SYNC: g_config.flags |= FT_SYNC; break;
+                                default: err_wargs("unknown option `%c`", c);
+                                }
+                        }
+                }
+                else {
                         err_wargs("unknown flag `%s`", arg.start);
+                }
+        }
+
+        if (g_config.flags & FT_SYNC) {
+                assert_sudo();
+                sync();
+        }
+        if (g_config.flags & FT_DROP_BROKEN_PKGS) {
+                assert_sudo();
+                for (size_t i = 0; i < ctx.pkgs.len; ++i) {
+                        pkg *pkg = ctx.pkgs.data[i];
+                        if (!pkg->ver || !pkg->desc || !pkg->download
+                            || !pkg->build || !pkg->install || !pkg->update) {
+                                drop_pkg(&ctx, pkg->name());
+                        }
+                }
+        }
+        if (g_config.flags & FT_REBUILD) {
+                assert_sudo();
+                // Clean up existing context to avoid stale handles
+                for (size_t i = 0; i < ctx.dll.handles.len; ++i) {
+                        dlclose(ctx.dll.handles.data[i]);
+                        free(ctx.dll.paths.data[i]);
+                }
+                dyn_array_free(ctx.dll.handles);
+                dyn_array_free(ctx.dll.paths);
+                dyn_array_free(ctx.pkgs);
+                depgraph_destroy(&ctx.dg);
+
+                // Reinitialize context
+                ctx.dll.handles = dyn_array_empty(handle_array);
+                ctx.dll.paths = dyn_array_empty(str_array);
+                ctx.pkgs = dyn_array_empty(pkg_ptr_array);
+                ctx.dg = depgraph_create();
+
+                // Rebuild packages and load new .so files
+                rebuild_pkgs(&ctx);
+                obtain_handles_and_pkgs_from_dll(&ctx);
+                construct_depgraph(&ctx);
+                indices = depgraph_gen_order(&ctx.dg);
+
+                // Register packages
+                for (size_t i = 0; i < indices.len; ++i) {
+                        register_pkg(&ctx, ctx.pkgs.data[indices.data[i]]);
                 }
         }
 
