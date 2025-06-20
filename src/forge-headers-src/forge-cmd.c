@@ -134,3 +134,27 @@ cmdout(const char *cmd)
 
         return buffer;
 }
+
+char *
+git_clone(char *author,
+          char *name)
+{
+        char buf[256] = {0};
+        sprintf(buf, "git clone https://www.github.com/%s/%s.git/", author, name);
+        if (!cmd(buf)) {
+                return NULL;
+        }
+        return name;
+}
+
+char *
+mkdirp(char *fp)
+{
+        char buf[256] = {0};
+        sprintf(buf, "mkdir -p %s", fp);
+        if (!cmd(buf)) {
+                return NULL;
+        }
+        return fp;
+}
+
