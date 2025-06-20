@@ -18,6 +18,9 @@
 */
 
 #include <ctype.h>
+#include <sys/stat.h>
+#include <pwd.h>
+#include <grp.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -162,4 +165,23 @@ char *
 env(const char *var)
 {
         return getenv(var);
+}
+
+char *
+get_prev_user(void)
+{
+        return getenv("SUDO_USER");
+}
+
+int
+change_file_owner(const char *path,
+                  const char *user)
+{
+        struct passwd *pwd = getpwnam(user);
+        struct group *grp = getgrnam(user);
+        if (chown(path, pwd->pw_uid, grp->gr_gid) == -1) {
+                perror("chown");
+                return 0;
+        }
+        return 1;
 }
