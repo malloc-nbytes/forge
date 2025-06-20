@@ -2,6 +2,9 @@
 
 Forge your system.
 
+## Disclaimer
+THIS PROJECT IS A WIP. USE AT YOUR OWN RISK!
+
 ## License
 `Forge` is licensed under the GNU General Public License v2 or later. See [COPYING](COPYING) for details.
 Forge also uses sqlite3. For more information, see https://sqlite.org/.
