@@ -37,6 +37,7 @@ Forge installs files to these locations:
 - `/var/lib/forge/forge.db` (forge database)
 - `/var/cache/forge/sources/` (package sources)
 - `/usr/src/forge/modules/` (C package modules)
+- `/usr/lib/forge/modules` (compiled C package modules)
 
 ## Getting Started
 The first time you run `forge` must be as root. This sets up the database. All subsequent calls do not need it
