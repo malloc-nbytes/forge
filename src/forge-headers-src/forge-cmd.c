@@ -76,6 +76,45 @@ cmd(const char *cmd)
         return WEXITSTATUS(status) == 0;
 }
 
+int
+cmd_as(const char *cmd,
+       const char *username) {
+        // Construct the command with sudo -u to run as the specified user
+        char *sudo_cmd = malloc(strlen(cmd) + strlen(username) + 20);
+        if (!sudo_cmd) {
+                fprintf(stderr, "Memory allocation failed: %s\n", strerror(errno));
+                return 0;
+        }
+        snprintf(sudo_cmd, strlen(cmd) + strlen(username) + 20, "sudo -u %s %s", username, cmd);
+
+        printf("%s\n", sudo_cmd);
+
+        // Open pipe to execute the command
+        FILE *fp = popen(sudo_cmd, "r");
+        if (fp == NULL) {
+                fprintf(stderr, "Failed to execute command '%s': %s\n", sudo_cmd, strerror(errno));
+                free(sudo_cmd);
+                return 0;
+        }
+
+        // Read and print command output
+        char buffer[1024];
+        while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+                printf("%s", buffer);
+        }
+
+        // Get exit status
+        int status = pclose(fp);
+        if (status == -1) {
+                fprintf(stderr, "Failed to close pipe for command '%s': %s\n", sudo_cmd, strerror(errno));
+                free(sudo_cmd);
+                return 0;
+        }
+
+        free(sudo_cmd);
+        return WEXITSTATUS(status) == 0;
+}
+
 char *
 cmdout(const char *cmd)
 {

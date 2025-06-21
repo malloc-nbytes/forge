@@ -4,6 +4,7 @@
 int cd(const char *fp);
 int cd_silent(const char *fp);
 int cmd(const char *cmd);
+int cmd_as(const char *cmd, const char *username);
 char *cmdout(const char *cmd);
 char *git_clone(char *author, char *name);
 char *mkdirp(char *fp);
