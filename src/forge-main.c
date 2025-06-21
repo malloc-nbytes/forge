@@ -182,14 +182,14 @@ get_absolute_files_in_dir(const char *fp)
                 }
 
                 // Check if it's a regular file
-                if (S_ISREG(st.st_mode)) {
-                        char *absolute_path = strdup(full_path);
-                        if (!absolute_path) {
-                                fprintf(stderr, "Failed to allocate memory for %s\n", full_path);
-                                continue;
-                        }
-                        dyn_array_append(res, absolute_path);
+                //if (S_ISREG(st.st_mode)) {
+                char *absolute_path = strdup(full_path);
+                if (!absolute_path) {
+                        fprintf(stderr, "Failed to allocate memory for %s\n", full_path);
+                        continue;
                 }
+                dyn_array_append(res, absolute_path);
+                //}
         }
 
         closedir(dir);
@@ -1681,6 +1681,50 @@ dump_module(const forge_context *ctx,
 }
 
 void
+list_files_recursive(const char *dir_path, str_array *files)
+{
+        DIR *dir = opendir(dir_path);
+        if (!dir) {
+                fprintf(stderr, "Failed to open directory %s: %s\n", dir_path, strerror(errno));
+                return;
+        }
+
+        struct dirent *entry;
+        struct stat st;
+        char full_path[512] = {0};
+
+        while ((entry = readdir(dir))) {
+                // Skip "." and ".." entries
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                        continue;
+                }
+
+                snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name);
+
+                if (stat(full_path, &st) == -1) {
+                        fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
+                        continue;
+                }
+
+                // If it's a regular file, add to the array
+                if (S_ISREG(st.st_mode)) {
+                        char *file_copy = strdup(full_path);
+                        if (!file_copy) {
+                                fprintf(stderr, "Failed to allocate memory for %s\n", full_path);
+                                continue;
+                        }
+                        dyn_array_append(*files, file_copy);
+                }
+                // If it's a directory, recurse
+                else if (S_ISDIR(st.st_mode)) {
+                        list_files_recursive(full_path, files);
+                }
+        }
+
+        closedir(dir);
+}
+
+void
 list_files(forge_context *ctx, const char *name)
 {
         sqlite3_stmt *stmt;
@@ -1693,13 +1737,34 @@ list_files(forge_context *ctx, const char *name)
 
         sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
 
-        // Collect file paths and calculate max width for formatting
+        // Collect file paths
         str_array files = dyn_array_empty(str_array);
 
         while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
                 const char *file_path = (const char *)sqlite3_column_text(stmt, 0);
-                char *file_copy = strdup(file_path ? file_path : "(none)");
-                dyn_array_append(files, file_copy);
+                if (!file_path) {
+                        continue;
+                }
+
+                struct stat st;
+                if (stat(file_path, &st) == -1) {
+                        fprintf(stderr, "Failed to stat %s: %s\n", file_path, strerror(errno));
+                        continue;
+                }
+
+                // If it's a regular file, add directly
+                if (S_ISREG(st.st_mode)) {
+                        char *file_copy = strdup(file_path);
+                        if (!file_copy) {
+                                fprintf(stderr, "Failed to allocate memory for %s\n", file_path);
+                                continue;
+                        }
+                        dyn_array_append(files, file_copy);
+                }
+                // If it's a directory, recursively list all files
+                else if (S_ISDIR(st.st_mode)) {
+                        list_files_recursive(file_path, &files);
+                }
         }
 
         if (rc != SQLITE_DONE) {
@@ -1723,6 +1788,50 @@ list_files(forge_context *ctx, const char *name)
         }
         dyn_array_free(files);
 }
+
+/* void */
+/* list_files(forge_context *ctx, const char *name) */
+/* { */
+/*         sqlite3_stmt *stmt; */
+/*         const char *sql = "SELECT Files.file_path " */
+/*                 "FROM Files " */
+/*                 "JOIN Pkgs ON Files.pkg_id = Pkgs.id " */
+/*                 "WHERE Pkgs.name = ?;"; */
+/*         int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL); */
+/*         CHECK_SQLITE(rc, ctx->db); */
+
+/*         sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC); */
+
+/*         // Collect file paths and calculate max width for formatting */
+/*         str_array files = dyn_array_empty(str_array); */
+
+/*         while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) { */
+/*                 const char *file_path = (const char *)sqlite3_column_text(stmt, 0); */
+/*                 char *file_copy = strdup(file_path ? file_path : "(none)"); */
+/*                 dyn_array_append(files, file_copy); */
+/*         } */
+
+/*         if (rc != SQLITE_DONE) { */
+/*                 fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(ctx->db)); */
+/*         } */
+
+/*         sqlite3_finalize(stmt); */
+
+/*         // Print files */
+/*         if (files.len == 0) { */
+/*                 printf("No files found for package '%s'.\n", name); */
+/*         } else { */
+/*                 for (size_t i = 0; i < files.len; ++i) { */
+/*                         printf("%s\n", files.data[i]); */
+/*                 } */
+/*         } */
+
+/*         // Clean up */
+/*         for (size_t i = 0; i < files.len; ++i) { */
+/*                 free(files.data[i]); */
+/*         } */
+/*         dyn_array_free(files); */
+/* } */
 
 void
 sync(void)
