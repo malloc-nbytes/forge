@@ -32,8 +32,9 @@ forge_smap
 forge_smap_create(void)
 {
         return (forge_smap) {
-                .tbl = (__forge_smap_node **)malloc(
-                        sizeof(__forge_smap_node *) * FORGE_SMAP_DEFAULT_TBL_CAPACITY
+                .tbl = (__forge_smap_node **)calloc(
+                        FORGE_SMAP_DEFAULT_TBL_CAPACITY,
+                        sizeof(__forge_smap_node *)
                 ),
                 .cap = FORGE_SMAP_DEFAULT_TBL_CAPACITY,
                 .len = 0,
@@ -107,4 +108,34 @@ forge_smap_destroy(forge_smap *map)
         }
         free(map->tbl);
         map->sz = map->len = map->cap = 0;
+}
+
+char **
+smap_iter(const forge_smap *map)
+{
+        char **keys = (char **)malloc(sizeof(char *) * (map->sz + 1));
+        if (!keys) {
+                return NULL;
+        }
+
+        size_t key_idx = 0;
+
+        for (size_t i = 0; i < map->cap; ++i) {
+                __forge_smap_node *node = map->tbl[i];
+                while (node) {
+                        keys[key_idx] = node->k;
+                        key_idx++;
+                        node = node->n;
+                }
+        }
+
+        keys[key_idx] = NULL;
+
+        return keys;
+}
+
+size_t
+forge_smap_size(const forge_smap *map)
+{
+        return map->sz;
 }

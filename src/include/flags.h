@@ -37,6 +37,9 @@
 #define FLAG_2HY_SYNC "sync"
 #define FLAG_2HY_DROP_BROKEN_PKGS "drop-broken-pkgs"
 #define FLAG_2HY_DROP "drop"
+#define FLAG_2HY_FILES "files"
+#define FLAG_2HY_COPYING "copying"
+#define FLAG_2HY_DEPGRAPH "depgraph"
 
 typedef enum {
         FT_REBUILD = 1 << 0,
@@ -45,5 +48,6 @@ typedef enum {
 } flag_type;
 
 void usage(void);
+void copying(void);
 
 #endif // FLAGS_H_INCLUDED
