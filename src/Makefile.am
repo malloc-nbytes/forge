@@ -13,7 +13,8 @@ sqlite-build:
 # Sources for libforge.so
 libforge_la_SOURCES = colors.c depgraph.c flags.c forge-main.c \
 	forge-headers-src/forge-cmd.c forge-headers-src/forge-io.c \
-	forge-headers-src/forge-pkg.c forge-headers-src/forge-str.c
+	forge-headers-src/forge-pkg.c forge-headers-src/forge-str.c \
+	forge-headers-src/forge-smap.c
 
 # Flags for libforge.so
 libforge_la_CFLAGS = $(AM_CFLAGS) -fPIC
@@ -25,7 +26,8 @@ bin_PROGRAMS = forge_production
 # Sources for forge executable
 forge_production_SOURCES = colors.c depgraph.c flags.c forge-main.c \
 	forge-headers-src/forge-cmd.c forge-headers-src/forge-io.c \
-	forge-headers-src/forge-pkg.c forge-headers-src/forge-str.c
+	forge-headers-src/forge-pkg.c forge-headers-src/forge-str.c \
+	forge-headers-src/forge-smap.c
 
 # Flags for forge executable
 forge_production_CFLAGS = $(AM_CFLAGS)
@@ -45,7 +47,8 @@ nobase_include_HEADERS = forge/array.h \
 	forge/forge.h \
 	forge/io.h \
 	forge/pkg.h \
-	forge/str.h
+	forge/str.h \
+	forge/smap.h
 
 # Custom uninstall hook to remove additional directories
 uninstall-hook:
