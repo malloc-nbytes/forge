@@ -90,12 +90,11 @@ static const char *common_install_dirs[] = {
 
 #define DB_DIR "/var/lib/forge/"
 #define DB_FP DB_DIR "forge.db"
-
 #define C_MODULE_DIR "/usr/src/forge/modules/"
 #define C_MODULE_DIR_PARENT "/usr/src/forge/"
 #define MODULE_LIB_DIR "/usr/lib/forge/modules/"
-
 #define PKG_SOURCE_DIR "/var/cache/forge/sources/"
+#define FORGE_API_HEADER_DIR "/usr/include/forge/"
 
 #define CHECK_SQLITE(rc, db)                                            \
         do {                                                            \
@@ -1725,6 +1724,126 @@ clearln(void)
 }
 
 int
+iskw(char *s)
+{
+        const char *kwds[] = {
+                "void",
+                "int",
+                "const",
+                "char",
+                "float",
+                "double",
+                "size_t",
+                "unsigned",
+                "long",
+                "typedef",
+                "struct",
+                "enum",
+                "#define",
+                "#ifndef",
+                "#endif",
+                "#include",
+                "__attribute__",
+        };
+
+        for (size_t i = 0; i < sizeof(kwds)/sizeof(*kwds); ++i) {
+                if (!strcmp(s, kwds[i])) {
+                        return 1;
+                }
+        }
+        return 0;
+}
+
+void
+api_colorize(char *s)
+{
+        char_array buf = dyn_array_empty(char_array);
+        int comment = 0;
+
+        for (size_t i = 0; s[i]; ++i) {
+                if (s[i] == ';' || s[i] == '\n' || s[i] == '\t' || s[i] == ' ' || s[i] == '(' || s[i] == ')') {
+                        dyn_array_append(buf, 0);
+
+                        if (comment) {
+                                printf(PINK BOLD);
+                                if (s[i] == '\n') {
+                                        comment = 0;
+                                }
+                        } else if (buf.len >= 2 && buf.data[0] == '/' && buf.data[1] == '/') {
+                                printf(PINK BOLD);
+                                comment = 1;
+                        } else if (iskw(buf.data)) {
+                                printf(YELLOW BOLD);
+                        }
+
+                        printf("%s", buf.data);
+                        printf(RESET);
+                        dyn_array_clear(buf);
+                        putchar(s[i]);
+                } else {
+                        dyn_array_append(buf, s[i]);
+                }
+        }
+
+        dyn_array_append(buf, 0);
+        if (buf.len > 0) {
+                if (comment) {
+                        printf(PINK BOLD);
+                } else if (iskw(buf.data)) {
+                        printf(YELLOW BOLD);
+                }
+                printf("%s", buf.data);
+                printf(RESET);
+        }
+
+        putchar('\n');
+        dyn_array_free(buf);
+}
+
+void
+api_dump(const char *name)
+{
+        forge_str path = forge_str_from(FORGE_API_HEADER_DIR);
+        forge_str_concat(&path, name);
+        forge_str_concat(&path, ".h");
+
+        if (!forge_io_filepath_exists(forge_str_to_cstr(&path))) {
+                err_wargs("path `%s` does not exist", forge_str_to_cstr(&path));
+        }
+
+        printf(GREEN BOLD "*** API dump of: [ %s ]\n" RESET, forge_str_to_cstr(&path));
+        char **lines = forge_io_read_file_to_lines(forge_str_to_cstr(&path));
+
+        // Count total lines to determine maximum line number width
+        size_t line_count = 0;
+        for (size_t i = 0; lines[i]; ++i) {
+                line_count++;
+        }
+
+        // Calculate width needed for the largest line number
+        int width = 1;
+        size_t temp = line_count;
+        while (temp >= 10) {
+                width++;
+                temp /= 10;
+        }
+
+        // Print lines with padded line numbers
+        for (size_t i = 0; lines[i]; ++i) {
+                if (strlen(lines[i]) == 1 && lines[i][0] == '\n') {
+                        printf("%*zu:\n", width, i + 1);
+                } else {
+                        printf("%*zu: ", width, i + 1);
+                        api_colorize(lines[i]);
+                }
+                free(lines[i]);
+        }
+
+        free(lines);
+        forge_str_destroy(&path);
+}
+
+int
 main(int argc, char **argv)
 {
         ++argv, --argc;
@@ -1849,6 +1968,16 @@ main(int argc, char **argv)
                         copying();
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DEPGRAPH)) {
                         depgraph_dump(&ctx.dg);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_API)) {
+                        str_array names = dyn_array_empty(str_array);
+                        while (clap_next(&arg)) {
+                                dyn_array_append(names, strdup(arg.start));
+                        }
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_API);
+                        for (size_t i = 0; i < names.len; ++i)
+                                api_dump(names.data[i]);
+                        for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
+                        dyn_array_free(names);
                 }
                 else if (arg.hyphc == 1) { // one hyph options
                         for (size_t i = 0; arg.start[i]; ++i) {

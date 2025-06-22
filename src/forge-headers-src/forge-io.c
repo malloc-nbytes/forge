@@ -65,7 +65,7 @@ forge_io_read_file_to_cstr(const char *fp)
         };
 
         while ((read = getline(&line, &len, f)) != -1) {
-                if (!strcmp(line, "\n")) { continue; }
+                //if (!strcmp(line, "\n")) { continue; }
                 for (size_t i = 0; line[i]; ++i) {
                         if (buf.len >= buf.cap) {
                                 buf.cap = buf.cap == 0 ? 2 : buf.cap*2;
@@ -107,7 +107,7 @@ forge_io_read_file_to_lines(const char *fp)
         };
 
         while ((read = getline(&line, &len, f)) != -1) {
-                if (!strcmp(line, "\n")) { continue; }
+                //if (!strcmp(line, "\n")) { continue; }
                 if (line[read - 1] == '\n') {
                         line[read - 1] = '\0';
                 }
