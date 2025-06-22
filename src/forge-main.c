@@ -1525,31 +1525,6 @@ update_pkgs(forge_context *ctx, str_array *names)
 }
 
 void
-dump_module(const forge_context *ctx,
-            const str_array     *names)
-{
-        (void)ctx;
-
-        for (size_t i = 0; i < names->len; ++i) {
-                printf(GREEN BOLD "*** Dumping package %s [%zu of %zu]\n" RESET,
-                               names->data[i], i+1, names->len);
-                char fp[256] = {0};
-                sprintf(fp, C_MODULE_DIR "%s.c", names->data[i]);
-                if (!cio_file_exists(fp)) {
-                        fprintf(stderr, BOLD RED "C module %s does not exist\n" RESET, names->data[i]);
-                        continue;
-                }
-                size_t ret_len = 0;
-                char **lines = cio_file_to_lines_wnewlines(fp, &ret_len);
-                for (size_t j = 0; j < ret_len; ++j) {
-                        printf("  %zu: %s", j, lines[j]);
-                        free(lines[j]);
-                }
-                free(lines);
-        }
-}
-
-void
 list_files_recursive(const char *dir_path, str_array *files)
 {
         DIR *dir = opendir(dir_path);
@@ -1726,6 +1701,9 @@ api_colorize(char *s)
         char_array buf = dyn_array_empty(char_array);
         static int in_multiline_comment = 0; // Persists across calls
         int in_single_line_comment = 0;
+        int in_string = 0; // Track if inside a string literal
+        int in_char = 0;   // Track if inside a character literal
+        int escape = 0;    // Track escape sequences in strings/chars
 
         for (size_t i = 0; s[i]; ++i) {
                 if (in_multiline_comment) {
@@ -1742,7 +1720,6 @@ api_colorize(char *s)
                                 i++; // Skip the '/'
                                 continue;
                         }
-                        // Continue appending to buffer without special handling
                         dyn_array_append(buf, s[i]);
                 } else if (in_single_line_comment) {
                         // Inside a single-line comment, append until newline
@@ -1757,10 +1734,41 @@ api_colorize(char *s)
                         } else {
                                 dyn_array_append(buf, s[i]);
                         }
+                } else if (in_string) {
+                        // Inside a string literal
+                        dyn_array_append(buf, s[i]);
+                        if (escape) {
+                                escape = 0; // Reset escape flag after handling
+                        } else if (s[i] == '\\') {
+                                escape = 1; // Next character is escaped
+                        } else if (s[i] == '"') {
+                                // End of string literal
+                                in_string = 0;
+                                dyn_array_append(buf, 0);
+                                printf(GREEN BOLD);
+                                printf("%s", buf.data);
+                                printf(RESET);
+                                dyn_array_clear(buf);
+                        }
+                } else if (in_char) {
+                        // Inside a character literal
+                        dyn_array_append(buf, s[i]);
+                        if (escape) {
+                                escape = 0; // Reset escape flag
+                        } else if (s[i] == '\\') {
+                                escape = 1; // Next character is escaped
+                        } else if (s[i] == '\'') {
+                                // End of character literal
+                                in_char = 0;
+                                dyn_array_append(buf, 0);
+                                printf(GREEN BOLD);
+                                printf("%s", buf.data);
+                                printf(RESET);
+                                dyn_array_clear(buf);
+                        }
                 } else {
-                        // Not in a comment, check for comment start or delimiters
+                        // Not in a comment, string, or char; check for starts or delimiters
                         if (s[i] == '/' && s[i + 1] == '*') {
-                                // Start of multiline comment
                                 dyn_array_append(buf, s[i]);
                                 dyn_array_append(buf, s[i + 1]);
                                 dyn_array_append(buf, 0);
@@ -1772,11 +1780,20 @@ api_colorize(char *s)
                                 i++; // Skip the '*'
                                 continue;
                         } else if (s[i] == '/' && s[i + 1] == '/') {
-                                // Start of single-line comment
                                 dyn_array_append(buf, s[i]);
                                 dyn_array_append(buf, s[i + 1]);
                                 in_single_line_comment = 1;
                                 i++; // Skip the '/'
+                                continue;
+                        } else if (s[i] == '"') {
+                                // Start of string literal
+                                in_string = 1;
+                                dyn_array_append(buf, s[i]);
+                                continue;
+                        } else if (s[i] == '\'') {
+                                // Start of character literal
+                                in_char = 1;
+                                dyn_array_append(buf, s[i]);
                                 continue;
                         } else if (s[i] == ';' || s[i] == '\n' || s[i] == '\t' ||
                                    s[i] == ' ' || s[i] == '(' || s[i] == ')' || s[i] == ',') {
@@ -1797,11 +1814,12 @@ api_colorize(char *s)
                 }
         }
 
-        // Handle remaining buffer content
         dyn_array_append(buf, 0);
         if (buf.len > 0) {
                 if (in_multiline_comment || in_single_line_comment) {
                         printf(PINK BOLD);
+                } else if (in_string || in_char) {
+                        printf(GREEN BOLD); // Color incomplete strings/chars green
                 } else if (iskw(buf.data)) {
                         printf(YELLOW BOLD);
                 }
@@ -1814,18 +1832,29 @@ api_colorize(char *s)
 }
 
 void
-api_dump(const char *name)
+api_dump(const char *name, int api)
 {
-        forge_str path = forge_str_from(FORGE_API_HEADER_DIR);
-        forge_str_concat(&path, "/");
-        forge_str_concat(&path, name);
-        forge_str_concat(&path, ".h");
+        forge_str path = forge_str_create();
+        if (api) {
+                forge_str_concat(&path, FORGE_API_HEADER_DIR);
+                forge_str_concat(&path, "/");
+                forge_str_concat(&path, name);
+                forge_str_concat(&path, ".h");
+        } else {
+                forge_str_concat(&path, C_MODULE_DIR);
+                forge_str_concat(&path, name);
+                forge_str_concat(&path, ".c");
+        }
 
         if (!forge_io_filepath_exists(forge_str_to_cstr(&path))) {
                 err_wargs("path `%s` does not exist", forge_str_to_cstr(&path));
         }
 
-        printf(GREEN BOLD "*** API dump of: [ %s ]\n" RESET, forge_str_to_cstr(&path));
+        if (api) {
+                printf(GREEN BOLD "*** API dump of: [ %s ]\n" RESET, forge_str_to_cstr(&path));
+        } else {
+                printf(GREEN BOLD "*** C Module dump of: [ %s ]\n" RESET, forge_str_to_cstr(&path));
+        }
         char **lines = forge_io_read_file_to_lines(forge_str_to_cstr(&path));
 
         // Count total lines to determine maximum line number width
@@ -1957,7 +1986,8 @@ main(int argc, char **argv)
                                 dyn_array_append(names, strdup(arg.start));
                         }
                         if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_DUMP);
-                        dump_module(&ctx, &names);
+                        for (size_t i = 0; i < names.len; ++i)
+                                api_dump(names.data[i], 0);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_SYNC)) {
@@ -1989,7 +2019,7 @@ main(int argc, char **argv)
                         }
                         if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_API);
                         for (size_t i = 0; i < names.len; ++i)
-                                api_dump(names.data[i]);
+                                api_dump(names.data[i], 1);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
                 }
