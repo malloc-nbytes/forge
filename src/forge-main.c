@@ -798,7 +798,8 @@ uninstall_pkg(forge_context *ctx,
                 }
 
                 // Perform uninstall
-                info_major("pkg->uninstall()", 1);
+                /* info_major("pkg->uninstall()", 1); */
+                printf(GREEN BOLD "*** [%s]: pkg->uninstall()\n" RESET, name);
                 pkg->uninstall();
 
                 // Update installed status in database
@@ -866,12 +867,13 @@ install_pkg(forge_context *ctx,
                 }
 
                 // Clear existing tracked file entries from database
-                info_major("Clearing existing tracked file entries for package", 1);
+                info_major("Clearing existing tracked file entries", 1);
 
                 // Install deps
                 if (pkg->deps) {
                         good_major("installing dependencies", 1);
-                        good_major("pkg->deps()", 1);
+                        //good_major("[%s]: pkg->deps()", 1);
+                        printf(GREEN BOLD "*** [%s]: pkg->deps()\n" RESET, name);
                         char **deps = pkg->deps();
                         str_array depnames = dyn_array_empty(str_array);
                         for (size_t i = 0; deps[i]; ++i) {
@@ -908,7 +910,8 @@ install_pkg(forge_context *ctx,
                         pkgname = get_filename_from_dir(pkg_src_loc);
                 }
                 else {
-                        good_major("pkg->download()", 1);
+                        printf(GREEN BOLD "*** [%s]: pkg->download()\n" RESET, name);
+                        /* good_major("pkg->download()", 1); */
                         pkgname = pkg->download();
                 }
 
@@ -923,7 +926,8 @@ install_pkg(forge_context *ctx,
                 char base[256] = {0};
                 sprintf(base, PKG_SOURCE_DIR "%s", pkgname);
 
-                good_major("pkg->build()", 1);
+                /* good_major("pkg->build()", 1); */
+                printf(GREEN BOLD "*** [%s]: pkg->build()\n" RESET, name);
                 pkg->build();
                 if (!cd(base)) {
                         fprintf(stderr, "aborting...\n");
@@ -932,7 +936,8 @@ install_pkg(forge_context *ctx,
 
                 forge_smap snapshot_before = snapshot_files();
 
-                good_major("pkg->install()", 1);
+                /* good_major("pkg->install()", 1); */
+                printf(GREEN BOLD "*** [%s]: pkg->install()\n" RESET, name);
                 pkg->install();
 
                 forge_smap snapshot_after = snapshot_files();
