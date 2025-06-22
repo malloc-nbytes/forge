@@ -417,9 +417,32 @@ drop_pkg(forge_context *ctx, const char *name)
 }
 
 int
-pkg_is_installed(forge_context *ctx, pkg *pkg)
+pkg_is_registered(forge_context *ctx, pkg *pkg)
 {
         return get_pkg_id(ctx, pkg->name()) != -1;
+}
+
+int
+pkg_is_installed(forge_context *ctx, const char *name)
+{
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT installed FROM Pkgs WHERE name = ?;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+
+        int installed = 0;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                installed = sqlite3_column_int(stmt, 0);
+        } else {
+                // Package not found in database
+                sqlite3_finalize(stmt);
+                return -1;
+        }
+
+        sqlite3_finalize(stmt);
+        return installed;
 }
 
 void
@@ -733,7 +756,7 @@ uninstall_pkg(forge_context *ctx,
                 assert(pkg);
 
                 // Clear tracked file entries from database
-                info_minor("Clearing tracked file entries for package", 1);
+                info_major("Clearing tracked file entries for package", 1);
                 clear_package_files_from_db(ctx, name, pkg_id);
 
                 // Retrieve pkg_src_loc from database
@@ -776,7 +799,7 @@ uninstall_pkg(forge_context *ctx,
                 }
 
                 // Perform uninstall
-                info_minor("Performing: pkg->uninstall()", 1);
+                info_major("pkg->uninstall()", 1);
                 pkg->uninstall();
 
                 // Update installed status in database
@@ -838,13 +861,18 @@ install_pkg(forge_context *ctx,
                 }
                 assert(pkg);
 
+                if (pkg_is_installed(ctx, name) && is_dep) {
+                        printf(YELLOW "dependency %s is already installed\n" RESET, name);
+                        return 1;
+                }
+
                 // Clear existing tracked file entries from database
-                info_minor("Clearing existing tracked file entries for package", 1);
+                info_major("Clearing existing tracked file entries for package", 1);
 
                 // Install deps
                 if (pkg->deps) {
-                        good_minor("installing dependencies", 1);
-                        info_minor("performing: pkg->deps()", 1);
+                        good_major("installing dependencies", 1);
+                        good_major("pkg->deps()", 1);
                         char **deps = pkg->deps();
                         str_array depnames = dyn_array_empty(str_array);
                         for (size_t i = 0; deps[i]; ++i) {
@@ -881,7 +909,7 @@ install_pkg(forge_context *ctx,
                         pkgname = get_filename_from_dir(pkg_src_loc);
                 }
                 else {
-                        info_minor("Performing: pkg->download()", 1);
+                        good_major("pkg->download()", 1);
                         pkgname = pkg->download();
                 }
 
@@ -896,7 +924,7 @@ install_pkg(forge_context *ctx,
                 char base[256] = {0};
                 sprintf(base, PKG_SOURCE_DIR "%s", pkgname);
 
-                info_minor("Performing: pkg->build()", 1);
+                good_major("pkg->build()", 1);
                 pkg->build();
                 if (!cd(base)) {
                         fprintf(stderr, "aborting...\n");
@@ -905,7 +933,7 @@ install_pkg(forge_context *ctx,
 
                 forge_smap snapshot_before = snapshot_files();
 
-                info_minor("Performing: pkg->install()", 1);
+                good_major("pkg->install()", 1);
                 pkg->install();
 
                 forge_smap snapshot_after = snapshot_files();
@@ -1346,7 +1374,7 @@ update_pkgs(forge_context *ctx, str_array *names)
                 int updated = 0;
 
                 // Perform update
-                info_minor("Performing: pkg->update()", 1);
+                good_major("pkg->update()", 1);
                 if (pkg->update) {
                         updated = pkg->update();
                 } else {
@@ -1357,7 +1385,7 @@ update_pkgs(forge_context *ctx, str_array *names)
                 forge_smap snapshot_after = snapshot_files();
 
                 // Remove files from database that no longer exist
-                info_minor("Removing stale file entries for package", 1);
+                good_major("Removing stale file entries for package", 1);
                 sqlite3_stmt *stmt_delete;
                 const char *sql_delete = "DELETE FROM Files WHERE pkg_id = ? AND file_path = ?;";
                 rc = sqlite3_prepare_v2(ctx->db, sql_delete, -1, &stmt_delete, NULL);
@@ -1396,7 +1424,7 @@ update_pkgs(forge_context *ctx, str_array *names)
 
                 // Insert new files into the Files table
                 if (diff_files.len > 0) {
-                        info_minor("Adding new files to database", 1);
+                        good_major("Adding new files to database", 1);
                         sqlite3_stmt *stmt_files;
                         const char *sql_insert_file = "INSERT OR IGNORE INTO Files (pkg_id, file_path) VALUES (?, ?);";
                         rc = sqlite3_prepare_v2(ctx->db, sql_insert_file, -1, &stmt_files, NULL);
@@ -1436,7 +1464,7 @@ update_pkgs(forge_context *ctx, str_array *names)
 
                 // Add dependencies to install list
                 if (pkg->deps) {
-                        good_minor("queueing dependencies for reinstall", 1);
+                        good_major("queueing dependencies for reinstall", 1);
                         char **deps = pkg->deps();
                         for (size_t j = 0; deps[j]; ++j) {
                                 sql = "SELECT installed FROM Pkgs WHERE name = ?;";
@@ -1492,163 +1520,6 @@ update_pkgs(forge_context *ctx, str_array *names)
                 dyn_array_free(pkg_names);
         }
 }
-
-/* void */
-/* update_pkgs(forge_context *ctx, str_array *names) */
-/* { */
-/*         // If no names provided, update all installed packages */
-/*         str_array pkg_names; */
-/*         if (names->len == 0) { */
-/*                 pkg_names = dyn_array_empty(str_array); */
-/*                 sqlite3_stmt *stmt; */
-/*                 const char *sql = "SELECT name FROM Pkgs WHERE installed = 1;"; */
-/*                 int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL); */
-/*                 CHECK_SQLITE(rc, ctx->db); */
-
-/*                 while (sqlite3_step(stmt) == SQLITE_ROW) { */
-/*                         const char *name = (const char *)sqlite3_column_text(stmt, 0); */
-/*                         dyn_array_append(pkg_names, strdup(name)); */
-/*                 } */
-/*                 sqlite3_finalize(stmt); */
-/*         } else { */
-/*                 pkg_names = *names; */
-/*         } */
-
-/*         for (size_t i = 0; i < pkg_names.len; ++i) { */
-/*                 const char *name = pkg_names.data[i]; */
-
-/*                 // Check if package is installed */
-/*                 sqlite3_stmt *stmt; */
-/*                 const char *sql = "SELECT installed, pkg_src_loc FROM Pkgs WHERE name = ?;"; */
-/*                 int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL); */
-/*                 CHECK_SQLITE(rc, ctx->db); */
-
-/*                 sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC); */
-/*                 int installed = 0; */
-/*                 char *pkg_src_loc = NULL; */
-
-/*                 if (sqlite3_step(stmt) == SQLITE_ROW) { */
-/*                         installed = sqlite3_column_int(stmt, 0); */
-/*                         const char *src_loc = (const char *)sqlite3_column_text(stmt, 1); */
-/*                         if (src_loc) { */
-/*                                 pkg_src_loc = strdup(src_loc); */
-/*                         } */
-/*                 } */
-/*                 sqlite3_finalize(stmt); */
-
-/*                 if (!installed) { */
-/*                         printf(YELLOW "*** Skipping update for %s: not installed\n" RESET, name); */
-/*                         free(pkg_src_loc); */
-/*                         continue; */
-/*                 } */
-
-/*                 printf(GREEN BOLD "*** Updating package %s [%zu of %zu]\n" RESET, name, i+1, pkg_names.len); */
-/*                 fflush(stdout); */
-/*                 sleep(1); */
-
-/*                 // Find the package */
-/*                 pkg *pkg = NULL; */
-/*                 for (size_t j = 0; j < ctx->pkgs.len; ++j) { */
-/*                         if (!strcmp(ctx->pkgs.data[j]->name(), name)) { */
-/*                                 pkg = ctx->pkgs.data[j]; */
-/*                                 break; */
-/*                         } */
-/*                 } */
-/*                 if (!pkg) { */
-/*                         err_wargs("package %s not found in loaded modules", name); */
-/*                         free(pkg_src_loc); */
-/*                         continue; */
-/*                 } */
-
-/*                 // Navigate to source directory */
-/*                 if (!pkg_src_loc) { */
-/*                         fprintf(stderr, "No source location found for %s, please reinstall\n", name); */
-/*                         continue; */
-/*                 } */
-
-/*                 const char *pkgname = get_filename_from_dir(pkg_src_loc); */
-/*                 char base[256] = {0}; */
-/*                 snprintf(base, sizeof(base), "%s%s", PKG_SOURCE_DIR, pkgname); */
-
-/*                 if (!cd(base)) { */
-/*                         fprintf(stderr, "Could not access source directory for %s, please reinstall\n", name); */
-/*                         free(pkg_src_loc); */
-/*                         continue; */
-/*                 } */
-
-/*                 int updated = 0; */
-
-/*                 // Perform update */
-/*                 info_minor("Performing: pkg->update()", 1); */
-/*                 if (pkg->update) { */
-/*                         updated = pkg->update(); */
-/*                 } else { */
-/*                         printf(YELLOW "*** No update function defined for %s, skipping update step\n" RESET, name); */
-/*                 } */
-
-/*                 // Update dependencies and reinstall package */
-/*                 str_array install_names = dyn_array_empty(str_array); */
-/*                 dyn_array_append(install_names, strdup(name)); */
-
-/*                 // Add dependencies to install list */
-/*                 if (pkg->deps) { */
-/*                         good_minor("queueing dependencies for reinstall", 1); */
-/*                         char **deps = pkg->deps(); */
-/*                         for (size_t j = 0; deps[j]; ++j) { */
-/*                                 // Check if dependency is installed before adding */
-/*                                 sql = "SELECT installed FROM Pkgs WHERE name = ?;"; */
-/*                                 rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL); */
-/*                                 CHECK_SQLITE(rc, ctx->db); */
-
-/*                                 sqlite3_bind_text(stmt, 1, deps[j], -1, SQLITE_STATIC); */
-/*                                 if (sqlite3_step(stmt) == SQLITE_ROW && sqlite3_column_int(stmt, 0)) { */
-/*                                         dyn_array_append(install_names, strdup(deps[j])); */
-/*                                 } */
-/*                                 sqlite3_finalize(stmt); */
-/*                         } */
-/*                 } */
-
-/*                 // Reinstall package and its dependencies */
-/*                 if (updated) { */
-/*                         if (!install_pkg(ctx, &install_names, 0)) { */
-/*                                 fprintf(stderr, "Failed to reinstall %s and its dependencies\n", name); */
-/*                         } */
-/*                 } else { */
-/*                         good_major("Up-to-date", 1); */
-/*                 } */
-
-/*                 // Clean up install_names */
-/*                 for (size_t j = 0; j < install_names.len; ++j) { */
-/*                         free(install_names.data[j]); */
-/*                 } */
-/*                 dyn_array_free(install_names); */
-
-/*                 // Update version and description in database */
-/*                 sql = "UPDATE Pkgs SET version = ?, description = ? WHERE name = ?;"; */
-/*                 rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL); */
-/*                 CHECK_SQLITE(rc, ctx->db); */
-
-/*                 sqlite3_bind_text(stmt, 1, pkg->ver(), -1, SQLITE_STATIC); */
-/*                 sqlite3_bind_text(stmt, 2, pkg->desc(), -1, SQLITE_STATIC); */
-/*                 sqlite3_bind_text(stmt, 3, name, -1, SQLITE_STATIC); */
-
-/*                 rc = sqlite3_step(stmt); */
-/*                 if (rc != SQLITE_DONE) { */
-/*                         fprintf(stderr, "Update package info error: %s\n", sqlite3_errmsg(ctx->db)); */
-/*                 } */
-/*                 sqlite3_finalize(stmt); */
-
-/*                 free(pkg_src_loc); */
-/*         } */
-
-/*         // Clean up if we created the names array */
-/*         if (names->len == 0) { */
-/*                 for (size_t i = 0; i < pkg_names.len; ++i) { */
-/*                         free(pkg_names.data[i]); */
-/*                 } */
-/*                 dyn_array_free(pkg_names); */
-/*         } */
-/* } */
 
 void
 dump_module(const forge_context *ctx,
