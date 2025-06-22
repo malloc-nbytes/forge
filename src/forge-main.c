@@ -1758,36 +1758,83 @@ void
 api_colorize(char *s)
 {
         char_array buf = dyn_array_empty(char_array);
-        int comment = 0;
+        static int in_multiline_comment = 0; // Persists across calls
+        int in_single_line_comment = 0;
 
         for (size_t i = 0; s[i]; ++i) {
-                if (s[i] == ';' || s[i] == '\n' || s[i] == '\t' || s[i] == ' ' || s[i] == '(' || s[i] == ')') {
-                        dyn_array_append(buf, 0);
-
-                        if (comment) {
+                if (in_multiline_comment) {
+                        // Inside a multiline comment, look for the end (*/)
+                        if (s[i] == '*' && s[i + 1] == '/') {
+                                dyn_array_append(buf, s[i]);
+                                dyn_array_append(buf, s[i + 1]);
+                                dyn_array_append(buf, 0);
                                 printf(PINK BOLD);
-                                if (s[i] == '\n') {
-                                        comment = 0;
-                                }
-                        } else if (buf.len >= 2 && buf.data[0] == '/' && buf.data[1] == '/') {
-                                printf(PINK BOLD);
-                                comment = 1;
-                        } else if (iskw(buf.data)) {
-                                printf(YELLOW BOLD);
+                                printf("%s", buf.data);
+                                printf(RESET);
+                                dyn_array_clear(buf);
+                                in_multiline_comment = 0;
+                                i++; // Skip the '/'
+                                continue;
                         }
-
-                        printf("%s", buf.data);
-                        printf(RESET);
-                        dyn_array_clear(buf);
-                        putchar(s[i]);
-                } else {
+                        // Continue appending to buffer without special handling
                         dyn_array_append(buf, s[i]);
+                } else if (in_single_line_comment) {
+                        // Inside a single-line comment, append until newline
+                        if (s[i] == '\n') {
+                                in_single_line_comment = 0;
+                                dyn_array_append(buf, 0);
+                                printf(PINK BOLD);
+                                printf("%s", buf.data);
+                                printf(RESET);
+                                dyn_array_clear(buf);
+                                putchar(s[i]);
+                        } else {
+                                dyn_array_append(buf, s[i]);
+                        }
+                } else {
+                        // Not in a comment, check for comment start or delimiters
+                        if (s[i] == '/' && s[i + 1] == '*') {
+                                // Start of multiline comment
+                                dyn_array_append(buf, s[i]);
+                                dyn_array_append(buf, s[i + 1]);
+                                dyn_array_append(buf, 0);
+                                printf(PINK BOLD);
+                                printf("%s", buf.data);
+                                printf(RESET);
+                                dyn_array_clear(buf);
+                                in_multiline_comment = 1;
+                                i++; // Skip the '*'
+                                continue;
+                        } else if (s[i] == '/' && s[i + 1] == '/') {
+                                // Start of single-line comment
+                                dyn_array_append(buf, s[i]);
+                                dyn_array_append(buf, s[i + 1]);
+                                in_single_line_comment = 1;
+                                i++; // Skip the '/'
+                                continue;
+                        } else if (s[i] == ';' || s[i] == '\n' || s[i] == '\t' ||
+                                   s[i] == ' ' || s[i] == '(' || s[i] == ')' || s[i] == ',') {
+                                // Handle delimiters
+                                dyn_array_append(buf, 0);
+                                if (buf.len > 0 && iskw(buf.data)) {
+                                        printf(YELLOW BOLD);
+                                        printf("%s", buf.data);
+                                        printf(RESET);
+                                } else if (buf.len > 0) {
+                                        printf("%s", buf.data);
+                                }
+                                dyn_array_clear(buf);
+                                putchar(s[i]);
+                        } else {
+                                dyn_array_append(buf, s[i]);
+                        }
                 }
         }
 
+        // Handle remaining buffer content
         dyn_array_append(buf, 0);
         if (buf.len > 0) {
-                if (comment) {
+                if (in_multiline_comment || in_single_line_comment) {
                         printf(PINK BOLD);
                 } else if (iskw(buf.data)) {
                         printf(YELLOW BOLD);
@@ -1796,8 +1843,8 @@ api_colorize(char *s)
                 printf(RESET);
         }
 
-        putchar('\n');
         dyn_array_free(buf);
+        putchar('\n');
 }
 
 void
