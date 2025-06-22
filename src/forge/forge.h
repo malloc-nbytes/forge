@@ -1,6 +1,11 @@
 #ifndef FORGE_H_INCLUDED
 #define FORGE_H_INCLUDED
 
+/**
+ * This file is solely used for including all
+ * API headers. Nothing else should be added here!
+ */
+
 #include "forge/pkg.h"
 #include "forge/cmd.h"
 #include "forge/str.h"

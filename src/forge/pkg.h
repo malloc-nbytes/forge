@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+// Put this before `pkg package = { ... }` to
+// make it visible to forge.
 #define FORGE_GLOBAL __attribute__((visibility("default")))
 
 typedef struct {
@@ -17,6 +19,12 @@ typedef struct {
         int (*update)(void);
 } pkg;
 
+/**
+ * Returns: 1 if it should re-download the package,
+ *          or 0 if it shouldn't.
+ * Description: Performs the built-in way of doing
+ *              an update if the package uses git.
+ */
 int forge_pkg_git_update(void);
 
 #endif // PKG_H_INCLUDED

@@ -14,7 +14,9 @@ void forge_str_concat(forge_str *fs, const char *s);
 int forge_str_eq(const forge_str *s0, const forge_str *s1);
 int forge_str_eq_cstr(const forge_str *s0, const char *s1);
 char *forge_str_to_cstr(const forge_str *fs);
-char *forge_str_contains_substr(const forge_str *fs,
-                                const char      *substr,
-                                int              case_sensitive);
+char *forge_str_contains_substr(
+        const forge_str *fs,
+        const char *substr,
+        int case_sensitive
+);
 #endif // STR_H_INCLUDED

@@ -23,7 +23,7 @@ int cd_silent(const char *fp);
 int cmd(const char *cmd);
 
 /**
- * Parameter: cmd -> the command to execute
+ * Parameter: cmd      -> the command to execute
  * Parameter: username -> the user to execute the command as
  * Returns: 1 on success, 0 on failure
  * Description: Issue a BASH command as a specific user.
@@ -46,7 +46,7 @@ char *cmdout(const char *cmd);
 
 /**
  * Parameter: author -> the author of the program
- * Parameter: name -> the name of the program
+ * Parameter: name   -> the name of the program
  * Returns: the name of the program
  * Description: Do a `git clone https://www.github.com/<author>/<name>.git`.
  *              This function returns the name of the command as it is
