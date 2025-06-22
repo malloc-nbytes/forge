@@ -1683,8 +1683,21 @@ iskw(char *s)
                 "#define",
                 "#ifndef",
                 "#endif",
+                "#if",
+                "#else",
+                "#endif",
                 "#include",
                 "__attribute__",
+                "return",
+                "break",
+                "continue",
+                "goto",
+                "if",
+                "else",
+                "while",
+                "for",
+                "sizeof",
+                "typeof",
         };
 
         for (size_t i = 0; i < sizeof(kwds)/sizeof(*kwds); ++i) {
