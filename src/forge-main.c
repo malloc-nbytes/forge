@@ -84,7 +84,6 @@ static const char *common_install_dirs[] = {
         "/usr/local/include",
         "/usr/local/lib64",
         "/usr/local/lib",
-        "/usr/local/etc",
         "/usr/local/sbin",
         "/usr/local/share",
 };
