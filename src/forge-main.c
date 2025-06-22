@@ -94,7 +94,7 @@ static const char *common_install_dirs[] = {
 #define C_MODULE_DIR_PARENT "/usr/src/forge/"
 #define MODULE_LIB_DIR "/usr/lib/forge/modules/"
 #define PKG_SOURCE_DIR "/var/cache/forge/sources/"
-#define FORGE_API_HEADER_DIR "/usr/include/forge/"
+#define FORGE_API_HEADER_DIR "/usr/include/forge"
 
 #define CHECK_SQLITE(rc, db)                                            \
         do {                                                            \
@@ -1596,6 +1596,16 @@ list_files_recursive(const char *dir_path, str_array *files)
 void
 list_files(forge_context *ctx, const char *name)
 {
+        if (!strcmp(name, "forge")) {
+                printf(DB_FP "\n");
+                str_array files = dyn_array_empty(str_array);
+                list_files_recursive(FORGE_API_HEADER_DIR, &files);
+                for (size_t i = 0; i < files.len; ++i) {
+                        printf("%s\n", files.data[i]);
+                }
+                return;
+        }
+
         sqlite3_stmt *stmt;
         const char *sql = "SELECT Files.file_path "
                 "FROM Files "
@@ -1657,50 +1667,6 @@ list_files(forge_context *ctx, const char *name)
         }
         dyn_array_free(files);
 }
-
-/* void */
-/* list_files(forge_context *ctx, const char *name) */
-/* { */
-/*         sqlite3_stmt *stmt; */
-/*         const char *sql = "SELECT Files.file_path " */
-/*                 "FROM Files " */
-/*                 "JOIN Pkgs ON Files.pkg_id = Pkgs.id " */
-/*                 "WHERE Pkgs.name = ?;"; */
-/*         int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL); */
-/*         CHECK_SQLITE(rc, ctx->db); */
-
-/*         sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC); */
-
-/*         // Collect file paths and calculate max width for formatting */
-/*         str_array files = dyn_array_empty(str_array); */
-
-/*         while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) { */
-/*                 const char *file_path = (const char *)sqlite3_column_text(stmt, 0); */
-/*                 char *file_copy = strdup(file_path ? file_path : "(none)"); */
-/*                 dyn_array_append(files, file_copy); */
-/*         } */
-
-/*         if (rc != SQLITE_DONE) { */
-/*                 fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(ctx->db)); */
-/*         } */
-
-/*         sqlite3_finalize(stmt); */
-
-/*         // Print files */
-/*         if (files.len == 0) { */
-/*                 printf("No files found for package '%s'.\n", name); */
-/*         } else { */
-/*                 for (size_t i = 0; i < files.len; ++i) { */
-/*                         printf("%s\n", files.data[i]); */
-/*                 } */
-/*         } */
-
-/*         // Clean up */
-/*         for (size_t i = 0; i < files.len; ++i) { */
-/*                 free(files.data[i]); */
-/*         } */
-/*         dyn_array_free(files); */
-/* } */
 
 void
 sync(void)
@@ -1851,6 +1817,7 @@ void
 api_dump(const char *name)
 {
         forge_str path = forge_str_from(FORGE_API_HEADER_DIR);
+        forge_str_concat(&path, "/");
         forge_str_concat(&path, name);
         forge_str_concat(&path, ".h");
 
