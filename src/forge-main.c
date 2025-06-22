@@ -903,13 +903,10 @@ install_pkg(forge_context *ctx,
                         return 0;
                 }
 
-                info_minor("taking a (before) system snapshot", 1);
                 forge_smap snapshot_before = snapshot_files();
 
                 info_minor("Performing: pkg->install()", 1);
                 pkg->install();
-
-                info_minor("taking an (after) system snapshot", 1);
 
                 forge_smap snapshot_after = snapshot_files();
 
@@ -1344,7 +1341,6 @@ update_pkgs(forge_context *ctx, str_array *names)
                 sqlite3_finalize(stmt);
 
                 // Take a snapshot before update
-                info_minor("Taking a (before) system snapshot", 1);
                 forge_smap snapshot_before = snapshot_files();
 
                 int updated = 0;
@@ -1358,7 +1354,6 @@ update_pkgs(forge_context *ctx, str_array *names)
                 }
 
                 // Take a snapshot after update
-                info_minor("Taking an (after) system snapshot", 1);
                 forge_smap snapshot_after = snapshot_files();
 
                 // Remove files from database that no longer exist

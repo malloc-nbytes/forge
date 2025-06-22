@@ -53,26 +53,32 @@ cd_silent(const char *fp)
 int
 cmd(const char *cmd)
 {
+        printf("\033[93m" "\033[2m");
+
         printf("%s\n", cmd);
 
         FILE *fp = popen(cmd, "r");
         if (fp == NULL) {
+                printf("\033[0m");
                 fprintf(stderr, "Failed to execute command '%s': %s\n", cmd, strerror(errno));
                 return 0;
         }
 
         char buffer[1024];
         while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+                printf("\033[0m");
                 printf("%s", buffer);
         }
 
         // Get exit status
         int status = pclose(fp);
         if (status == -1) {
+                printf("\033[0m");
                 fprintf(stderr, "Failed to close pipe for command '%s': %s\n", cmd, strerror(errno));
                 return 0;
         }
 
+        printf("\033[0m");
         return WEXITSTATUS(status) == 0;
 }
 
