@@ -48,7 +48,8 @@ nobase_include_HEADERS = forge/array.h \
 	forge/io.h \
 	forge/pkg.h \
 	forge/str.h \
-	forge/smap.h
+	forge/smap.h \
+	forge/conf.h
 
 # Custom uninstall hook to remove additional directories
 uninstall-hook:

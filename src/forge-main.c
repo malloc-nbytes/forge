@@ -29,6 +29,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <time.h>
 
 #include "sqlite3.h"
 
@@ -95,6 +96,7 @@ static const char *common_install_dirs[] = {
 #define MODULE_LIB_DIR "/usr/lib/forge/modules/"
 #define PKG_SOURCE_DIR "/var/cache/forge/sources/"
 #define FORGE_API_HEADER_DIR "/usr/include/forge"
+#define FORGE_CONF_HEADER_FP FORGE_API_HEADER_DIR "/conf.h"
 
 #define CHECK_SQLITE(rc, db)                                            \
         do {                                                            \
@@ -1224,6 +1226,16 @@ init_env(void)
 }
 
 void
+edit_file_in_editor(const char *path)
+{
+        char cmd[512] = {0};
+        snprintf(cmd, sizeof(cmd), "vim %s", path);
+        if (system(cmd) == -1) {
+                fprintf(stderr, "Failed to open %s in Vim: %s\n", path, strerror(errno));
+        }
+}
+
+void
 new_pkg(forge_context *ctx, str_array *names)
 {
         (void)ctx;
@@ -1237,13 +1249,7 @@ new_pkg(forge_context *ctx, str_array *names)
                 if (!cio_write_file(fp, FORGE_C_MODULE_TEMPLATE)) {
                         err_wargs("failed to write to file %s, %s", fp, strerror(errno));
                 }
-
-                // Open in Vim
-                char cmd[512] = {0};
-                snprintf(cmd, sizeof(cmd), "vim %s", fp);
-                if (system(cmd) == -1) {
-                        fprintf(stderr, "Failed to open %s in Vim: %s\n", fp, strerror(errno));
-                }
+                edit_file_in_editor(fp);
         }
 }
 
@@ -1899,6 +1905,57 @@ api_dump(const char *name, int api)
         forge_str_destroy(&path);
 }
 
+void
+editconf(void)
+{
+        if (!forge_io_filepath_exists(FORGE_CONF_HEADER_FP)) {
+                err_wargs("fatal: somehow the path %s does not exist",
+                          FORGE_CONF_HEADER_FP);
+        }
+        edit_file_in_editor(FORGE_CONF_HEADER_FP);
+}
+
+void
+updateforge(void)
+{
+        time_t now = time(NULL);
+        char hash[32] = {0};
+        snprintf(hash, 32, "%ld", now);
+        forge_str dir = forge_str_from("/tmp/forgeupdate-"),
+                clone = forge_str_from("git clone https://www.github.com/malloc-nbytes/forge.git ");
+        forge_str_concat(&dir, hash);
+        forge_str_concat(&clone, forge_str_to_cstr(&dir));
+
+        // git clone
+        if (!cmd(forge_str_to_cstr(&clone))) goto fail;
+        // cd /tmp/forgeupdate
+        if (!cd(forge_str_to_cstr(&dir))) goto fail;
+
+        // save forge/conf.h
+        char *conf_content = forge_io_read_file_to_cstr(FORGE_CONF_HEADER_FP);
+        forge_str overwrite_fp = forge_str_from(forge_str_to_cstr(&dir));
+        forge_str_concat(&overwrite_fp, "/src/forge/conf.h");
+
+        if (!forge_io_write_file(forge_str_to_cstr(&overwrite_fp), conf_content)) {
+                fprintf(stderr, "failed to overwrite the new conf.h at: %s\n",
+                        forge_str_to_cstr(&overwrite_fp));
+                goto fail;
+        }
+
+        if (!cmd("./bootstrap")) goto fail;
+        if (!cmd("make -j$(nproc)")) goto fail;
+        if (!cmd("make install")) goto fail;
+
+        forge_str_destroy(&dir);
+        forge_str_destroy(&clone);
+        forge_str_destroy(&overwrite_fp);
+        free(conf_content);
+
+ fail:
+        fprintf(stderr, "aborting...\n");
+        return;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2035,6 +2092,17 @@ main(int argc, char **argv)
                                 api_dump(names.data[i], 1);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_EDITCONF)) {
+                        assert_sudo();
+                        editconf();
+                        printf(YELLOW BOLD "=== NOTE ===\n" RESET YELLOW);
+                        printf(YELLOW "For these changes to take effect, you need\n");
+                        printf(YELLOW "to rebuild forge. To do this, run `forge %s`\n", FLAG_2HY_UPDATEFORGE);
+                        printf(YELLOW "This action requires an internet connection.\n");
+                        printf(YELLOW BOLD "============\n" RESET);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_UPDATEFORGE)) {
+                        assert_sudo();
+                        updateforge();
                 }
                 else if (arg.hyphc == 1) { // one hyph options
                         for (size_t i = 0; arg.start[i]; ++i) {

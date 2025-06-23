@@ -41,6 +41,8 @@
 #define FLAG_2HY_COPYING "copying"
 #define FLAG_2HY_DEPGRAPH "depgraph"
 #define FLAG_2HY_API "api"
+#define FLAG_2HY_EDITCONF "editconf"
+#define FLAG_2HY_UPDATEFORGE "updateforge"
 
 typedef enum {
         FT_REBUILD = 1 << 0,

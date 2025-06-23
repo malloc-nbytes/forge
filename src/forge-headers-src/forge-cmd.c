@@ -28,6 +28,7 @@
 #include <string.h>
 
 #include "forge/cmd.h"
+#include "forge/conf.h"
 
 int
 cd(const char *fp)
@@ -229,4 +230,27 @@ change_file_owner(const char *path,
                 return 0;
         }
         return 1;
+}
+
+int
+make(const char *type)
+{
+        char buf[256] = {0};
+        if (type) {
+                sprintf(buf, "make %s -j%s", type, FORGE_PREFERRED_MAKEFILE_JFLAGS);
+        } else {
+                sprintf(buf, "make");
+        }
+        return cmd(buf);
+}
+
+int
+configure(const char *fp,
+          const char *flags)
+{
+        char buf[256] = {0};
+        sprintf(buf, "%sconfigure %s %s %s", fp,
+                FORGE_PREFERRED_INSTALL_PREFIX,
+                FORGE_PREFERRED_LIB_PREFIX, flags);
+        return cmd(buf);
 }
