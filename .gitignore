@@ -3,6 +3,7 @@ forge.db
 
 # Autotools generated files
 conf*
+/src/forge/conf.h
 Makefile
 Makefile.in
 /aclocal.m4
