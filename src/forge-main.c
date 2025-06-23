@@ -1944,12 +1944,14 @@ updateforge(void)
 
         if (!cmd("./bootstrap.sh")) goto fail;
         if (!cmd("make -j$(nproc)")) goto fail;
-        (void)cmd("make install");
+        if (!cmd("make install")) goto fail;
 
         forge_str_destroy(&dir);
         forge_str_destroy(&clone);
         forge_str_destroy(&overwrite_fp);
         free(conf_content);
+
+        return;
 
  fail:
         fprintf(stderr, "aborting...\n");
