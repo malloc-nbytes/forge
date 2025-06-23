@@ -1,0 +1,8 @@
+#ifndef CONF_H_INCLUDED
+#define CONF_H_INCLUDED
+
+#define FORGE_PREFERRED_MAKEFILE_JFLAGS "$(nproc)"
+#define FORGE_PREFERRED_INSTALL_PREFIX "/usr/local"
+#define FORGE_PREFERRED_LIB_PREFIX "/usr/local/lib64"
+
+#endif // CONF_H_INCLUDED
