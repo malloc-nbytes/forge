@@ -1944,7 +1944,7 @@ updateforge(void)
 
         if (!cmd("./bootstrap.sh")) goto fail;
         if (!cmd("make -j$(nproc)")) goto fail;
-        if (!cmd("make install")) goto fail;
+        (void)cmd("make install");
 
         forge_str_destroy(&dir);
         forge_str_destroy(&clone);
