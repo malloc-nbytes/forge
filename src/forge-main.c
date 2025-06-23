@@ -1942,7 +1942,7 @@ updateforge(void)
                 goto fail;
         }
 
-        if (!cmd("./bootstrap")) goto fail;
+        if (!cmd("./bootstrap.sh")) goto fail;
         if (!cmd("make -j$(nproc)")) goto fail;
         if (!cmd("make install")) goto fail;
 
