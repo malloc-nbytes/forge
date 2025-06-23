@@ -43,6 +43,7 @@
 #define FLAG_2HY_API "api"
 #define FLAG_2HY_EDITCONF "editconf"
 #define FLAG_2HY_UPDATEFORGE "updateforge"
+#define FLAG_2HY_RESTORE "restore"
 
 typedef enum {
         FT_REBUILD = 1 << 0,

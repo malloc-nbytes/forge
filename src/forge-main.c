@@ -374,6 +374,81 @@ get_pkg_id(forge_context *ctx, const char *name)
         return id;
 }
 
+void
+restore_pkg(forge_context *ctx, const char *name)
+{
+        (void)ctx;
+
+        // Construct the pattern to match backup files: <name>.c-<TIME HASH>
+        char pattern[256] = {0};
+        snprintf(pattern, sizeof(pattern), "%s%s.c-", C_MODULE_DIR, name);
+
+        // Open the C module directory
+        DIR *dir = opendir(C_MODULE_DIR);
+        if (!dir) {
+                fprintf(stderr, "Failed to open directory %s: %s\n", C_MODULE_DIR, strerror(errno));
+                return;
+        }
+
+        struct dirent *entry;
+        struct stat st;
+        char *latest_file = NULL;
+        time_t latest_mtime = 0;
+
+        // Iterate through directory to find matching backup files
+        while ((entry = readdir(dir))) {
+                // Check if the file starts with the pattern
+                if (strncmp(entry->d_name, pattern + strlen(C_MODULE_DIR), strlen(pattern) - strlen(C_MODULE_DIR)) == 0) {
+                        char full_path[512] = {0};
+                        snprintf(full_path, sizeof(full_path), "%s%s", C_MODULE_DIR, entry->d_name);
+
+                        // Get file modification time
+                        if (stat(full_path, &st) == -1) {
+                                fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
+                                continue;
+                        }
+
+                        // Update latest file if this one is newer
+                        if (st.st_mtime > latest_mtime) {
+                                latest_mtime = st.st_mtime;
+                                if (latest_file) {
+                                        free(latest_file);
+                                }
+                                latest_file = strdup(full_path);
+                        }
+                }
+        }
+        closedir(dir);
+
+        // Check if a backup file was found
+        if (!latest_file) {
+                fprintf(stderr, "No backup file found for package %s\n", name);
+                return;
+        }
+
+        // Construct the original file path
+        char original_path[256] = {0};
+        snprintf(original_path, sizeof(original_path), "%s%s.c", C_MODULE_DIR, name);
+
+        // Check if the original file already exists
+        if (cio_file_exists(original_path)) {
+                fprintf(stderr, "Original file %s already exists, cannot restore\n", original_path);
+                free(latest_file);
+                return;
+        }
+
+        // Rename the latest backup file to the original name
+        printf(YELLOW "Restoring C module: %s to %s\n" RESET, latest_file, original_path);
+        if (rename(latest_file, original_path) != 0) {
+                fprintf(stderr, "Failed to restore file %s to %s: %s\n",
+                        latest_file, original_path, strerror(errno));
+                free(latest_file);
+                return;
+        }
+
+        printf(GREEN BOLD "*** Successfully restored package %s\n" RESET, name);
+        free(latest_file);
+}
 
 void
 drop_pkg(forge_context *ctx, const char *name)
@@ -414,6 +489,40 @@ drop_pkg(forge_context *ctx, const char *name)
                 printf(GREEN BOLD "*** Successfully dropped package %s from database\n" RESET, name);
         }
         sqlite3_finalize(stmt);
+
+        // Remove .c file
+        forge_str pkg_filename = forge_str_from(C_MODULE_DIR);
+        forge_str_concat(&pkg_filename, name);
+        forge_str_concat(&pkg_filename, ".c");
+        forge_str pkg_new_filename = forge_str_from(forge_str_to_cstr(&pkg_filename));
+        char hash[32] = {0};
+        snprintf(hash, 32, "%ld", time(NULL));
+        forge_str_append(&pkg_new_filename, '-');
+        forge_str_concat(&pkg_new_filename, hash);
+
+        printf(YELLOW "creating backup of C module: %s\n" RESET, forge_str_to_cstr(&pkg_new_filename));
+        if (rename(forge_str_to_cstr(&pkg_filename), forge_str_to_cstr(&pkg_new_filename)) != 0) {
+                fprintf(stderr, "failed to rename file: %s to %s: %s\n",
+                        forge_str_to_cstr(&pkg_filename), forge_str_to_cstr(&pkg_new_filename), strerror(errno));
+                return;
+        }
+
+        forge_str_destroy(&pkg_filename);
+        forge_str_destroy(&pkg_new_filename);
+
+        // Remove .so file
+        forge_str so_path = forge_str_from(MODULE_LIB_DIR);
+        forge_str_concat(&so_path, name);
+        forge_str_concat(&so_path, ".so");
+
+        printf(YELLOW "removing library file: %s\n" RESET, forge_str_to_cstr(&so_path));
+        if (remove(forge_str_to_cstr(&so_path)) != 0) {
+                fprintf(stderr, "failed to remove file: %s: %s\n",
+                        forge_str_to_cstr(&so_path), strerror(errno));
+                return;
+        }
+
+        forge_str_destroy(&so_path);
 }
 
 int
@@ -2105,6 +2214,12 @@ main(int argc, char **argv)
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_UPDATEFORGE)) {
                         assert_sudo();
                         updateforge();
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_RESTORE)) {
+                        if (!clap_next(&arg)) {
+                                err_wargs("flag `%s` requires an argument", FLAG_2HY_DEPS);
+                        }
+                        assert_sudo();
+                        restore_pkg(&ctx, arg.start);
                 }
                 else if (arg.hyphc == 1) { // one hyph options
                         for (size_t i = 0; arg.start[i]; ++i) {
