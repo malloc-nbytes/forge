@@ -12,5 +12,6 @@
 #include "forge/array.h"
 #include "forge/io.h"
 #include "forge/smap.h"
+#include "forge/conf.h"
 
 #endif // FORGE_H_INCLUDED

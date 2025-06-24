@@ -97,11 +97,23 @@ int make(const char *type);
 
 /**
  * Parameter: flags -> the flags to pass to configure
- * Parameter: fp -> the path to configure
+ * Parameter: fp    -> the path to configure
  * Returns: 1 on success, or 0 on failure
  * Description: Performs `<fp>configure <flags>` and utilizes
  * macros in conf.h. Make sure to include the last '/' in `fp`!
  */
 int configure(const char *fp, const char *flags);
+
+/**
+ * Paramater: dir -> the dir to perform `ls` on
+ * Returns: an array of all files found in `dir`.
+ * Description: Perform `ls` on `dir`. Collects all files
+ *              found and returns them in an array. The end
+ *              of the array is guaranteed to be NULL terminated.
+ *              If something goes wrong, the return result will be NULL.
+ *              All entries of the array must be free()'d, and the
+ *              array itself must be free()'d.
+ */
+char **ls(const char *dir);
 
 #endif // CMD_H_INCLUDED

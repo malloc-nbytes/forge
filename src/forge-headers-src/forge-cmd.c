@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <dirent.h>
 
 #include "forge/cmd.h"
 #include "forge/conf.h"
@@ -253,4 +254,45 @@ configure(const char *fp,
                 FORGE_PREFERRED_INSTALL_PREFIX,
                 FORGE_PREFERRED_LIB_PREFIX, flags);
         return cmd(buf);
+}
+
+char **
+ls(const char *dir)
+{
+        DIR *dp = opendir(dir);
+        if (!dp) {
+                return NULL;
+        }
+
+        // Count files
+        struct dirent *entry;
+        int count = 0;
+        while ((entry = readdir(dp))) {
+                count++;
+        }
+        rewinddir(dp);
+
+        char **files = malloc((count + 1) * sizeof(char *));
+        if (!files) {
+                closedir(dp);
+                return NULL;
+        }
+
+        int i = 0;
+        while ((entry = readdir(dp))) {
+                files[i] = strdup(entry->d_name);
+                if (!files[i]) {
+                        for (int j = 0; j < i; j++) {
+                                free(files[j]);
+                        }
+                        free(files);
+                        closedir(dp);
+                        return NULL;
+                }
+                i++;
+        }
+        files[count] = NULL;
+
+        closedir(dp);
+        return files;
 }
