@@ -2067,6 +2067,41 @@ updateforge(void)
         return;
 }
 
+void
+apilist(void)
+{
+        char **files = ls(FORGE_API_HEADER_DIR);
+        if (!files) {
+                fprintf(stderr, "could not find FORGE_API_HEADER_DIR\n");
+                return;
+        }
+        for (size_t i = 0; files[i]; ++i) {
+                if (strcmp(files[i], ".")
+                    && strcmp(files[i], "..")
+                    && strcmp(files[i], "forge.h")) {
+                        forge_str include = forge_str_from("#include <forge/");
+                        forge_str_concat(&include, files[i]);
+                        forge_str_append(&include, '>');
+
+                        int per = 0;
+                        for (size_t j = 0; files[i][j]; ++j) {
+                                if (files[i][j] == '.') {
+                                        per = j;
+                                }
+                        }
+                        files[i][per] = 0;
+
+                        printf("Name: %s\n", files[i]);
+
+                        printf("  %s\n", forge_str_to_cstr(&include));
+                        forge_str_destroy(&include);
+                }
+                free(files[i]);
+        }
+        printf("Name: forge\n");
+        printf("  #include <forge/forge.h> // includes all headers\n");
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2220,6 +2255,8 @@ main(int argc, char **argv)
                         }
                         assert_sudo();
                         restore_pkg(&ctx, arg.start);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_APILIST)) {
+                        apilist();
                 }
                 else if (arg.hyphc == 1) { // one hyph options
                         for (size_t i = 0; arg.start[i]; ++i) {
