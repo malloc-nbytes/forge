@@ -67,6 +67,7 @@ usage(void)
         printf(GREEN BOLD "    %s <name>" RESET                                   "            restore a recently dropped package\n", FLAG_2HY_RESTORE);
         printf(GREEN BOLD "    %s" RESET                                          "                   view copying information\n", FLAG_2HY_COPYING);
         printf(GREEN BOLD "    %s" RESET                                          "                  view the depgraph of all C modules\n", FLAG_2HY_DEPGRAPH);
+        printf(GREEN BOLD "    %s" RESET                                          "                   view API headers\n", FLAG_2HY_APILIST);
         printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "   R "  RESET  "edit the forge configuration header\n", FLAG_2HY_EDITCONF);
         printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "R "  RESET  "update forge (used after %s)\n", FLAG_2HY_UPDATEFORGE, FLAG_2HY_EDITCONF);
         printf("Note: " YELLOW BOLD "R" RESET " requires root permissions\n");
