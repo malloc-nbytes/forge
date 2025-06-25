@@ -48,7 +48,7 @@
         "\n" \
         "char *deps[] = {NULL}; // Must be NULL terminated\n" \
         "\n" \
-        "char *getname(void) { return \"mypackage\"; }\n" \
+        "char *getname(void) { return \"author@pkg_name\"; }\n" \
         "char *getver(void) { return \"1.0.0\"; }\n" \
         "char *getdesc(void) { return \"My Description\"; }\n" \
         "char **getdeps(void) { return deps; }\n" \
@@ -92,6 +92,7 @@ static const char *common_install_dirs[] = {
 #define DB_DIR "/var/lib/forge/"
 #define DB_FP DB_DIR "forge.db"
 #define C_MODULE_DIR "/usr/src/forge/modules/"
+#define C_MODULE_USER_DIR "/usr/src/forge/user_modules/"
 #define C_MODULE_DIR_PARENT "/usr/src/forge/"
 #define MODULE_LIB_DIR "/usr/lib/forge/modules/"
 #define PKG_SOURCE_DIR "/var/cache/forge/sources/"
@@ -381,12 +382,12 @@ restore_pkg(forge_context *ctx, const char *name)
 
         // Construct the pattern to match backup files: <name>.c-<TIME HASH>
         char pattern[256] = {0};
-        snprintf(pattern, sizeof(pattern), "%s%s.c-", C_MODULE_DIR, name);
+        snprintf(pattern, sizeof(pattern), "%s%s.c-", C_MODULE_USER_DIR, name);
 
         // Open the C module directory
-        DIR *dir = opendir(C_MODULE_DIR);
+        DIR *dir = opendir(C_MODULE_USER_DIR);
         if (!dir) {
-                fprintf(stderr, "Failed to open directory %s: %s\n", C_MODULE_DIR, strerror(errno));
+                fprintf(stderr, "Failed to open directory %s: %s\n", C_MODULE_USER_DIR, strerror(errno));
                 return;
         }
 
@@ -398,9 +399,10 @@ restore_pkg(forge_context *ctx, const char *name)
         // Iterate through directory to find matching backup files
         while ((entry = readdir(dir))) {
                 // Check if the file starts with the pattern
-                if (strncmp(entry->d_name, pattern + strlen(C_MODULE_DIR), strlen(pattern) - strlen(C_MODULE_DIR)) == 0) {
+                if (strncmp(entry->d_name, pattern + strlen(C_MODULE_USER_DIR), strlen(pattern) - strlen(C_MODULE_USER_DIR)) == 0) {
                         char full_path[512] = {0};
-                        snprintf(full_path, sizeof(full_path), "%s%s", C_MODULE_DIR, entry->d_name);
+                        snprintf(full_path, sizeof(full_path), "%s%s", C_MODULE_USER_DIR, entry->d_name);
+                        printf("PATH: %s\n", full_path);
 
                         // Get file modification time
                         if (stat(full_path, &st) == -1) {
@@ -428,7 +430,7 @@ restore_pkg(forge_context *ctx, const char *name)
 
         // Construct the original file path
         char original_path[256] = {0};
-        snprintf(original_path, sizeof(original_path), "%s%s.c", C_MODULE_DIR, name);
+        snprintf(original_path, sizeof(original_path), "%s%s.c", C_MODULE_USER_DIR, name);
 
         // Check if the original file already exists
         if (cio_file_exists(original_path)) {
@@ -491,7 +493,7 @@ drop_pkg(forge_context *ctx, const char *name)
         sqlite3_finalize(stmt);
 
         // Remove .c file
-        forge_str pkg_filename = forge_str_from(C_MODULE_DIR);
+        forge_str pkg_filename = forge_str_from(C_MODULE_USER_DIR);
         forge_str_concat(&pkg_filename, name);
         forge_str_concat(&pkg_filename, ".c");
         forge_str pkg_new_filename = forge_str_from(forge_str_to_cstr(&pkg_filename));
@@ -1225,80 +1227,84 @@ rebuild_pkgs(forge_context *ctx)
 
         good_major("Rebuilding package modules", 1);
 
-        DIR *dir = opendir(C_MODULE_DIR);
-        if (!dir) {
-                perror("Failed to open directory");
-                return;
-        }
-
-        str_array files = dyn_array_empty(str_array);
-        struct dirent *entry;
-        while ((entry = readdir(dir))) {
-                // Check if the file name ends with ".c"
-                if (entry->d_type == DT_REG && strstr(entry->d_name, ".c") != NULL) {
-                        size_t len = strlen(entry->d_name);
-                        if (len >= 2 && strcmp(entry->d_name + len - 2, ".c") == 0) {
-                                // Allocate memory for the filename without ".c"
-                                char *filename = strdup(entry->d_name);
-                                filename[len - 2] = '\0'; // Remove ".c" by null-terminating early
-                                dyn_array_append(files, filename);
-                        }
+        const char *dirs[] = {C_MODULE_DIR, C_MODULE_USER_DIR};
+        for (size_t d = 0; d < sizeof(dirs)/sizeof(*dirs); ++d) {
+                //DIR *dir = opendir(C_MODULE_DIR);
+                DIR *dir = opendir(dirs[d]);
+                if (!dir) {
+                        perror("Failed to open directory");
+                        return;
                 }
-        }
 
-        if (!cd_silent(C_MODULE_DIR)) {
-                fprintf(stderr, "aborting...\n");
-                goto cleanup;
-        }
-
-        str_array passed = dyn_array_empty(str_array),
-                failed = dyn_array_empty(str_array);
-        for (size_t i = 0; i < files.len; ++i) {
-                char buf[256] = {0};
-                sprintf(buf, "gcc -Wextra -Wall -Werror -shared -fPIC %s.c -lforge -L/usr/local/lib -o" MODULE_LIB_DIR "%s.so -I../include",
-                        files.data[i], files.data[i]);
-                printf("%s\n", buf);
-                fflush(stdout);
-                int status = system(buf);
-                if (status == -1) {
-                        perror("system");
-                        dyn_array_append(failed, files.data[i]);
-                } else {
-                        if (WIFEXITED(status)) {
-                                printf("\033[1A");
-                                printf("\033[2K");
-                                int exit_status = WEXITSTATUS(status);
-                                if (exit_status != 0) {
-                                        fflush(stdout);
-                                        fprintf(stderr, INVERT BOLD RED "In module %s:\n" RESET, files.data[i]);
-                                        fprintf(stderr, INVERT BOLD RED "  located in: " MODULE_LIB_DIR "%s.c\n" RESET, files.data[i]);
-                                        fprintf(stderr, INVERT BOLD RED "  use:\n" RESET);
-                                        fprintf(stderr, INVERT BOLD RED "    forge edit %s\n" RESET, files.data[i]);
-                                        fprintf(stderr, INVERT BOLD RED "  to fix your errors!\n" RESET);
-                                        fprintf(stderr, BOLD YELLOW "  skipping %s module compilation...\n" RESET, files.data[i]);
-                                        dyn_array_append(failed, files.data[i]);
-                                } else {
-                                        dyn_array_append(passed, files.data[i]);
+                str_array files = dyn_array_empty(str_array);
+                struct dirent *entry;
+                while ((entry = readdir(dir))) {
+                        // Check if the file name ends with ".c"
+                        if (entry->d_type == DT_REG && strstr(entry->d_name, ".c") != NULL) {
+                                size_t len = strlen(entry->d_name);
+                                if (len >= 2 && strcmp(entry->d_name + len - 2, ".c") == 0) {
+                                        // Allocate memory for the filename without ".c"
+                                        char *filename = strdup(entry->d_name);
+                                        filename[len - 2] = '\0'; // Remove ".c" by null-terminating early
+                                        dyn_array_append(files, filename);
                                 }
-                        } else {
-                                fprintf(stdout, INVERT BOLD RED "program did not exit normally\n" RESET);
-                                dyn_array_append(failed, files.data[i]);
                         }
                 }
-        }
 
-        if (failed.len > 0) {
-                printf("Results: [ " BOLD GREEN "%zu Compiled" RESET ", " BOLD RED "%zu Failed" RESET " ]\n", passed.len, failed.len);
-        } else {
-                printf("Results: [ " BOLD GREEN "%zu Compiled" RESET " ]\n", passed.len);
-        }
+                if (!cd_silent(dirs[d])) {
+                        fprintf(stderr, "aborting...\n");
+                        goto cleanup;
+                }
 
- cleanup:
-        dyn_array_free(passed);
-        dyn_array_free(failed);
-        for (size_t i = 0; i < files.len; ++i) { free(files.data[i]); }
-        dyn_array_free(files);
-        closedir(dir);
+                str_array passed = dyn_array_empty(str_array),
+                        failed = dyn_array_empty(str_array);
+                for (size_t i = 0; i < files.len; ++i) {
+                        char buf[256] = {0};
+                        sprintf(buf, "gcc -Wextra -Wall -Werror -shared -fPIC %s.c -lforge -L/usr/local/lib -o" MODULE_LIB_DIR "%s.so -I../include",
+                                files.data[i], files.data[i]);
+                        printf("%s\n", buf);
+                        fflush(stdout);
+                        int status = system(buf);
+                        if (status == -1) {
+                                perror("system");
+                                dyn_array_append(failed, files.data[i]);
+                        } else {
+                                if (WIFEXITED(status)) {
+                                        printf("\033[1A");
+                                        printf("\033[2K");
+                                        int exit_status = WEXITSTATUS(status);
+                                        if (exit_status != 0) {
+                                                fflush(stdout);
+                                                fprintf(stderr, INVERT BOLD RED "In module %s:\n" RESET, files.data[i]);
+                                                fprintf(stderr, INVERT BOLD RED "  located in: " MODULE_LIB_DIR "%s.c\n" RESET, files.data[i]);
+                                                fprintf(stderr, INVERT BOLD RED "  use:\n" RESET);
+                                                fprintf(stderr, INVERT BOLD RED "    forge edit %s\n" RESET, files.data[i]);
+                                                fprintf(stderr, INVERT BOLD RED "  to fix your errors!\n" RESET);
+                                                fprintf(stderr, BOLD YELLOW "  skipping %s module compilation...\n" RESET, files.data[i]);
+                                                dyn_array_append(failed, files.data[i]);
+                                        } else {
+                                                dyn_array_append(passed, files.data[i]);
+                                        }
+                                } else {
+                                        fprintf(stdout, INVERT BOLD RED "program did not exit normally\n" RESET);
+                                        dyn_array_append(failed, files.data[i]);
+                                }
+                        }
+                }
+
+                if (failed.len > 0) {
+                        printf("%s: [ " BOLD GREEN "%zu Compiled" RESET ", " BOLD RED "%zu Failed" RESET " ]\n", dirs[d], passed.len, failed.len);
+                } else {
+                        printf("%s: [ " BOLD GREEN "%zu Compiled" RESET " ]\n", dirs[d], passed.len);
+                }
+
+        cleanup:
+                dyn_array_free(passed);
+                dyn_array_free(failed);
+                for (size_t i = 0; i < files.len; ++i) { free(files.data[i]); }
+                dyn_array_free(files);
+                closedir(dir);
+        }
 }
 
 void
@@ -1316,10 +1322,13 @@ init_env(void)
 
         // Module locations
         if (mkdir_p(MODULE_LIB_DIR, 0755) != 0 && errno != EEXIST) {
-                fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
+                fprintf(stderr, "could not create path: %s, %s\n", MODULE_LIB_DIR, strerror(errno));
         }
         if (mkdir_p(C_MODULE_DIR, 0755) != 0 && errno != EEXIST) {
-                fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
+                fprintf(stderr, "could not create path: %s, %s\n", C_MODULE_DIR, strerror(errno));
+        }
+        if (mkdir_p(C_MODULE_USER_DIR, 0755) != 0 && errno != EEXIST) {
+                fprintf(stderr, "could not create path: %s, %s\n", C_MODULE_USER_DIR, strerror(errno));
         }
         if (!cd(C_MODULE_DIR_PARENT)) {
                 fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR_PARENT, strerror(errno));
@@ -1330,7 +1339,7 @@ init_env(void)
 
         // Pkg source location
         if (mkdir_p(PKG_SOURCE_DIR, 0755) != 0 && errno != EEXIST) {
-                fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
+                fprintf(stderr, "could not create path: %s, %s\n", PKG_SOURCE_DIR, strerror(errno));
         }
 }
 
@@ -1351,7 +1360,7 @@ new_pkg(forge_context *ctx, str_array *names)
 
         for (size_t i = 0; i < names->len; ++i) {
                 char fp[256] = {0};
-                sprintf(fp, C_MODULE_DIR "%s.c", names->data[i]);
+                sprintf(fp, C_MODULE_USER_DIR "%s.c", names->data[i]);
                 if (cio_file_exists(fp)) {
                         err_wargs("file %s already exists", fp);
                 }
@@ -1369,7 +1378,7 @@ edit_c_module(forge_context *ctx, str_array *names)
 
         for (size_t i = 0; i < names->len; ++i) {
                 char fp[256] = {0};
-                sprintf(fp, C_MODULE_DIR "%s.c", names->data[i]);
+                sprintf(fp, C_MODULE_USER_DIR "%s.c", names->data[i]);
                 if (!cio_file_exists(fp)) {
                         err_wargs("C module %s does not exist", fp);
                 }
@@ -1964,18 +1973,31 @@ api_dump(const char *name, int api)
 {
         forge_str path = forge_str_create();
         if (api) {
+                // Handle API header dump (unchanged)
                 forge_str_concat(&path, FORGE_API_HEADER_DIR);
                 forge_str_concat(&path, "/");
                 forge_str_concat(&path, name);
                 forge_str_concat(&path, ".h");
         } else {
+                // Try C_MODULE_DIR first
                 forge_str_concat(&path, C_MODULE_DIR);
                 forge_str_concat(&path, name);
                 forge_str_concat(&path, ".c");
-        }
 
-        if (!forge_io_filepath_exists(forge_str_to_cstr(&path))) {
-                err_wargs("path `%s` does not exist", forge_str_to_cstr(&path));
+                // Check if file exists in C_MODULE_DIR
+                if (!forge_io_filepath_exists(forge_str_to_cstr(&path))) {
+                        // If not found, try C_MODULE_USER_DIR
+                        forge_str_clear(&path);
+                        forge_str_concat(&path, C_MODULE_USER_DIR);
+                        forge_str_concat(&path, name);
+                        forge_str_concat(&path, ".c");
+
+                        // If still not found, report error
+                        if (!forge_io_filepath_exists(forge_str_to_cstr(&path))) {
+                                err_wargs("path `%s` does not exist in either %s or %s",
+                                          name, C_MODULE_DIR, C_MODULE_USER_DIR);
+                        }
+                }
         }
 
         if (api) {
@@ -2160,7 +2182,7 @@ main(int argc, char **argv)
                         while (clap_next(&arg)) {
                                 dyn_array_append(names, strdup(arg.start));
                         }
-                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_INSTALL);
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_UNINSTALL);
                         assert_sudo();
                         uninstall_pkg(&ctx, &names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
@@ -2182,7 +2204,7 @@ main(int argc, char **argv)
                         while (clap_next(&arg)) {
                                 dyn_array_append(names, strdup(arg.start));
                         }
-                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_INSTALL);
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_EDIT);
                         assert_sudo();
                         edit_c_module(&ctx, &names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }

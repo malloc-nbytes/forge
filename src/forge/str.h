@@ -8,6 +8,7 @@ typedef struct {
 
 forge_str forge_str_create(void);
 forge_str forge_str_from(const char *s);
+void forge_str_clear(forge_str *fs);
 void forge_str_destroy(forge_str *fs);
 void forge_str_append(forge_str *fs, char c);
 void forge_str_concat(forge_str *fs, const char *s);

@@ -45,6 +45,13 @@ forge_str_from(const char *s)
 }
 
 void
+forge_str_clear(forge_str *fs)
+{
+        fs->len = 0;
+        memset(fs->data, 0, fs->cap);
+}
+
+void
 forge_str_destroy(forge_str *fs)
 {
         if (fs->data) {
