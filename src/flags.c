@@ -46,6 +46,8 @@ usage(void)
         printf("  - https://github.com/malloc-nbytes/forge/issues\n");
         printf("  - or " PACKAGE_BUGREPORT "\n\n");
 
+        printf("The documentation can be found at https://malloc-nbytes.github.io/forge-web/index.html\n\n");
+
         printf("Usage: forge " YELLOW BOLD "[options...] " RESET GREEN BOLD "<command>" RESET " [arguments...]\n");
         printf("Options:\n");
         printf(YELLOW BOLD "    -%c, --%s" RESET "                display this message\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
