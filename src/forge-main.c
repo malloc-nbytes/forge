@@ -1380,7 +1380,13 @@ edit_c_module(forge_context *ctx, str_array *names)
                 char fp[256] = {0};
                 sprintf(fp, C_MODULE_USER_DIR "%s.c", names->data[i]);
                 if (!cio_file_exists(fp)) {
-                        err_wargs("C module %s does not exist", fp);
+                        memset(fp, 0, 256);
+                        sprintf(fp, C_MODULE_DIR "%s.c", names->data[i]);
+                        if (cio_file_exists(fp)) {
+                                err("Cannot edit C module provided by the forge modules repo");
+                        } else {
+                                err_wargs("C module %s does not exist", fp);
+                        }
                 }
 
                 char cmd[512] = {0};
