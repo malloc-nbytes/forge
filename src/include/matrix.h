@@ -9,11 +9,13 @@ typedef struct {
         size_t cols;
         size_t win_width;
         size_t win_height;
+        size_t height_offset;
         struct termios old_termios;
 } matrix;
 
-matrix matrix_create(const char **data, size_t data_n);
-void matrix_display(const matrix *m);
+matrix matrix_create(char **data, size_t data_n);
+void matrix_dump(const matrix *m);
 void matrix_free(matrix *m);
+void matrix_display(matrix *m);
 
 #endif // MATRIX_H_INCLUDED

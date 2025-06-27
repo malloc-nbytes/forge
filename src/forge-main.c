@@ -2020,6 +2020,11 @@ api_dump(const char *name, int api)
                 line_count++;
         }
 
+        matrix m = matrix_create(lines, line_count);
+        matrix_display(&m);
+        matrix_free(&m);
+        exit(0);
+
         // Calculate width needed for the largest line number
         int width = 1;
         size_t temp = line_count;
