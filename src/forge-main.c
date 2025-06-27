@@ -38,11 +38,11 @@
 #include "flags.h"
 #include "utils.h"
 #include "colors.h"
+#include "matrix.h"
 #define CIO_IMPL
 #include "cio.h"
 #define CLAP_IMPL
 #include "clap.h"
-#include "matrix.h"
 
 #define FORGE_C_MODULE_TEMPLATE \
         "#include <forge/forge.h>\n" \
@@ -2134,18 +2134,6 @@ apilist(void)
 int
 main(int argc, char **argv)
 {
-        const char *s[] = {
-                "foo",
-                "bar",
-                "baz",
-                "hello",
-                "world",
-        };
-        matrix m = matrix_create(s, sizeof(s)/sizeof(*s));
-        matrix_display(&m);
-
-        return 0;
-
         ++argv, --argc;
         clap_init(argc, argv);
         int exists = cio_file_exists(DB_FP);
