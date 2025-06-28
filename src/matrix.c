@@ -4,24 +4,25 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <signal.h>
 
 #include "matrix.h"
 
-#define CTRL_N 14 // Scroll down
-#define CTRL_D 4  // Page down
-#define CTRL_U 21 // Page up
-#define CTRL_L 12 // Refresh
-#define CTRL_P 16 // Scroll up
-#define CTRL_G 7  // Cancel
-#define CTRL_V 22 // Scroll down
-#define CTRL_W 23 // Save buffer
-#define CTRL_O 15 // Open buffer
-#define CTRL_F 6 // Scroll right
-#define CTRL_B 2 // Scroll left
-#define CTRL_A 1 // Jump to beginning of line
-#define CTRL_E 5 // Jump to end of line
-#define CTRL_S 19 // Search
-#define CTRL_Q 17 // qbuf
+#define CTRL_N 14
+#define CTRL_D 4
+#define CTRL_U 21
+#define CTRL_L 12
+#define CTRL_P 16
+#define CTRL_G 7
+#define CTRL_V 22
+#define CTRL_W 23
+#define CTRL_O 15
+#define CTRL_F 6
+#define CTRL_B 2
+#define CTRL_A 1
+#define CTRL_E 5
+#define CTRL_S 19
+#define CTRL_Q 17
 
 #define UP_ARROW      'A'
 #define DOWN_ARROW    'B'
@@ -43,63 +44,114 @@ typedef enum {
     USER_INPUT_TYPE_UNKNOWN,
 } user_input_type;
 
-matrix
-matrix_create(char **data, size_t data_n)
-{
-        matrix m = {0};
+static matrix *current_matrix = NULL; // For signal handler (resizing window)
+static volatile sig_atomic_t resize_flag = 0; // Flag to indicate resize occurred
 
+static void
+handle_sigwinch(int sig)
+{
+        (void)sig; // Unused
+        if (current_matrix != NULL) {
+                struct winsize w;
+                if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
+                        current_matrix->win_width = w.ws_col - 1;
+                        current_matrix->win_height = w.ws_row - 1;
+
+                        // Adjust height_offset to prevent going past the end
+                        if (current_matrix->rows > current_matrix->win_height &&
+                            current_matrix->height_offset > current_matrix->rows - current_matrix->win_height) {
+                                current_matrix->height_offset = current_matrix->rows - current_matrix->win_height;
+                        }
+                }
+                resize_flag = 1; // Signal that a resize occurred
+        }
+}
+
+matrix *
+matrix_alloc(char **data, size_t data_n)
+{
+        matrix *m = (matrix*)malloc(sizeof(matrix));
+
+        // Set up SIGWINCH handler
+        struct sigaction sa = {0};
+        sa.sa_handler = handle_sigwinch;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = 0;
+        if (sigaction(SIGWINCH, &sa, NULL) == -1) {
+                perror("sigaction failed");
+                fprintf(stderr, "could not set up SIGWINCH handler\n");
+        }
+
+        // Get initial window size
         struct winsize w;
-        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0)
-                m.win_width = w.ws_col-1, m.win_height = w.ws_row-1;
-        else {
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
+                m->win_width = w.ws_col - 1;
+                m->win_height = w.ws_row - 1;
+        } else {
                 perror("ioctl failed");
                 fprintf(stderr, "could not get size of terminal. Undefined behavior may occur\n");
         }
 
-        tcgetattr(STDIN_FILENO, &m.old_termios);
-        struct termios raw = m.old_termios;
+        // Set terminal to raw mode
+        tcgetattr(STDIN_FILENO, &m->old_termios);
+        struct termios raw = m->old_termios;
         raw.c_lflag &= ~(ECHO | ICANON);
         raw.c_iflag &= ~IXON;
         tcsetattr(STDIN_FILENO, TCSANOW, &raw);
 
+        // Initialize matrix data
         size_t col_max = 0;
         for (size_t i = 0; i < data_n; ++i) {
                 size_t n = strlen(data[i]);
                 if (n > col_max) { col_max = n; }
         }
 
-        m.data = (char **)malloc(sizeof(char *) * data_n);
-
+        m->data = (char **)malloc(sizeof(char *) * data_n);
         for (size_t i = 0; i < data_n; ++i) {
-                m.data[i] = (char *)malloc(col_max + 1);
+                m->data[i] = (char *)malloc(col_max + 1);
                 size_t n = strlen(data[i]);
                 for (size_t j = 0; j < col_max; ++j) {
                         if (j >= n) {
-                                m.data[i][j] = ' ';
+                                m->data[i][j] = ' ';
                         } else {
-                                m.data[i][j] = data[i][j];
+                                m->data[i][j] = data[i][j];
                         }
                 }
-                m.data[i][col_max] = 0;
+                m->data[i][col_max] = 0;
         }
 
-        m.rows = data_n;
-        m.cols = col_max;
-        m.height_offset = 0;
+        m->rows = data_n;
+        m->cols = col_max;
+        m->height_offset = 0;
 
+        current_matrix = m;
         return m;
+}
+
+static void
+reset_scrn(void)
+{
+        printf("\033[2J");
+        printf("\033[H");
+        fflush(stdout);
 }
 
 void
 matrix_dump(const matrix *m)
 {
-        for (size_t i = m->height_offset;
-             i < m->height_offset + m->win_height; ++i) {
+        reset_scrn();
+        size_t end_row = m->height_offset + m->win_height;
+        size_t start_row = m->height_offset >= m->rows-m->height_offset ? m->height_offset >= m->rows-m->height_offset : m->height_offset;
+        if (end_row > m->rows) {
+                end_row = m->rows; // Cap end_row to the number of rows
+        }
+        for (size_t i = start_row; i < end_row; ++i) {
                 for (size_t j = 0; j < m->cols; ++j) {
                         putchar(m->data[i][j]);
                 }
                 putchar('\n');
         }
+        fflush(stdout);
 }
 
 void
@@ -110,14 +162,8 @@ matrix_free(matrix *m)
         }
         free(m->data);
         tcsetattr(STDIN_FILENO, TCSANOW, &m->old_termios);
-}
-
-static void
-reset_scrn(void)
-{
-        printf("\033[2J");
-        printf("\033[H");
-        fflush(stdout);
+        free(m);
+        current_matrix = NULL;
 }
 
 static char
@@ -215,7 +261,7 @@ bottom(matrix *m)
 static inline void
 page_down(matrix *m)
 {
-        if (m->height_offset >= m->cols - m->win_height) {
+        if (m->height_offset >= m->rows - m->win_height) {
                 bottom(m);
                 return;
         }
@@ -235,25 +281,40 @@ page_up(matrix *m)
 void
 matrix_display(matrix *m)
 {
+        current_matrix = m;
         while (1) {
                 matrix_dump(m);
+                resize_flag = 0;
+
                 char ch;
                 user_input_type ty = get_user_input(&ch);
+
+                // Process input
                 switch (ty) {
-                case USER_INPUT_TYPE_NORMAL: {
+                case USER_INPUT_TYPE_NORMAL:
                         if      (ch == 'k') { up(m); }
                         else if (ch == 'j') { down(m); }
                         else if (ch == 'g') { top(m); }
                         else if (ch == 'G') { bottom(m); }
                         else if (ch == 'q') { goto done; }
-                } break;
-                case USER_INPUT_TYPE_CTRL: {
+                        break;
+                case USER_INPUT_TYPE_CTRL:
                         if      (ch == CTRL_N) { down(m); }
                         else if (ch == CTRL_P) { up(m); }
                         else if (ch == CTRL_D) { page_down(m); }
                         else if (ch == CTRL_U) { page_up(m); }
-                } break;
-                default: {} break;
+                        break;
+                case USER_INPUT_TYPE_ARROW:
+                        if      (ch == UP_ARROW) { up(m); }
+                        else if (ch == DOWN_ARROW) { down(m); }
+                default:
+                        break;
+                }
+
+                // Redraw if resize occurred (SIGWINCH set the flag)
+                if (resize_flag) {
+                        matrix_dump(m); // Immediate redraw after resize
+                        resize_flag = 0;
                 }
         }
  done:

@@ -13,7 +13,7 @@ typedef struct {
         struct termios old_termios;
 } matrix;
 
-matrix matrix_create(char **data, size_t data_n);
+matrix *matrix_alloc(char **data, size_t data_n);
 void matrix_dump(const matrix *m);
 void matrix_free(matrix *m);
 void matrix_display(matrix *m);
