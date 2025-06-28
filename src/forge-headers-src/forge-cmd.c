@@ -240,7 +240,7 @@ make(const char *type)
         if (type) {
                 sprintf(buf, "make %s -j%s", type, FORGE_PREFERRED_MAKEFILE_JFLAGS);
         } else {
-                sprintf(buf, "make");
+                sprintf(buf, "make -j%s", FORGE_PREFERRED_MAKEFILE_JFLAGS);
         }
         return cmd(buf);
 }
