@@ -87,7 +87,7 @@ char *get_prev_user(void);
 int change_file_owner(const char *path, const char *user);
 
 /**
- * Parameter: type -> the type of make we are doing
+ * Parameter: type? -> the type of make we are doing
  * Returns: 1 on success, or 0 on failure
  * Description: Performs `make <type>` and utilizes
  * macros in conf.h. If `type` is NULL, it will just
@@ -97,7 +97,7 @@ int make(const char *type);
 
 /**
  * Parameter: flags -> the flags to pass to configure
- * Parameter: fp    -> the path to configure
+ * Parameter: fp?   -> the path to configure
  * Returns: 1 on success, or 0 on failure
  * Description: Performs `<fp>configure <flags>` and utilizes
  * macros in conf.h. Make sure to include the last '/' in `fp`!

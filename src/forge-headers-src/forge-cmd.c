@@ -250,9 +250,15 @@ configure(const char *fp,
           const char *flags)
 {
         char buf[256] = {0};
-        sprintf(buf, "%sconfigure %s %s %s", fp,
-                FORGE_PREFERRED_INSTALL_PREFIX,
-                FORGE_PREFERRED_LIB_PREFIX, flags);
+        if (flags) {
+                sprintf(buf, "%sconfigure %s %s %s", fp,
+                        FORGE_PREFERRED_INSTALL_PREFIX,
+                        FORGE_PREFERRED_LIB_PREFIX, flags);
+        } else {
+                sprintf(buf, "%sconfigure %s %s", fp,
+                        FORGE_PREFERRED_INSTALL_PREFIX,
+                        FORGE_PREFERRED_LIB_PREFIX);
+        }
         return cmd(buf);
 }
 
