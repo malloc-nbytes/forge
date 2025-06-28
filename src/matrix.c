@@ -140,19 +140,68 @@ void
 matrix_dump(const matrix *m)
 {
         reset_scrn();
-        size_t end_row = m->height_offset + m->win_height;
-        size_t start_row = m->height_offset >= m->rows-m->height_offset ? m->height_offset >= m->rows-m->height_offset : m->height_offset;
-        if (end_row > m->rows) {
-                end_row = m->rows; // Cap end_row to the number of rows
+        if (m->rows == 0 || m->win_height <= 1) {
+                // If no rows or window too small, just show controls or nothing
+                if (m->win_height >= 1) {
+                        printf("\033[%zu;1H", m->win_height); // Move to last row
+                        printf("j:down k:up g:top G:bottom q:quit ^D:pgdn ^U:pgup ^N:down ^P:up ↑:up ↓:down");
+                        fflush(stdout);
+                }
+                return;
         }
-        for (size_t i = start_row; i < end_row; ++i) {
-                for (size_t j = 0; j < m->cols; ++j) {
+
+        // Display matrix data up to win_height - 1
+        size_t display_height = m->win_height - 1;
+        size_t end_row = m->height_offset + display_height;
+        if (end_row > m->rows) {
+                end_row = m->rows; // Cap at total rows
+        }
+        for (size_t i = m->height_offset; i < end_row; ++i) {
+                for (size_t j = 0; j < m->cols && j < m->win_width; ++j) {
                         putchar(m->data[i][j]);
                 }
                 putchar('\n');
         }
+
+        // Move to last row and print controls
+        printf("\033[%zu;1H", m->win_height); // Position cursor at last row, column 1
+        printf("j:down k:up g:top G:bottom q:quit ^D:pgdn ^U:pgup ^N:down ^P:up ↑:up ↓:down");
         fflush(stdout);
 }
+
+/* void */
+/* matrix_dump(const matrix *m) */
+/* { */
+/*         reset_scrn(); */
+/*         if (m->rows == 0 || m->win_height <= 1) { */
+/*                 // If no rows or window too small, just show controls or nothing */
+/*                 if (m->win_height >= 1) { */
+/*                         printf("\033[%zu;1H", m->win_height); // Move to last row */
+/*                         printf("j:down k:up g:top G:bottom q:quit ^D:pgdn ^U:pgup ^N:down ^P:up ↑:up ↓:down"); */
+/*                         fflush(stdout); */
+/*                 } */
+/*                 return; */
+/*         } */
+
+/*         // Display matrix data up to win_height - 1 */
+/*         size_t display_height = m->win_height - 1; */
+/*         size_t end_row = m->height_offset + display_height; */
+/*         size_t start_row = m->height_offset >= m->rows-m->height_offset ? m->height_offset >= m->rows-m->height_offset : m->height_offset; */
+/*         if (end_row > m->rows) { */
+/*                 end_row = m->rows; // Cap at total rows */
+/*         } */
+/*         for (size_t i = start_row; i < end_row; ++i) { */
+/*                 for (size_t j = 0; j < m->cols && j < m->win_width; ++j) { */
+/*                         putchar(m->data[i][j]); */
+/*                 } */
+/*                 putchar('\n'); */
+/*         } */
+
+/*         // Move to last row and print controls */
+/*         printf("\033[%zu;1H", m->win_height); // Position cursor at last row, column 1 */
+/*         printf("j:down k:up g:top G:bottom q:quit ^D:pgdn ^U:pgup ^N:down ^P:up ↑:up ↓:down"); */
+/*         fflush(stdout); */
+/* } */
 
 void
 matrix_free(matrix *m)
@@ -233,17 +282,21 @@ get_user_input(char *c)
 static inline void
 down(matrix *m)
 {
-        if (m->height_offset >= m->rows-m->win_height) {
+        if (m->win_height <= 1 || m->rows <= m->win_height - 1) {
+                m->height_offset = 0; // No scrolling if matrix fits or window too small
                 return;
         }
-        ++m->height_offset;
+        if (m->height_offset < m->rows - (m->win_height - 1)) {
+                ++m->height_offset;
+        }
 }
 
 static inline void
 up(matrix *m)
 {
-        if (m->height_offset == 0) { return; }
-        --m->height_offset;
+        if (m->height_offset > 0) {
+                --m->height_offset;
+        }
 }
 
 static inline void
@@ -255,27 +308,39 @@ top(matrix *m)
 static inline void
 bottom(matrix *m)
 {
-        m->height_offset = m->rows - m->win_height;
+        if (m->win_height <= 1 || m->rows <= m->win_height - 1) {
+                m->height_offset = 0;
+        } else {
+                m->height_offset = m->rows - (m->win_height - 1);
+        }
 }
 
 static inline void
 page_down(matrix *m)
 {
-        if (m->height_offset >= m->rows - m->win_height) {
-                bottom(m);
+        if (m->win_height <= 1 || m->rows <= m->win_height - 1) {
+                m->height_offset = 0; // No scrolling if matrix fits or window too small
                 return;
         }
-        m->height_offset += m->win_height;
+        if (m->height_offset + (m->win_height - 1) >= m->rows) {
+                m->height_offset = m->rows - (m->win_height - 1);
+                return;
+        }
+        m->height_offset += m->win_height - 1;
 }
 
 static inline void
 page_up(matrix *m)
 {
-        if (m->height_offset <= m->win_height) {
-                top(m);
+        if (m->win_height <= 1 || m->rows <= m->win_height - 1) {
+                m->height_offset = 0; // No scrolling if matrix fits or window too small
                 return;
         }
-        m->height_offset -= m->win_height;
+        if (m->height_offset <= m->win_height - 1) {
+                m->height_offset = 0;
+                return;
+        }
+        m->height_offset -= m->win_height - 1;
 }
 
 void
