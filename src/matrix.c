@@ -7,6 +7,7 @@
 #include <signal.h>
 
 #include "matrix.h"
+#include "colors.h"
 
 #define CTRL_N 14
 #define CTRL_D 4
@@ -136,6 +137,36 @@ reset_scrn(void)
         fflush(stdout);
 }
 
+static inline void
+controls(const matrix *m)
+{
+        printf("\033[%zu;1H", m->win_height);
+        printf(BOLD RED INVERT "q:quit" RESET
+               " "
+               BOLD RED INVERT "C-c:quit" RESET
+               " "
+               BOLD GREEN INVERT "j:down" RESET
+               " "
+               BOLD GREEN INVERT "k:up" RESET
+               " "
+               BOLD GREEN INVERT "g:top" RESET
+               " "
+               BOLD GREEN INVERT "G:bottom" RESET
+               " "
+               BOLD GREEN INVERT "^D:pgdn" RESET
+               " "
+               BOLD GREEN INVERT "^U:pgup" RESET
+               " "
+               BOLD GREEN INVERT "^N:down" RESET
+               " "
+               BOLD GREEN INVERT "^P:up" RESET
+               " "
+               BOLD GREEN INVERT "↑:up" RESET
+               " "
+               BOLD GREEN INVERT "↓:down" RESET);
+        fflush(stdout);
+}
+
 void
 matrix_dump(const matrix *m)
 {
@@ -143,9 +174,7 @@ matrix_dump(const matrix *m)
         if (m->rows == 0 || m->win_height <= 1) {
                 // If no rows or window too small, just show controls or nothing
                 if (m->win_height >= 1) {
-                        printf("\033[%zu;1H", m->win_height); // Move to last row
-                        printf("j:down k:up g:top G:bottom q:quit ^D:pgdn ^U:pgup ^N:down ^P:up ↑:up ↓:down");
-                        fflush(stdout);
+                        controls(m);
                 }
                 return;
         }
@@ -164,44 +193,8 @@ matrix_dump(const matrix *m)
         }
 
         // Move to last row and print controls
-        printf("\033[%zu;1H", m->win_height); // Position cursor at last row, column 1
-        printf("j:down k:up g:top G:bottom q:quit ^D:pgdn ^U:pgup ^N:down ^P:up ↑:up ↓:down");
-        fflush(stdout);
+        controls(m);
 }
-
-/* void */
-/* matrix_dump(const matrix *m) */
-/* { */
-/*         reset_scrn(); */
-/*         if (m->rows == 0 || m->win_height <= 1) { */
-/*                 // If no rows or window too small, just show controls or nothing */
-/*                 if (m->win_height >= 1) { */
-/*                         printf("\033[%zu;1H", m->win_height); // Move to last row */
-/*                         printf("j:down k:up g:top G:bottom q:quit ^D:pgdn ^U:pgup ^N:down ^P:up ↑:up ↓:down"); */
-/*                         fflush(stdout); */
-/*                 } */
-/*                 return; */
-/*         } */
-
-/*         // Display matrix data up to win_height - 1 */
-/*         size_t display_height = m->win_height - 1; */
-/*         size_t end_row = m->height_offset + display_height; */
-/*         size_t start_row = m->height_offset >= m->rows-m->height_offset ? m->height_offset >= m->rows-m->height_offset : m->height_offset; */
-/*         if (end_row > m->rows) { */
-/*                 end_row = m->rows; // Cap at total rows */
-/*         } */
-/*         for (size_t i = start_row; i < end_row; ++i) { */
-/*                 for (size_t j = 0; j < m->cols && j < m->win_width; ++j) { */
-/*                         putchar(m->data[i][j]); */
-/*                 } */
-/*                 putchar('\n'); */
-/*         } */
-
-/*         // Move to last row and print controls */
-/*         printf("\033[%zu;1H", m->win_height); // Position cursor at last row, column 1 */
-/*         printf("j:down k:up g:top G:bottom q:quit ^D:pgdn ^U:pgup ^N:down ^P:up ↑:up ↓:down"); */
-/*         fflush(stdout); */
-/* } */
 
 void
 matrix_free(matrix *m)

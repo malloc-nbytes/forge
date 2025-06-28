@@ -2200,28 +2200,6 @@ api_dump(const char *name, int api)
         matrix *m = matrix_alloc(colored_lines, line_count);
         matrix_display(m);
         matrix_free(m);
-        exit(0);
-
-        // Calculate width needed for the largest line number
-        /* int width = 1; */
-        /* size_t temp = line_count; */
-        /* while (temp >= 10) { */
-        /*         width++; */
-        /*         temp /= 10; */
-        /* } */
-
-        // Print lines with padded line numbers
-        /* for (size_t i = 0; lines[i]; ++i) { */
-        /*         if (strlen(lines[i]) == 1 && lines[i][0] == '\n') { */
-        /*                 printf("%*zu:\n", width, i + 1); */
-        /*         } else { */
-        /*                 printf("%*zu: ", width, i + 1); */
-        /*                 api_colorize(lines[i]); */
-        /*         } */
-        /*         free(lines[i]); */
-        /* } */
-
-        /* free(lines); */
         forge_str_destroy(&path);
 }
 
