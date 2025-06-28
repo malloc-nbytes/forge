@@ -11,7 +11,7 @@ sqlite-build:
 	$(MAKE) -C ./sqlite-autoconf-3500100
 
 # Sources for libforge.so
-libforge_la_SOURCES = colors.c depgraph.c flags.c forge-main.c \
+libforge_la_SOURCES = matrix.c colors.c depgraph.c flags.c forge-main.c \
 	forge-headers-src/forge-cmd.c forge-headers-src/forge-io.c \
 	forge-headers-src/forge-pkg.c forge-headers-src/forge-str.c \
 	forge-headers-src/forge-smap.c
@@ -24,7 +24,7 @@ libforge_la_LDFLAGS = -L$(top_srcdir)/src/sqlite-autoconf-3500100 -lsqlite3 -pth
 bin_PROGRAMS = forge_production
 
 # Sources for forge executable
-forge_production_SOURCES = colors.c depgraph.c flags.c forge-main.c \
+forge_production_SOURCES = matrix.c colors.c depgraph.c flags.c forge-main.c \
 	forge-headers-src/forge-cmd.c forge-headers-src/forge-io.c \
 	forge-headers-src/forge-pkg.c forge-headers-src/forge-str.c \
 	forge-headers-src/forge-smap.c
