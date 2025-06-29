@@ -2155,6 +2155,9 @@ api_dump(const char *name, int api)
                 forge_str_concat(&path, "/");
                 forge_str_concat(&path, name);
                 forge_str_concat(&path, ".h");
+                if (!forge_io_filepath_exists(forge_str_to_cstr(&path))) {
+                        err_wargs("API `%s` does not exist", name);
+                }
         } else {
                 // Try C_MODULE_DIR first
                 forge_str_concat(&path, C_MODULE_DIR);
