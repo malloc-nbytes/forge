@@ -56,6 +56,7 @@ usage(void)
         printf(YELLOW BOLD "        --%s  R"                         RESET " remove all broken packages\n", FLAG_2HY_DROP_BROKEN_PKGS);
         printf("Commands:\n");
         printf(GREEN BOLD "    %s          " RESET                                "            list available packages\n", FLAG_2HY_LIST);
+        printf(GREEN BOLD "    %s <pkg...> "                         RESET "          search for packages\n", FLAG_2HY_SEARCH);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "       R "     RESET  "install packages\n", FLAG_2HY_INSTALL);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "     R "       RESET  "uninstall packages\n", FLAG_2HY_UNINSTALL);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "        R "    RESET  "update packages or leave empty to update all\n", FLAG_2HY_UPDATE);

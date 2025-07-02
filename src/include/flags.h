@@ -45,6 +45,7 @@
 #define FLAG_2HY_UPDATEFORGE "updateforge"
 #define FLAG_2HY_RESTORE "restore"
 #define FLAG_2HY_APILIST "apilist"
+#define FLAG_2HY_SEARCH "search"
 
 typedef enum {
         FT_REBUILD = 1 << 0,

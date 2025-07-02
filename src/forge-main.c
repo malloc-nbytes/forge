@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <time.h>
+#include <regex.h>
 
 #include "sqlite3.h"
 
@@ -2294,6 +2295,119 @@ apilist(void)
         printf("  #include <forge/forge.h> // includes all headers\n");
 }
 
+static int
+regex(const char *pattern,
+      const char *s)
+{
+        regex_t regex;
+        int reti;
+
+        reti = regcomp(&regex, pattern, REG_ICASE);
+        if (reti) {
+                perror("regex");
+                return 0;
+        }
+
+        reti = regexec(&regex, s, 0, NULL, 0);
+
+        regfree(&regex);
+
+        if (!reti) return 1;
+        else return 0;
+}
+
+void
+pkg_search(const str_array *names)
+{
+        sqlite3 *db;
+        int rc = sqlite3_open_v2(DB_FP, &db, SQLITE_OPEN_READONLY, NULL);
+        CHECK_SQLITE(rc, db);
+
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT name, version, description, installed FROM Pkgs;";
+        rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, db);
+
+        // Collect data and calculate max widths
+        pkg_info_array rows = dyn_array_empty(pkg_info_array);
+        size_t max_name_len = strlen("Name");
+        size_t max_version_len = strlen("Version");
+        size_t max_installed_len = strlen("Installed");
+        size_t max_desc_len = strlen("Description");
+
+        while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+                pkg_info info = {0};
+                const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                const char *version = (const char *)sqlite3_column_text(stmt, 1);
+                const char *description = (const char *)sqlite3_column_text(stmt, 2);
+                int installed = sqlite3_column_int(stmt, 3);
+
+                int found = 0;
+                for (size_t i = 0; i < names->len; ++i) {
+                        if (regex(names->data[i], name)) {
+                                found = 1;
+                                break;
+                        }
+                }
+
+                if (found) {
+                        info.name = strdup(name ? name : "");
+                        info.version = strdup(version ? version : "");
+                        info.description = strdup(description ? description : "(none)");
+                        info.installed = installed;
+
+                        max_name_len = MAX(max_name_len, strlen(info.name));
+                        max_version_len = MAX(max_version_len, strlen(info.version));
+                        max_desc_len = MAX(max_desc_len, strlen(info.description));
+                        max_installed_len = MAX((int)max_installed_len, snprintf(NULL, 0, "%d", installed));
+
+                        dyn_array_append(rows, info);
+                }
+        }
+
+        if (rc != SQLITE_DONE) {
+                fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(db));
+        }
+
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+
+        // Print header
+        printf("Available packages:\n");
+        printf("%-*s  %-*s  %*s  %-*s\n",
+               (int)max_name_len, "Name",
+               (int)max_version_len, "Version",
+               (int)max_installed_len, "Installed",
+               (int)max_desc_len, "Description");
+        printf("%-*s  %-*s  %*s  %-*s\n",
+               (int)max_name_len, "----",
+               (int)max_version_len, "-------",
+               (int)max_installed_len, "---------",
+               (int)max_desc_len, "-----------");
+
+        // Print rows
+        if (rows.len == 0) {
+                printf("No packages matched the search.\n");
+        } else {
+                for (size_t i = 0; i < rows.len; ++i) {
+                        pkg_info *info = &rows.data[i];
+                        printf("%-*s  %-*s  %*d  %-*s\n",
+                               (int)max_name_len, info->name,
+                               (int)max_version_len, info->version,
+                               (int)max_installed_len, info->installed,
+                               (int)max_desc_len, info->description);
+                }
+        }
+
+        // Clean up
+        for (size_t i = 0; i < rows.len; ++i) {
+                free(rows.data[i].name);
+                free(rows.data[i].version);
+                free(rows.data[i].description);
+        }
+        dyn_array_free(rows);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2449,6 +2563,15 @@ main(int argc, char **argv)
                         restore_pkg(&ctx, arg.start);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_APILIST)) {
                         apilist();
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_SEARCH)) {
+                        str_array names = dyn_array_empty(str_array);
+                        while (clap_next(&arg)) {
+                                dyn_array_append(names, strdup(arg.start));
+                        }
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_SEARCH);
+                        pkg_search(&names);
+                        for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
+                        dyn_array_free(names);
                 }
                 else if (arg.hyphc == 1) { // one hyph options
                         for (size_t i = 0; arg.start[i]; ++i) {
