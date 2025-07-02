@@ -1361,6 +1361,26 @@ new_pkg(forge_context *ctx, str_array *names)
         (void)ctx;
 
         for (size_t i = 0; i < names->len; ++i) {
+                const char *n = names->data[i];
+                int hitat = 0;
+                for (size_t j = 0; n[j]; ++j) {
+                        if (n[j] == '@') {
+                                if (hitat) {
+                                        err_wargs("only a single '@' is allowed in a package name: %s", n);
+                                } else if (!n[j+1]) {
+                                        err_wargs("'@' is not allowed in the last position of a package name: %s", n);
+                                } else if (j == 0) {
+                                        err_wargs("'@' is not allowed in the first position of a package name: %s", n);
+                                }
+                                hitat = 1;
+                        }
+                }
+                if (!hitat) {
+                        err_wargs("Missing '@'. Expected name in the format of `author@name`, got: %s", n);
+                }
+        }
+
+        for (size_t i = 0; i < names->len; ++i) {
                 char fp[256] = {0};
                 sprintf(fp, C_MODULE_USER_DIR "%s.c", names->data[i]);
                 if (cio_file_exists(fp)) {
