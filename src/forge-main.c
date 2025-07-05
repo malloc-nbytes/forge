@@ -868,8 +868,6 @@ uninstall_pkg(forge_context *ctx,
                 }
                 assert(pkg);
 
-                // Clear tracked file entries from database
-                info_major("Clearing tracked file entries for package", 1);
                 clear_package_files_from_db(ctx, name, pkg_id);
 
                 // Retrieve pkg_src_loc from database
@@ -912,8 +910,7 @@ uninstall_pkg(forge_context *ctx,
                 }
 
                 // Perform uninstall
-                /* info_major("pkg->uninstall()", 1); */
-                printf(GREEN BOLD "*** [%s]: pkg->uninstall()\n" RESET, name);
+                printf(GREEN "(%s)->uninstall()\n" RESET, name);
                 pkg->uninstall();
 
                 // Update installed status in database
@@ -942,6 +939,130 @@ uninstall_pkg(forge_context *ctx,
 
                 free(pkg_src_loc);
         }
+}
+
+void
+list_files_recursive(const char *dir_path, str_array *files)
+{
+        DIR *dir = opendir(dir_path);
+        if (!dir) {
+                fprintf(stderr, "Failed to open directory %s: %s\n", dir_path, strerror(errno));
+                return;
+        }
+
+        struct dirent *entry;
+        struct stat st;
+        char full_path[512] = {0};
+
+        while ((entry = readdir(dir))) {
+                // Skip "." and ".." entries
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                        continue;
+                }
+
+                snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name);
+
+                if (stat(full_path, &st) == -1) {
+                        fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
+                        continue;
+                }
+
+                // If it's a regular file, add to the array
+                if (S_ISREG(st.st_mode)) {
+                        char *file_copy = strdup(full_path);
+                        if (!file_copy) {
+                                fprintf(stderr, "Failed to allocate memory for %s\n", full_path);
+                                continue;
+                        }
+                        dyn_array_append(*files, file_copy);
+                }
+                // If it's a directory, recurse
+                else if (S_ISDIR(st.st_mode)) {
+                        list_files_recursive(full_path, files);
+                }
+        }
+
+        closedir(dir);
+}
+
+void
+list_files(forge_context *ctx,
+           const char    *name,
+           int            pad)
+{
+        if (!strcmp(name, "forge")) {
+                printf(DB_FP "\n");
+                str_array files = dyn_array_empty(str_array);
+                list_files_recursive(FORGE_API_HEADER_DIR, &files);
+                for (size_t i = 0; i < files.len; ++i) {
+                        printf("%s\n", files.data[i]);
+                }
+                return;
+        }
+
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT Files.file_path "
+                "FROM Files "
+                "JOIN Pkgs ON Files.pkg_id = Pkgs.id "
+                "WHERE Pkgs.name = ?;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+
+        // Collect file paths
+        str_array files = dyn_array_empty(str_array);
+
+        while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+                const char *file_path = (const char *)sqlite3_column_text(stmt, 0);
+                if (!file_path) {
+                        continue;
+                }
+
+                struct stat st;
+                if (stat(file_path, &st) == -1) {
+                        fprintf(stderr, "Failed to stat %s: %s\n", file_path, strerror(errno));
+                        continue;
+                }
+
+                // If it's a regular file, add directly
+                if (S_ISREG(st.st_mode)) {
+                        char *file_copy = strdup(file_path);
+                        if (!file_copy) {
+                                fprintf(stderr, "Failed to allocate memory for %s\n", file_path);
+                                continue;
+                        }
+                        dyn_array_append(files, file_copy);
+                }
+                // If it's a directory, recursively list all files
+                else if (S_ISDIR(st.st_mode)) {
+                        list_files_recursive(file_path, &files);
+                }
+        }
+
+        if (rc != SQLITE_DONE) {
+                fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(ctx->db));
+        }
+
+        sqlite3_finalize(stmt);
+
+        // Print files
+        if (files.len == 0) {
+                printf("No files found for package '%s'.\n", name);
+        } else {
+                for (size_t i = 0; i < files.len; ++i) {
+                        if (pad) {
+                                printf("  ");
+                        }
+                        printf("%s\n", files.data[i]);
+                }
+        }
+
+        // Clean up
+        for (size_t i = 0; i < files.len; ++i) {
+                free(files.data[i]);
+        }
+        dyn_array_free(files);
 }
 
 int
@@ -980,14 +1101,10 @@ install_pkg(forge_context *ctx,
                         return 1;
                 }
 
-                // Clear existing tracked file entries from database
-                info_major("Clearing existing tracked file entries", 1);
-
                 // Install deps
                 if (pkg->deps) {
                         good_major("installing dependencies", 1);
-                        //good_major("[%s]: pkg->deps()", 1);
-                        printf(GREEN BOLD "*** [%s]: pkg->deps()\n" RESET, name);
+                        printf(GREEN "(%s)->deps()\n" RESET, name);
                         char **deps = pkg->deps();
                         str_array depnames = dyn_array_empty(str_array);
                         for (size_t i = 0; deps[i]; ++i) {
@@ -1024,8 +1141,7 @@ install_pkg(forge_context *ctx,
                         pkgname = get_filename_from_dir(pkg_src_loc);
                 }
                 else {
-                        printf(GREEN BOLD "*** [%s]: pkg->download()\n" RESET, name);
-                        /* good_major("pkg->download()", 1); */
+                        printf(GREEN "(%s)->download()\n" RESET, name);
                         pkgname = pkg->download();
                 }
 
@@ -1040,8 +1156,7 @@ install_pkg(forge_context *ctx,
                 char base[256] = {0};
                 sprintf(base, PKG_SOURCE_DIR "%s", pkgname);
 
-                /* good_major("pkg->build()", 1); */
-                printf(GREEN BOLD "*** [%s]: pkg->build()\n" RESET, name);
+                printf(GREEN "(%s)->build()\n" RESET, name);
                 pkg->build();
                 if (!cd(base)) {
                         fprintf(stderr, "aborting...\n");
@@ -1050,8 +1165,7 @@ install_pkg(forge_context *ctx,
 
                 forge_smap snapshot_before = snapshot_files();
 
-                /* good_major("pkg->install()", 1); */
-                printf(GREEN BOLD "*** [%s]: pkg->install()\n" RESET, name);
+                printf(GREEN "(%s)->install()\n" RESET, name);
                 pkg->install();
 
                 forge_smap snapshot_after = snapshot_files();
@@ -1060,7 +1174,7 @@ install_pkg(forge_context *ctx,
                 char **keys = smap_iter(&snapshot_after);
                 for (size_t j = 0; keys[j]; ++j) {
                         if (!forge_smap_contains(&snapshot_before, keys[j])) {
-                                dyn_array_append(diff_files, strdup(keys[j])); // Copy the string to avoid pointer issues
+                                dyn_array_append(diff_files, strdup(keys[j]));
                         }
                 }
 
@@ -1068,7 +1182,7 @@ install_pkg(forge_context *ctx,
                 pkg_id = -1;
                 sqlite3_stmt *stmt_id;
                 const char *sql_select_id = "SELECT id FROM Pkgs WHERE name = ?;";
-                rc = sqlite3_prepare_v2(ctx->db, sql_select_id, -1, &stmt_id, NULL); // Reuse rc
+                rc = sqlite3_prepare_v2(ctx->db, sql_select_id, -1, &stmt_id, NULL);
                 CHECK_SQLITE(rc, ctx->db);
 
                 sqlite3_bind_text(stmt_id, 1, name, -1, SQLITE_STATIC);
@@ -1092,11 +1206,11 @@ install_pkg(forge_context *ctx,
                 // Insert diff_files into the Files table
                 sqlite3_stmt *stmt_files;
                 const char *sql_insert_file = "INSERT OR IGNORE INTO Files (pkg_id, file_path) VALUES (?, ?);";
-                rc = sqlite3_prepare_v2(ctx->db, sql_insert_file, -1, &stmt_files, NULL); // Reuse rc
+                rc = sqlite3_prepare_v2(ctx->db, sql_insert_file, -1, &stmt_files, NULL);
                 CHECK_SQLITE(rc, ctx->db);
 
                 for (size_t j = 0; j < diff_files.len; ++j) {
-                        sqlite3_bind_int(stmt_files, 1, pkg_id); // Bind pkg_id
+                        sqlite3_bind_int(stmt_files, 1, pkg_id);
                         sqlite3_bind_text(stmt_files, 2, diff_files.data[j], -1, SQLITE_STATIC);
 
                         rc = sqlite3_step(stmt_files);
@@ -1104,17 +1218,15 @@ install_pkg(forge_context *ctx,
                                 fprintf(stderr, "Failed to insert file %s for package %s: %s\n",
                                         diff_files.data[j], name, sqlite3_errmsg(ctx->db));
                         }
-                        sqlite3_reset(stmt_files); // Reset for next iteration
+                        sqlite3_reset(stmt_files);
                 }
                 sqlite3_finalize(stmt_files);
 
-                // Clean up diff_files
                 for (size_t j = 0; j < diff_files.len; ++j) {
                         free(diff_files.data[j]);
                 }
                 dyn_array_free(diff_files);
 
-                // Clean up snapshots
                 forge_smap_destroy(&snapshot_before);
                 forge_smap_destroy(&snapshot_after);
 
@@ -1156,6 +1268,10 @@ install_pkg(forge_context *ctx,
                         fprintf(stderr, "Update error: %s\n", sqlite3_errmsg(ctx->db));
                 }
                 sqlite3_finalize(stmt);
+
+                printf(PINK ITALIC BOLD "*** Installed:\n" RESET PINK ITALIC);
+                list_files(ctx, name, 1);
+                printf(RESET);
         }
 
         return 1;
@@ -1529,7 +1645,7 @@ update_pkgs(forge_context *ctx, str_array *names)
                 int updated = 0;
 
                 // Perform update
-                good_major("pkg->update()", 1);
+                printf(GREEN "(%s)->update()\n" RESET, name);
                 if (pkg->update) {
                         updated = pkg->update();
                 } else {
@@ -1540,7 +1656,6 @@ update_pkgs(forge_context *ctx, str_array *names)
                 forge_smap snapshot_after = snapshot_files();
 
                 // Remove files from database that no longer exist
-                good_major("Removing stale file entries for package", 1);
                 sqlite3_stmt *stmt_delete;
                 const char *sql_delete = "DELETE FROM Files WHERE pkg_id = ? AND file_path = ?;";
                 rc = sqlite3_prepare_v2(ctx->db, sql_delete, -1, &stmt_delete, NULL);
@@ -1674,125 +1789,6 @@ update_pkgs(forge_context *ctx, str_array *names)
                 }
                 dyn_array_free(pkg_names);
         }
-}
-
-void
-list_files_recursive(const char *dir_path, str_array *files)
-{
-        DIR *dir = opendir(dir_path);
-        if (!dir) {
-                fprintf(stderr, "Failed to open directory %s: %s\n", dir_path, strerror(errno));
-                return;
-        }
-
-        struct dirent *entry;
-        struct stat st;
-        char full_path[512] = {0};
-
-        while ((entry = readdir(dir))) {
-                // Skip "." and ".." entries
-                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-                        continue;
-                }
-
-                snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name);
-
-                if (stat(full_path, &st) == -1) {
-                        fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
-                        continue;
-                }
-
-                // If it's a regular file, add to the array
-                if (S_ISREG(st.st_mode)) {
-                        char *file_copy = strdup(full_path);
-                        if (!file_copy) {
-                                fprintf(stderr, "Failed to allocate memory for %s\n", full_path);
-                                continue;
-                        }
-                        dyn_array_append(*files, file_copy);
-                }
-                // If it's a directory, recurse
-                else if (S_ISDIR(st.st_mode)) {
-                        list_files_recursive(full_path, files);
-                }
-        }
-
-        closedir(dir);
-}
-
-void
-list_files(forge_context *ctx, const char *name)
-{
-        if (!strcmp(name, "forge")) {
-                printf(DB_FP "\n");
-                str_array files = dyn_array_empty(str_array);
-                list_files_recursive(FORGE_API_HEADER_DIR, &files);
-                for (size_t i = 0; i < files.len; ++i) {
-                        printf("%s\n", files.data[i]);
-                }
-                return;
-        }
-
-        sqlite3_stmt *stmt;
-        const char *sql = "SELECT Files.file_path "
-                "FROM Files "
-                "JOIN Pkgs ON Files.pkg_id = Pkgs.id "
-                "WHERE Pkgs.name = ?;";
-        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
-        CHECK_SQLITE(rc, ctx->db);
-
-        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
-
-        // Collect file paths
-        str_array files = dyn_array_empty(str_array);
-
-        while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-                const char *file_path = (const char *)sqlite3_column_text(stmt, 0);
-                if (!file_path) {
-                        continue;
-                }
-
-                struct stat st;
-                if (stat(file_path, &st) == -1) {
-                        fprintf(stderr, "Failed to stat %s: %s\n", file_path, strerror(errno));
-                        continue;
-                }
-
-                // If it's a regular file, add directly
-                if (S_ISREG(st.st_mode)) {
-                        char *file_copy = strdup(file_path);
-                        if (!file_copy) {
-                                fprintf(stderr, "Failed to allocate memory for %s\n", file_path);
-                                continue;
-                        }
-                        dyn_array_append(files, file_copy);
-                }
-                // If it's a directory, recursively list all files
-                else if (S_ISDIR(st.st_mode)) {
-                        list_files_recursive(file_path, &files);
-                }
-        }
-
-        if (rc != SQLITE_DONE) {
-                fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(ctx->db));
-        }
-
-        sqlite3_finalize(stmt);
-
-        // Print files
-        if (files.len == 0) {
-                printf("No files found for package '%s'.\n", name);
-        } else {
-                for (size_t i = 0; i < files.len; ++i) {
-                        printf("%s\n", files.data[i]);
-                }
-        }
-
-        // Clean up
-        for (size_t i = 0; i < files.len; ++i) {
-                free(files.data[i]);
-        }
-        dyn_array_free(files);
 }
 
 void
@@ -2264,9 +2260,9 @@ updateforge(void)
                 goto fail;
         }
 
-        if (!cmd("./bootstrap.sh")) goto fail;
+        if (!cmd("./bootstrap.sh"))  goto fail;
         if (!cmd("make -j$(nproc)")) goto fail;
-        if (!cmd("make install")) goto fail;
+        if (!cmd("make install"))    goto fail;
 
         forge_str_destroy(&dir);
         forge_str_destroy(&clone);
@@ -2549,7 +2545,7 @@ main(int argc, char **argv)
                         dyn_array_free(names);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_FILES)) {
                         if (!clap_next(&arg)) { err_wargs("flag `%s` requires an argument", FLAG_2HY_FILES); }
-                        list_files(&ctx, arg.start);
+                        list_files(&ctx, arg.start, 0);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_COPYING)) {
                         copying();
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DEPGRAPH)) {
