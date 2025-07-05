@@ -34,7 +34,6 @@
 int
 cd(const char *fp)
 {
-        printf("cd(%s)\n", fp);
         if (chdir(fp) != 0) {
                 fprintf(stderr, "[forge] err: failed to change directory to `%s`: %s\n",
                         fp, strerror(errno));
