@@ -250,11 +250,11 @@ configure(const char *fp,
 {
         char buf[256] = {0};
         if (flags) {
-                sprintf(buf, "%sconfigure %s %s %s", fp,
+                sprintf(buf, "%sconfigure --prefix=%s --libdir=%s %s", fp,
                         FORGE_PREFERRED_INSTALL_PREFIX,
                         FORGE_PREFERRED_LIB_PREFIX, flags);
         } else {
-                sprintf(buf, "%sconfigure %s %s", fp,
+                sprintf(buf, "%sconfigure --prefix=%s --libdir=%s", fp,
                         FORGE_PREFERRED_INSTALL_PREFIX,
                         FORGE_PREFERRED_LIB_PREFIX);
         }
