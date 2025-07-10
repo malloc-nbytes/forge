@@ -17,8 +17,15 @@ and data structures are supplied as the forge API.
 
 ## Compiling
 Forge requires sqlite3. You must either download and untar it yourself, or just run `bootstrap.sh`.
-Once this is done, run the following:
+_Note_: `bootstrap.sh` generates `configure` with `--prefix=/usr` and `--libdir=/usr/lib64`.
 
+Using `bootstrap.sh`:
+```
+./boostrap.sh
+make
+```
+
+Without:
 ```
 autoreconf --install
 ./configure --prefix=<prefix> --libdir=<dir>
