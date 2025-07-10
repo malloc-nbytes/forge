@@ -569,7 +569,7 @@ drop_pkg(forge_context *ctx, const char *name)
         if (rename(forge_str_to_cstr(&pkg_filename), forge_str_to_cstr(&pkg_new_filename)) != 0) {
                 fprintf(stderr, "failed to rename file: %s to %s: %s\n",
                         forge_str_to_cstr(&pkg_filename), forge_str_to_cstr(&pkg_new_filename), strerror(errno));
-                return;
+                //return;
         }
 
         forge_str_destroy(&pkg_filename);
@@ -584,7 +584,7 @@ drop_pkg(forge_context *ctx, const char *name)
         if (remove(forge_str_to_cstr(&so_path)) != 0) {
                 fprintf(stderr, "failed to remove file: %s: %s\n",
                         forge_str_to_cstr(&so_path), strerror(errno));
-                return;
+                //return;
         }
 
         forge_str_destroy(&so_path);
@@ -1449,15 +1449,15 @@ rebuild_pkgs(forge_context *ctx)
                                 dyn_array_append(failed, files.data[i]);
                         } else {
                                 if (WIFEXITED(status)) {
-                                        printf("\033[1A");
-                                        printf("\033[2K");
+                                        /* printf("\033[1A"); */
+                                        /* printf("\033[2K"); */
                                         int exit_status = WEXITSTATUS(status);
                                         if (exit_status != 0) {
                                                 fflush(stdout);
                                                 fprintf(stderr, INVERT BOLD RED "In module %s:\n" RESET, files.data[i]);
                                                 fprintf(stderr, INVERT BOLD RED "  located in: " MODULE_LIB_DIR "%s.c\n" RESET, files.data[i]);
                                                 fprintf(stderr, INVERT BOLD RED "  use:\n" RESET);
-                                                fprintf(stderr, INVERT BOLD RED "    forge edit %s\n" RESET, files.data[i]);
+                                                fprintf(stderr, INVERT BOLD RED "    forge -r edit %s\n" RESET, files.data[i]);
                                                 fprintf(stderr, INVERT BOLD RED "  to fix your errors!\n" RESET);
                                                 fprintf(stderr, BOLD YELLOW "  skipping %s module compilation...\n" RESET, files.data[i]);
                                                 dyn_array_append(failed, files.data[i]);
