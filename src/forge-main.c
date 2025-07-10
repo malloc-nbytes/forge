@@ -139,6 +139,60 @@ struct {
         .flags = 0x00000000,
 };
 
+int
+remove_directory(const char *path)
+{
+        DIR *dir = opendir(path);
+        if (!dir) {
+                fprintf(stderr, "Failed to open directory %s: %s\n", path, strerror(errno));
+                return -1;
+        }
+
+        struct dirent *entry;
+        char full_path[512] = {0};
+
+        while ((entry = readdir(dir))) {
+                // Skip "." and ".." entries
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                        continue;
+                }
+
+                snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
+
+                struct stat st;
+                if (stat(full_path, &st) == -1) {
+                        fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
+                        closedir(dir);
+                        return -1;
+                }
+
+                if (S_ISDIR(st.st_mode)) {
+                        // Recursively remove subdirectories
+                        if (remove_directory(full_path) == -1) {
+                                closedir(dir);
+                                return -1;
+                        }
+                } else {
+                        // Remove files
+                        if (unlink(full_path) == -1) {
+                                fprintf(stderr, "Failed to remove file %s: %s\n", full_path, strerror(errno));
+                                closedir(dir);
+                                return -1;
+                        }
+                }
+        }
+
+        closedir(dir);
+
+        // Remove the empty directory
+        if (rmdir(path) == -1) {
+                fprintf(stderr, "Failed to remove directory %s: %s\n", path, strerror(errno));
+                return -1;
+        }
+
+        return 0;
+}
+
 char *
 get_filename_from_dir(char *path)
 {
@@ -1751,6 +1805,13 @@ update_pkgs(forge_context *ctx, str_array *names)
 
                 // Reinstall package and its dependencies if updated
                 if (updated) {
+                        // !! REMOVE SRC CODE HERE !!
+                        printf(YELLOW "Removing source directory: %s\n" RESET, base);
+                        if (remove_directory(base) == -1) {
+                                fprintf(stderr, "Failed to remove source directory %s: %s\n", base, strerror(errno));
+                                // Continue with reinstallation even if removal fails, as it may still be possible
+                        }
+
                         if (!install_pkg(ctx, &install_names, 0)) {
                                 fprintf(stderr, "Failed to reinstall %s and its dependencies\n", name);
                         }
