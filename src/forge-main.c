@@ -63,6 +63,9 @@
         "int update(void) {\n" \
         "        return 0; // return 1 if it needs a rebuild, 0 otherwise\n" \
         "}\n" \
+        "void get_changes(void) {\n" \
+        "        // pull in the new changes if update() returns 1\n" \
+        "}\n" \
         "\n" \
         "FORGE_GLOBAL pkg package = {\n" \
         "        .name = getname,\n" \
@@ -74,6 +77,10 @@
         "        .install = install,\n" \
         "        .uninstall = uninstall,\n" \
         "        .update = forge_pkg_git_update, // or define your own if not using git\n" \
+        "         \n" \
+        "         // Make this NULL to just re-download the source code\n" \
+        "         // or define your own if not using git\n" \
+        "        .get_changes = forge_pkg_git_pull,\n" \
         "};"
 
 static const char *common_install_dirs[] = {
@@ -1805,11 +1812,15 @@ update_pkgs(forge_context *ctx, str_array *names)
 
                 // Reinstall package and its dependencies if updated
                 if (updated) {
-                        // !! REMOVE SRC CODE HERE !!
-                        printf(YELLOW "Removing source directory: %s\n" RESET, base);
-                        if (remove_directory(base) == -1) {
-                                fprintf(stderr, "Failed to remove source directory %s: %s\n", base, strerror(errno));
-                                // Continue with reinstallation even if removal fails, as it may still be possible
+                        if (pkg->get_changes) {
+                                printf(GREEN "(%s)->get_changes()\n" RESET, name);
+                                pkg->get_changes();
+                        } else {
+                                printf(YELLOW "Removing source directory: %s\n" RESET, base);
+                                if (remove_directory(base) == -1) {
+                                        fprintf(stderr, "Failed to remove source directory %s: %s\n", base, strerror(errno));
+                                        // Continue with reinstallation even if removal fails, as it may still be possible
+                                }
                         }
 
                         if (!install_pkg(ctx, &install_names, 0)) {

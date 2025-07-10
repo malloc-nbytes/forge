@@ -44,10 +44,10 @@ forge_pkg_git_update(void)
         char *base_commit = cmdout(buf);
         memset(buf, 0, sizeof(buf)/sizeof(*buf));
 
-        printf("current_branch: %s\n", current_branch);
-        printf("local_commit: %s\n", local_commit);
-        printf("remote_commit: %s\n", remote_commit);
-        printf("base_commit: %s\n", base_commit);
+        /* printf("current_branch: %s\n", current_branch); */
+        /* printf("local_commit: %s\n", local_commit); */
+        /* printf("remote_commit: %s\n", remote_commit); */
+        /* printf("base_commit: %s\n", base_commit); */
 
         int res = -1;
         if (!strcmp(local_commit, remote_commit)) {
@@ -62,4 +62,10 @@ forge_pkg_git_update(void)
         free(base_commit);
 
         return res;
+}
+
+void
+forge_pkg_git_pull(void)
+{
+        cmd("git pull");
 }

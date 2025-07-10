@@ -17,6 +17,7 @@ typedef struct {
         void (*install)(void);
         void (*uninstall)(void);
         int (*update)(void);
+        void (*get_changes)(void);
 } pkg;
 
 /**
@@ -26,5 +27,11 @@ typedef struct {
  *              an update if the package uses git.
  */
 int forge_pkg_git_update(void);
+
+/**
+ * Description: Performs the built-in way of pulling
+ *              changes if a package uses git.
+ */
+void forge_pkg_git_pull(void);
 
 #endif // PKG_H_INCLUDED
