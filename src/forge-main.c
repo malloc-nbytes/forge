@@ -573,97 +573,6 @@ restore_pkg(forge_context *ctx, const char *name)
         free(target_dir);
 }
 
-/* void */
-/* restore_pkg(forge_context *ctx, const char *name) */
-/* { */
-/*         (void)ctx; */
-
-/*         // Construct the pattern to match backup files: <name>.c-<TIME HASH> */
-/*         char pattern[256] = {0}; */
-/*         /\* snprintf(pattern, sizeof(pattern), "%s%s.c-", C_MODULE_USER_DIR, name); *\/ */
-/*         char *abspath = get_c_module_filepath_from_basic_name(name); */
-/*         if (!abspath) { */
-/*                 err_wargs("package `%s` does not exist", name); */
-/*         } */
-/*         snprintf(pattern, sizeof(pattern), "%s.c-", abspath); */
-
-/*         int slash = -1; */
-/*         char parent_dir[512] = {0}; */
-/*         for (int i = 0; abspath[i] && abspath[i+1]/\*+1 to not get ending slash*\/; ++i) { */
-/*                 if (abspath[i] == '/') slash = i; */
-/*                 parent_dir[i] = abspath[i]; */
-/*         } */
-/*         free(abspath); */
-/*         parent_dir[slash] = 0; */
-
-/*         // Open the C module directory */
-/*         DIR *dir = opendir(parent_dir); */
-/*         if (!dir) { */
-/*                 fprintf(stderr, "Failed to open directory %s: %s\n", C_MODULE_USER_DIR, strerror(errno)); */
-/*                 return; */
-/*         } */
-
-/*         struct dirent *entry; */
-/*         struct stat st; */
-/*         char *latest_file = NULL; */
-/*         time_t latest_mtime = 0; */
-
-/*         // Iterate through directory to find matching backup files */
-/*         while ((entry = readdir(dir))) { */
-/*                 // Check if the file starts with the pattern */
-/*                 if (strncmp(entry->d_name, pattern + strlen(C_MODULE_USER_DIR), strlen(pattern) - strlen(C_MODULE_USER_DIR)) == 0) { */
-/*                         char full_path[512] = {0}; */
-/*                         snprintf(full_path, sizeof(full_path), "%s%s", C_MODULE_USER_DIR, entry->d_name); */
-/*                         printf("PATH: %s\n", full_path); */
-
-/*                         // Get file modification time */
-/*                         if (stat(full_path, &st) == -1) { */
-/*                                 fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno)); */
-/*                                 continue; */
-/*                         } */
-
-/*                         // Update latest file if this one is newer */
-/*                         if (st.st_mtime > latest_mtime) { */
-/*                                 latest_mtime = st.st_mtime; */
-/*                                 if (latest_file) { */
-/*                                         free(latest_file); */
-/*                                 } */
-/*                                 latest_file = strdup(full_path); */
-/*                         } */
-/*                 } */
-/*         } */
-/*         closedir(dir); */
-
-/*         // Check if a backup file was found */
-/*         if (!latest_file) { */
-/*                 fprintf(stderr, "No backup file found for package %s\n", name); */
-/*                 return; */
-/*         } */
-
-/*         // Construct the original file path */
-/*         char original_path[256] = {0}; */
-/*         snprintf(original_path, sizeof(original_path), "%s%s.c", C_MODULE_USER_DIR, name); */
-
-/*         // Check if the original file already exists */
-/*         if (cio_file_exists(original_path)) { */
-/*                 fprintf(stderr, "Original file %s already exists, cannot restore\n", original_path); */
-/*                 free(latest_file); */
-/*                 return; */
-/*         } */
-
-/*         // Rename the latest backup file to the original name */
-/*         printf(YELLOW "Restoring C module: %s to %s\n" RESET, latest_file, original_path); */
-/*         if (rename(latest_file, original_path) != 0) { */
-/*                 fprintf(stderr, "Failed to restore file %s to %s: %s\n", */
-/*                         latest_file, original_path, strerror(errno)); */
-/*                 free(latest_file); */
-/*                 return; */
-/*         } */
-
-/*         printf(GREEN BOLD "*** Successfully restored package %s\n" RESET, name); */
-/*         free(latest_file); */
-/* } */
-
 void
 drop_pkg(forge_context *ctx, const char *name)
 {
@@ -1679,11 +1588,11 @@ init_env(void)
 void
 edit_file_in_editor(const char *path)
 {
-        char cmd[512] = {0};
-        snprintf(cmd, sizeof(cmd), "vim %s", path);
+        char *cmd = forge_str_builder(FORGE_EDITOR, " ", path, NULL);
         if (system(cmd) == -1) {
-                fprintf(stderr, "Failed to open %s in Vim: %s\n", path, strerror(errno));
+                fprintf(stderr, "Failed to open %s in %s: %s\n", path, FORGE_EDITOR, strerror(errno));
         }
+        free(cmd);
 }
 
 void
@@ -1730,11 +1639,11 @@ edit_c_module(str_array *names)
         for (size_t i = 0; i < names->len; ++i) {
                 char *path = get_c_module_filepath_from_basic_name(names->data[i]);
                 if (path) {
-                        char cmd[512] = {0};
-                        snprintf(cmd, sizeof(cmd), "vim %s", path);
+                        char *cmd = forge_str_builder(FORGE_EDITOR, " ", path, NULL);
                         if (system(cmd) == -1) {
-                                fprintf(stderr, "Failed to open %s in Vim: %s\n", path, strerror(errno));
+                                fprintf(stderr, "Failed to open %s in %s: %s\n", path, FORGE_EDITOR, strerror(errno));
                         }
+                        free(cmd);
                 } else {
                         err_wargs("package %s does not exist", names->data[i]);
                 }
@@ -2459,42 +2368,108 @@ updateforge(void)
 {
         time_t now = time(NULL);
         char hash[32] = {0};
-        snprintf(hash, 32, "%ld", now);
-        forge_str dir = forge_str_from("/tmp/forgeupdate-"),
-                clone = forge_str_from("git clone https://www.github.com/malloc-nbytes/forge.git ");
+        snprintf(hash, sizeof(hash), "%ld", now);
+
+        forge_str dir = forge_str_from("/tmp/forgeupdate-");
+        forge_str clone = forge_str_from("git clone https://github.com/malloc-nbytes/forge.git ");
         forge_str_concat(&dir, hash);
         forge_str_concat(&clone, forge_str_to_cstr(&dir));
 
-        // git clone
-        if (!cmd(forge_str_to_cstr(&clone))) goto fail;
-        // cd /tmp/forgeupdate
-        if (!cd(forge_str_to_cstr(&dir))) goto fail;
-
-        // save forge/conf.h
-        char *conf_content = forge_io_read_file_to_cstr(FORGE_CONF_HEADER_FP);
-        forge_str overwrite_fp = forge_str_from(forge_str_to_cstr(&dir));
-        forge_str_concat(&overwrite_fp, "/src/forge/conf.h");
-
-        if (!forge_io_write_file(forge_str_to_cstr(&overwrite_fp), conf_content)) {
-                fprintf(stderr, "failed to overwrite the new conf.h at: %s\n",
-                        forge_str_to_cstr(&overwrite_fp));
+        // Create temporary directory
+        if (mkdir_p(forge_str_to_cstr(&dir), 0755) != 0) {
+                fprintf(stderr, "Failed to create temporary directory %s: %s\n",
+                                forge_str_to_cstr(&dir), strerror(errno));
                 goto fail;
         }
 
-        if (!cmd("./bootstrap.sh"))  goto fail;
-        if (!cmd("make -j$(nproc)")) goto fail;
-        if (!cmd("make install"))    goto fail;
+        // Clone repository
+        if (!cmd(forge_str_to_cstr(&clone))) {
+                fprintf(stderr, "Failed to clone repository: %s\n", strerror(errno));
+                goto fail;
+        }
+
+        // Change to the cloned forge directory
+        forge_str forge_dir = forge_str_from(forge_str_to_cstr(&dir));
+        forge_str_concat(&forge_dir, "/forge");
+        if (!cd(forge_str_to_cstr(&forge_dir))) {
+                fprintf(stderr, "Failed to change to directory %s: %s\n",
+                                forge_str_to_cstr(&forge_dir), strerror(errno));
+                goto fail;
+        }
+
+        // Read existing conf.h
+        char *conf_content = forge_io_read_file_to_cstr(FORGE_CONF_HEADER_FP);
+        if (!conf_content) {
+                fprintf(stderr, "Failed to read %s: %s\n", FORGE_CONF_HEADER_FP, strerror(errno));
+                goto fail;
+        }
+
+        // Ensure target directory exists
+        forge_str overwrite_dir = forge_str_from(forge_str_to_cstr(&dir));
+        forge_str_concat(&overwrite_dir, "/forge/src/forge");
+        if (mkdir_p(forge_str_to_cstr(&overwrite_dir), 0755) != 0) {
+                fprintf(stderr, "Failed to create directory %s: %s\n",
+                                forge_str_to_cstr(&overwrite_dir), strerror(errno));
+                goto fail;
+        }
+
+        // Write conf.h to new location
+        forge_str overwrite_fp = forge_str_from(forge_str_to_cstr(&overwrite_dir));
+        forge_str_concat(&overwrite_fp, "/conf.h");
+        printf(GREEN BOLD "*** Writing conf.h to %s\n" RESET, forge_str_to_cstr(&overwrite_fp));
+        if (!forge_io_write_file(forge_str_to_cstr(&overwrite_fp), conf_content)) {
+                fprintf(stderr, "Failed to write conf.h to %s: %s\n",
+                                forge_str_to_cstr(&overwrite_fp), strerror(errno));
+                goto fail;
+        }
+
+        // Run build and install
+        if (!cmd("./bootstrap.sh")) {
+                fprintf(stderr, "Failed to run bootstrap.sh: %s\n", strerror(errno));
+                goto fail;
+        }
+        if (!cmd("make -j$(nproc)")) {
+                fprintf(stderr, "Failed to run make: %s\n", strerror(errno));
+                goto fail;
+        }
+        if (!cmd("make install")) {
+                fprintf(stderr, "Failed to run make install: %s\n", strerror(errno));
+                goto fail;
+        }
+
+        // Clean up
+        printf(YELLOW "Cleaning up temporary directory %s\n" RESET, forge_str_to_cstr(&dir));
+        if (remove_directory(forge_str_to_cstr(&dir)) == -1) {
+                fprintf(stderr, "Failed to remove temporary directory %s: %s\n",
+                                forge_str_to_cstr(&dir), strerror(errno));
+                // Continue despite cleanup failure
+        }
 
         forge_str_destroy(&dir);
         forge_str_destroy(&clone);
+        forge_str_destroy(&forge_dir);
+        forge_str_destroy(&overwrite_dir);
         forge_str_destroy(&overwrite_fp);
         free(conf_content);
-
+        printf(GREEN BOLD "*** Successfully updated forge\n" RESET);
         return;
 
- fail:
-        fprintf(stderr, "aborting...\n");
-        return;
+fail:
+        fprintf(stderr, "Update failed, aborting...\n");
+        // Clean up resources
+        forge_str_destroy(&dir);
+        forge_str_destroy(&clone);
+        forge_str_destroy(&forge_dir);
+        forge_str_destroy(&overwrite_dir);
+        forge_str_destroy(&overwrite_fp);
+        free(conf_content);
+        // Attempt to remove temporary directory
+        if (forge_str_to_cstr(&dir) && forge_io_is_dir(forge_str_to_cstr(&dir))) {
+                if (remove_directory(forge_str_to_cstr(&dir)) == -1) {
+                        fprintf(stderr, "Failed to clean up temporary directory %s: %s\n",
+                                        forge_str_to_cstr(&dir), strerror(errno));
+                }
+        }
 }
 
 void

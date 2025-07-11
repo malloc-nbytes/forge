@@ -10,4 +10,6 @@
 // Where to install libraries to
 #define FORGE_PREFERRED_LIB_PREFIX "/usr/local/lib64"
 
+#define FORGE_EDITOR "vim"
+
 #endif // CONF_H_INCLUDED
