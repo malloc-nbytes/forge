@@ -2851,8 +2851,21 @@ main(int argc, char **argv)
         if (exists && argc == 0) {
                 usage();
         } else if (!exists) {
+                printf("Superuser access is required the first time forge is ran.\n");
                 assert_sudo();
                 init_env();
+                printf("Done. You can now invoke forge regularly.\n");
+                printf("Note: You may want to edit your config, run:\n");
+                printf("          forge editconf\n");
+                printf("      After this, do:\n");
+                printf("          forge updateforge\n");
+                printf("Note: If you want to add the official repository, run:\n");
+                printf("          forge add-repo https://github.com/malloc-nbytes/forge-modules.git\n");
+                printf("      or don't if you just want to start from scratch.\n");
+                printf("      To get started, run:\n");
+                printf("          forge -r new author@pkgname\n");
+                printf("      to start forging your packages.\n");
+                printf("Do `forge -h` to view all help information.\n");
                 return 0;
         }
 
