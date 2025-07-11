@@ -1566,18 +1566,18 @@ init_env(void)
         if (mkdir_p(MODULE_LIB_DIR, 0755) != 0 && errno != EEXIST) {
                 fprintf(stderr, "could not create path: %s, %s\n", MODULE_LIB_DIR, strerror(errno));
         }
-        if (mkdir_p(C_MODULE_DIR, 0755) != 0 && errno != EEXIST) {
-                fprintf(stderr, "could not create path: %s, %s\n", C_MODULE_DIR, strerror(errno));
-        }
+        // if (mkdir_p(C_MODULE_DIR, 0755) != 0 && errno != EEXIST) {
+        //         fprintf(stderr, "could not create path: %s, %s\n", C_MODULE_DIR, strerror(errno));
+        // }
         if (mkdir_p(C_MODULE_USER_DIR, 0755) != 0 && errno != EEXIST) {
                 fprintf(stderr, "could not create path: %s, %s\n", C_MODULE_USER_DIR, strerror(errno));
         }
-        if (!cd(C_MODULE_DIR_PARENT)) {
-                fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR_PARENT, strerror(errno));
-        }
-        if (!cmd("git clone https://www.github.com/malloc-nbytes/forge-modules.git/ ./modules")) {
-                fprintf(stderr, "could not git clone forge-modules: %s\n", strerror(errno));
-        }
+        // if (!cd(C_MODULE_DIR_PARENT)) {
+        //         fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR_PARENT, strerror(errno));
+        // }
+        // if (!cmd("git clone https://www.github.com/malloc-nbytes/forge-modules.git/ ./modules")) {
+        //         fprintf(stderr, "could not git clone forge-modules: %s\n", strerror(errno));
+        // }
 
         // Pkg source location
         if (mkdir_p(PKG_SOURCE_DIR, 0755) != 0 && errno != EEXIST) {
@@ -2689,7 +2689,6 @@ list_repos(void)
         }
         free(dirs);
 
-        printf("Available repositories:\n");
         printf("%-*s\n", (int)max_name_len, "Repository");
         printf("%-*s\n", (int)max_name_len, "----------");
 
@@ -2701,9 +2700,9 @@ list_repos(void)
                         if (!strcmp(repos.data[i], "user_modules")) {
                                 printf(BLUE "%-*s" RESET, (int)max_name_len, repos.data[i]);
                                 printf(BLUE " (built-in)" RESET);
-                        } else if (!strcmp(repos.data[i], "modules")) {
+                        } else if (!strcmp(repos.data[i], "forge-modules")) {
                                 printf(GREEN "%-*s" RESET, (int)max_name_len, repos.data[i]);
-                                printf(GREEN " (forge)" RESET);
+                                printf(GREEN " (forge official repository)" RESET);
                         } else {
                                 printf(YELLOW "%-*s" RESET, (int)max_name_len, repos.data[i]);
                                 printf(YELLOW " (third-party)" RESET);

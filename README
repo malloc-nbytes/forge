@@ -50,6 +50,14 @@ Forge installs files to these locations:
 The first time you run `forge` must be as root. This sets up the database. All subsequent calls do not need it
 (unless the action has an R tag, see `--help` for more information).
 
+### Getting the official repository
+I have created a repository of a bunch of my projects and a few others that you can begin using. You can get
+this repo by doing:
+```
+forge add-repo https://github.com/malloc-nbytes/forge-modules.git
+```
+
+### Creating your own packages
 To begin creating a new package, run `sudo forge new <pkg>`. This will open an editor to start definining the
 package rules and behavior. When you are finished, save and quit.
 
