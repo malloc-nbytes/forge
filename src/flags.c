@@ -77,6 +77,20 @@ help_sync(void)
 }
 
 static void
+help_drop_broken_packages(void)
+{
+        printf("help(--%s):\n", FLAG_2HY_DROP_BROKEN_PKGS);
+        INDENT printf("Have forge attempt to drop any packages\n");
+        INDENT printf("that are broken (NULL functions, bad names, etc).\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("This method is not guaranteed to work in every case.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge --drop-broken-pkgs\n");
+}
+
+static void
 help_list(void)
 {
         printf("help(%s):\n", FLAG_2HY_LIST);
@@ -133,7 +147,7 @@ help_uninstall(void)
 static void
 help_update(void)
 {
-        printf("help(%s <pkg...>):\n", FLAG_2HY_UPDATE);
+        printf("help(%s [pkg...]):\n", FLAG_2HY_UPDATE);
         INDENT printf("This command will update packages based off of\n");
         INDENT printf("the package names provided:\n");
         INDENT INDENT printf("1. provide names to update those specific packages\n");
@@ -179,71 +193,189 @@ help_drop_repo(void)
 static void
 help_list_repos(void)
 {
+        printf("help(%s):\n", FLAG_2HY_LIST_REPOS);
+        INDENT printf("List all repositories that are currently\n");
+        INDENT printf("registered in forge.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge list-repos\n");
 }
 
 static void
 help_deps(void)
 {
+        printf("help(%s <pkg>):\n", FLAG_2HY_DEPS);
+        INDENT printf("List all dependencies of a package.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge deps malloc-nbytes@particles\n");
 }
 
 static void
 help_new(void)
 {
+        printf("help(%s <name...>):\n", FLAG_2HY_NEW);
+        INDENT printf("Create new packages based off of the names provided.\n");
+        INDENT printf("Using this will open a template file for you to edit\n");
+        INDENT printf("as much as you want. The editor is based off of whatever\n");
+        INDENT printf("the environment variable for $EDITOR is.\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("The names that you give it must match the\n");
+        INDENT INDENT printf("format of `author@pkgname`.\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("When creating a new package this way, it will not\n");
+        INDENT INDENT printf("be stored in any of the repositories that are registered.\n");
+        INDENT INDENT printf("Instead, it will be put into a directory for user-created packages (user_modules).\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge new me@mypkg1\n");
+        INDENT INDENT printf("forge new me@mypkg2 me@mypkg3\n");
 }
 
 static void
 help_edit(void)
 {
+        printf("help(%s <pkg...>):\n", FLAG_2HY_EDIT);
+        INDENT printf("Edit the packages that are provided.\n");
+        INDENT printf("The editor that it opens in is whatever $EDITOR is set to.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge edit author@pkg1\n");
+        INDENT INDENT printf("forge edit author@pkg2 author@pkg3\n");
 }
 
 static void
 help_dump(void)
 {
+        printf("help(%s <pkg...>):\n", FLAG_2HY_DUMP);
+        INDENT printf("Show the contents of the C module for the packages provided.\n");
+        INDENT printf("It will print it similarly to `less`.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge dump malloc-nbytes@AnimX\n");
+        INDENT INDENT printf("forge dump malloc-nbytes@earl GNU@gdb\n");
 }
 
 static void
 help_drop(void)
 {
+        printf("help(%s <pkg...>):\n", FLAG_2HY_DROP);
+        INDENT printf("Drop packages based off of the packages provided.\n");
+        INDENT printf("This will make it so these packages cannot be rebuilt,\n");
+        INDENT printf("and the entries in the database will be deleted.\n");
+        INDENT printf("Upon deletion, a backup is created.\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("You can restore a recently dropped package\n");
+        INDENT INDENT printf("by using the `restore` command.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge drop author@pkgname1\n");
+        INDENT INDENT printf("forge drop author@pkgname2 author@pkgname3\n");
 }
 
 static void
 help_files(void)
 {
+        printf("help(%s <pkg>):\n", FLAG_2HY_FILES);
+        INDENT printf("View all files that <pkg> installed.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge files malloc-nbytes@earl\n");
 }
 
 static void
 help_api(void)
 {
+        printf("help(%s <name...>):\n", FLAG_2HY_API);
+        INDENT printf("View API files in a program similar to `less`.\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("Use the command `apilist` so see available APIs.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge api cmd\n");
+        INDENT INDENT printf("forge api str smap\n");
 }
 
 static void
 help_restore(void)
 {
+        printf("help(%s <name>):\n", FLAG_2HY_RESTORE);
+        INDENT printf("Restore a recently dropped package.\n");
+        INDENT printf("All dropped packages have a time signature associated\n");
+        INDENT printf("with it, and calling this command will restore the most\n");
+        INDENT printf("recently dropped one.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge restore me@my-dropped-pkg\n");
 }
 
 static void
 help_copying(void)
 {
+        printf("help(%s):\n", FLAG_2HY_COPYING);
+        INDENT printf("View the copying information (aka legal jargon blah blah blah).\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge copying\n");
 }
 
 static void
 help_depgraph(void)
 {
+        printf("help(%s):\n", FLAG_2HY_DEPGRAPH);
+        INDENT printf("View the dependency graph of all packages.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge depgraph\n");
 }
 
 static void
 help_apilist(void)
 {
+        printf("help(%s):\n", FLAG_2HY_APILIST);
+        INDENT printf("View all APIs that forge provides for you to\n");
+        INDENT printf("use in your packages (or personal projects).\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("If you are using the API in other projects,\n");
+        INDENT INDENT printf("you can link with forge with `-lforge`.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge apilist\n");
 }
 
 static void
 help_editconf(void)
 {
+        printf("help(%s):\n", FLAG_2HY_EDITCONF);
+        INDENT printf("Edit the configuration file for forge.\n");
+        INDENT printf("It will open in the editor that the variable $EDITOR is set to.\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("Because this is a C header file, forge needs to be\n");
+        INDENT INDENT printf("recompiled for it to apply (see command `updateforge`).\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge editconf\n");
 }
 
 static void
 help_updateforge(void)
 {
+        printf("help(%s):\n", FLAG_2HY_UPDATEFORGE);
+        INDENT printf("This command will download the source code,\n");
+        INDENT printf("save your configuration file (see command `editconf`),\n");
+        INDENT printf("and recompile forge.\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("An internet connection is required.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge updateforge\n");
 }
 
 void
@@ -253,6 +385,7 @@ help(const char *flag)
                 help_help,
                 help_rebuild,
                 help_sync,
+                help_drop_broken_packages,
                 help_list,
                 help_search,
                 help_install,
@@ -291,47 +424,79 @@ help(const char *flag)
                 hs[2]();
         } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_SYNC)) {
                 hs[2]();
+        } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_DROP_BROKEN_PKGS)) {
+                hs[3]();
         }
 
         // commands
         else if (!strcmp(flag, FLAG_2HY_LIST)) {
-                hs[3]();
-        }
-        else if (!strcmp(flag, FLAG_2HY_SEARCH)) {
                 hs[4]();
         }
-        else if (!strcmp(flag, FLAG_2HY_INSTALL)) {
+        else if (!strcmp(flag, FLAG_2HY_SEARCH)) {
                 hs[5]();
         }
-        else if (!strcmp(flag, FLAG_2HY_UNINSTALL)) {
+        else if (!strcmp(flag, FLAG_2HY_INSTALL)) {
                 hs[6]();
         }
-        else if (!strcmp(flag, FLAG_2HY_UPDATE)) {
+        else if (!strcmp(flag, FLAG_2HY_UNINSTALL)) {
                 hs[7]();
         }
-        else if (!strcmp(flag, FLAG_2HY_ADD_REPO)) {
+        else if (!strcmp(flag, FLAG_2HY_UPDATE)) {
                 hs[8]();
         }
-        else if (!strcmp(flag, FLAG_2HY_DROP_REPO)) {
+        else if (!strcmp(flag, FLAG_2HY_ADD_REPO)) {
                 hs[9]();
         }
-        else if (!strcmp(flag, FLAG_2HY_DROP)) {}
-        else if (!strcmp(flag, FLAG_2HY_DEPS)) {}
-        else if (!strcmp(flag, FLAG_2HY_NEW)) {}
-        else if (!strcmp(flag, FLAG_2HY_EDIT)) {}
-        else if (!strcmp(flag, FLAG_2HY_DUMP)) {}
-        else if (!strcmp(flag, FLAG_2HY_DROP_BROKEN_PKGS)) {}
-        else if (!strcmp(flag, FLAG_2HY_FILES)) {}
-        else if (!strcmp(flag, FLAG_2HY_COPYING)) {}
-        else if (!strcmp(flag, FLAG_2HY_DEPGRAPH)) {}
-        else if (!strcmp(flag, FLAG_2HY_API)) {}
-        else if (!strcmp(flag, FLAG_2HY_EDITCONF)) {}
-        else if (!strcmp(flag, FLAG_2HY_UPDATEFORGE)) {}
-        else if (!strcmp(flag, FLAG_2HY_RESTORE)) {}
-        else if (!strcmp(flag, FLAG_2HY_APILIST)) {}
-        else if (!strcmp(flag, FLAG_2HY_LIST_REPOS)) {}
+        else if (!strcmp(flag, FLAG_2HY_DROP_REPO)) {
+                hs[10]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_LIST_REPOS)) {
+                hs[11]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_DEPS)) {
+                hs[12]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_NEW)) {
+                hs[13]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_EDIT)) {
+                hs[14]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_DUMP)) {
+                hs[15]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_DROP)) {
+                hs[16]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_FILES)) {
+                hs[17]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_API)) {
+                hs[18]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_RESTORE)) {
+                hs[19]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_COPYING)) {
+                hs[20]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_DEPGRAPH)) {
+                hs[21]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_APILIST)) {
+                hs[22]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_EDITCONF)) {
+                hs[23]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_UPDATEFORGE)) {
+                hs[24]();
+        }
         else if (!strcmp(flag, "*")) {
                 for (size_t i = 0; i < sizeof(hs)/sizeof(*hs); ++i) {
+                        if (i != 0) {
+                                putchar('\n');
+                        }
                         hs[i]();
                 }
         } else {
