@@ -2368,108 +2368,42 @@ updateforge(void)
 {
         time_t now = time(NULL);
         char hash[32] = {0};
-        snprintf(hash, sizeof(hash), "%ld", now);
-
-        forge_str dir = forge_str_from("/tmp/forgeupdate-");
-        forge_str clone = forge_str_from("git clone https://github.com/malloc-nbytes/forge.git ");
+        snprintf(hash, 32, "%ld", now);
+        forge_str dir = forge_str_from("/tmp/forgeupdate-"),
+                clone = forge_str_from("git clone https://www.github.com/malloc-nbytes/forge.git ");
         forge_str_concat(&dir, hash);
         forge_str_concat(&clone, forge_str_to_cstr(&dir));
 
-        // Create temporary directory
-        if (mkdir_p(forge_str_to_cstr(&dir), 0755) != 0) {
-                fprintf(stderr, "Failed to create temporary directory %s: %s\n",
-                                forge_str_to_cstr(&dir), strerror(errno));
-                goto fail;
-        }
+        // git clone
+        if (!cmd(forge_str_to_cstr(&clone))) goto fail;
+        // cd /tmp/forgeupdate
+        if (!cd(forge_str_to_cstr(&dir))) goto fail;
 
-        // Clone repository
-        if (!cmd(forge_str_to_cstr(&clone))) {
-                fprintf(stderr, "Failed to clone repository: %s\n", strerror(errno));
-                goto fail;
-        }
-
-        // Change to the cloned forge directory
-        forge_str forge_dir = forge_str_from(forge_str_to_cstr(&dir));
-        forge_str_concat(&forge_dir, "/forge");
-        if (!cd(forge_str_to_cstr(&forge_dir))) {
-                fprintf(stderr, "Failed to change to directory %s: %s\n",
-                                forge_str_to_cstr(&forge_dir), strerror(errno));
-                goto fail;
-        }
-
-        // Read existing conf.h
+        // save forge/conf.h
         char *conf_content = forge_io_read_file_to_cstr(FORGE_CONF_HEADER_FP);
-        if (!conf_content) {
-                fprintf(stderr, "Failed to read %s: %s\n", FORGE_CONF_HEADER_FP, strerror(errno));
-                goto fail;
-        }
+        forge_str overwrite_fp = forge_str_from(forge_str_to_cstr(&dir));
+        forge_str_concat(&overwrite_fp, "/src/forge/conf.h");
 
-        // Ensure target directory exists
-        forge_str overwrite_dir = forge_str_from(forge_str_to_cstr(&dir));
-        forge_str_concat(&overwrite_dir, "/forge/src/forge");
-        if (mkdir_p(forge_str_to_cstr(&overwrite_dir), 0755) != 0) {
-                fprintf(stderr, "Failed to create directory %s: %s\n",
-                                forge_str_to_cstr(&overwrite_dir), strerror(errno));
-                goto fail;
-        }
-
-        // Write conf.h to new location
-        forge_str overwrite_fp = forge_str_from(forge_str_to_cstr(&overwrite_dir));
-        forge_str_concat(&overwrite_fp, "/conf.h");
-        printf(GREEN BOLD "*** Writing conf.h to %s\n" RESET, forge_str_to_cstr(&overwrite_fp));
         if (!forge_io_write_file(forge_str_to_cstr(&overwrite_fp), conf_content)) {
-                fprintf(stderr, "Failed to write conf.h to %s: %s\n",
-                                forge_str_to_cstr(&overwrite_fp), strerror(errno));
+                fprintf(stderr, "failed to overwrite the new conf.h at: %s\n",
+                        forge_str_to_cstr(&overwrite_fp));
                 goto fail;
         }
 
-        // Run build and install
-        if (!cmd("./bootstrap.sh")) {
-                fprintf(stderr, "Failed to run bootstrap.sh: %s\n", strerror(errno));
-                goto fail;
-        }
-        if (!cmd("make -j$(nproc)")) {
-                fprintf(stderr, "Failed to run make: %s\n", strerror(errno));
-                goto fail;
-        }
-        if (!cmd("make install")) {
-                fprintf(stderr, "Failed to run make install: %s\n", strerror(errno));
-                goto fail;
-        }
-
-        // Clean up
-        printf(YELLOW "Cleaning up temporary directory %s\n" RESET, forge_str_to_cstr(&dir));
-        if (remove_directory(forge_str_to_cstr(&dir)) == -1) {
-                fprintf(stderr, "Failed to remove temporary directory %s: %s\n",
-                                forge_str_to_cstr(&dir), strerror(errno));
-                // Continue despite cleanup failure
-        }
+        if (!cmd("./bootstrap.sh"))  goto fail;
+        if (!cmd("make -j$(nproc)")) goto fail;
+        if (!cmd("make install"))    goto fail;
 
         forge_str_destroy(&dir);
         forge_str_destroy(&clone);
-        forge_str_destroy(&forge_dir);
-        forge_str_destroy(&overwrite_dir);
         forge_str_destroy(&overwrite_fp);
         free(conf_content);
-        printf(GREEN BOLD "*** Successfully updated forge\n" RESET);
+
         return;
 
-fail:
-        fprintf(stderr, "Update failed, aborting...\n");
-        // Clean up resources
-        forge_str_destroy(&dir);
-        forge_str_destroy(&clone);
-        forge_str_destroy(&forge_dir);
-        forge_str_destroy(&overwrite_dir);
-        forge_str_destroy(&overwrite_fp);
-        free(conf_content);
-        // Attempt to remove temporary directory
-        if (forge_str_to_cstr(&dir) && forge_io_is_dir(forge_str_to_cstr(&dir))) {
-                if (remove_directory(forge_str_to_cstr(&dir)) == -1) {
-                        fprintf(stderr, "Failed to clean up temporary directory %s: %s\n",
-                                        forge_str_to_cstr(&dir), strerror(errno));
-                }
-        }
+ fail:
+        fprintf(stderr, "aborting...\n");
+        return;
 }
 
 void
