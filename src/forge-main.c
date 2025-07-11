@@ -2658,6 +2658,157 @@ add_repo(const char *name)
         free(clone);
 }
 
+void
+drop_repo(forge_context *ctx,
+          const char    *repo_name)
+{
+        // Construct the full path to the repository
+        char *repo_path = forge_str_builder(C_MODULE_DIR_PARENT, repo_name, NULL);
+        if (!forge_io_is_dir(repo_path)) {
+                fprintf(stderr, "Repository %s does not exist at %s\n", repo_name, repo_path);
+                free(repo_path);
+                return;
+        }
+
+        // Get list of .c files in the repository
+        str_array pkg_files = get_files_in_dir(repo_path);
+        str_array pkg_names = dyn_array_empty(str_array);
+
+        // Extract package names (without .c extension)
+        for (size_t i = 0; i < pkg_files.len; ++i) {
+                char *filename = pkg_files.data[i];
+                size_t len = strlen(filename);
+                if (len > 2 && strcmp(filename + len - 2, ".c") == 0) {
+                        char *name = strdup(filename);
+                        name[len - 2] = '\0'; // Remove .c extension
+                        dyn_array_append(pkg_names, name);
+                }
+        }
+
+        for (size_t i = 0; i < pkg_files.len; ++i) {
+                free(pkg_files.data[i]);
+        }
+        dyn_array_free(pkg_files);
+
+        // Prompt user for uninstalling packages
+        int uninstall = 0;
+        if (pkg_names.len > 0) {
+                printf(YELLOW "Found %zu package(s) in repository %s:\n" RESET, pkg_names.len, repo_name);
+                for (size_t i = 0; i < pkg_names.len; ++i) {
+                        printf("  %s\n", pkg_names.data[i]);
+                }
+                printf(YELLOW "\nWould you like to uninstall installed packages from this repository? [y/N]: " RESET);
+                fflush(stdout);
+
+                char response[10];
+                if (fgets(response, sizeof(response), stdin) != NULL) {
+                        response[strcspn(response, "\n")] = '\0';
+                        if (response[0] == 'y' || response[0] == 'Y') {
+                                uninstall = 1;
+                        }
+                }
+        }
+
+        // Uninstall packages if requested
+        if (uninstall) {
+                str_array names_to_uninstall = dyn_array_empty(str_array);
+                for (size_t i = 0; i < pkg_names.len; ++i) {
+                        if (pkg_is_installed(ctx, pkg_names.data[i]) == 1) {
+                                dyn_array_append(names_to_uninstall, strdup(pkg_names.data[i]));
+                        }
+                }
+                if (names_to_uninstall.len > 0) {
+                        printf(GREEN BOLD "*** Uninstalling packages from repository %s\n" RESET, repo_name);
+                        uninstall_pkg(ctx, &names_to_uninstall);
+                        for (size_t i = 0; i < names_to_uninstall.len; ++i) {
+                                free(names_to_uninstall.data[i]);
+                        }
+                        dyn_array_free(names_to_uninstall);
+                } else {
+                        printf(YELLOW "No installed packages found in repository %s\n" RESET, repo_name);
+                }
+        }
+
+        printf(GREEN BOLD "*** Dropping packages from repository %s\n" RESET, repo_name);
+        for (size_t i = 0; i < pkg_names.len; ++i) {
+                if (get_pkg_id(ctx, pkg_names.data[i]) != -1) {
+                        drop_pkg(ctx, pkg_names.data[i]);
+                }
+        }
+
+        // Remove the repository directory
+        printf(YELLOW "Removing repository directory: %s\n" RESET, repo_path);
+        if (remove_directory(repo_path) == -1) {
+                fprintf(stderr, "Failed to remove repository directory %s: %s\n", repo_path, strerror(errno));
+        } else {
+                printf(GREEN BOLD "*** Successfully removed repository %s\n" RESET, repo_name);
+        }
+
+        for (size_t i = 0; i < pkg_names.len; ++i) {
+                free(pkg_names.data[i]);
+        }
+        dyn_array_free(pkg_names);
+        free(repo_path);
+}
+
+void
+list_repos(void)
+{
+        char **dirs = ls(C_MODULE_DIR_PARENT);
+        if (!dirs) {
+                fprintf(stderr, "Failed to list directories in %s: %s\n", C_MODULE_DIR_PARENT, strerror(errno));
+                return;
+        }
+
+        // Collect valid directories and calculate max width for formatting
+        str_array repos = dyn_array_empty(str_array);
+        size_t max_name_len = strlen("Repository");
+
+        for (size_t i = 0; dirs[i]; ++i) {
+                if (!strcmp(dirs[i], ".") || !strcmp(dirs[i], "..")) {
+                        free(dirs[i]);
+                        continue;
+                }
+
+                char *repo_path = forge_str_builder(C_MODULE_DIR_PARENT, dirs[i], NULL);
+                if (forge_io_is_dir(repo_path)) {
+                        dyn_array_append(repos, strdup(dirs[i]));
+                        max_name_len = MAX(max_name_len, strlen(dirs[i]));
+                }
+                free(repo_path);
+                free(dirs[i]);
+        }
+        free(dirs);
+
+        printf("Available repositories:\n");
+        printf("%-*s\n", (int)max_name_len, "Repository");
+        printf("%-*s\n", (int)max_name_len, "----------");
+
+        if (repos.len == 0) {
+                printf("No repositories found in %s.\n", C_MODULE_DIR_PARENT);
+        } else {
+                for (size_t i = 0; i < repos.len; ++i) {
+                        //printf("%-*s", (int)max_name_len, repos.data[i]);
+                        if (!strcmp(repos.data[i], "user_modules")) {
+                                printf(BLUE "%-*s" RESET, (int)max_name_len, repos.data[i]);
+                                printf(BLUE " (built-in)" RESET);
+                        } else if (!strcmp(repos.data[i], "modules")) {
+                                printf(GREEN "%-*s" RESET, (int)max_name_len, repos.data[i]);
+                                printf(GREEN " (forge)" RESET);
+                        } else {
+                                printf(YELLOW "%-*s" RESET, (int)max_name_len, repos.data[i]);
+                                printf(YELLOW " (third-party)" RESET);
+                        }
+                        putchar('\n');
+                }
+        }
+
+        for (size_t i = 0; i < repos.len; ++i) {
+                free(repos.data[i]);
+        }
+        dyn_array_free(repos);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2828,6 +2979,14 @@ main(int argc, char **argv)
                         }
                         assert_sudo();
                         add_repo(arg.start);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DROP_REPO)) {
+                        if (!clap_next(&arg)) {
+                                err_wargs("flag `%s` requires an argument", FLAG_2HY_DROP_REPO);
+                        }
+                        assert_sudo();
+                        drop_repo(&ctx, arg.start);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIST_REPOS)) {
+                        list_repos();
                 }
 
                 else if (arg.hyphc == 1) { // one hyph options
