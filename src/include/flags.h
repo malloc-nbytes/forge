@@ -25,16 +25,16 @@
 #define FLAG_1HY_SYNC 's'
 
 #define FLAG_2HY_HELP "help"
+#define FLAG_2HY_REBUILD "rebuild"
+#define FLAG_2HY_SYNC "sync"
 #define FLAG_2HY_LIST "list"
 #define FLAG_2HY_DEPS "deps"
 #define FLAG_2HY_INSTALL "install"
 #define FLAG_2HY_UNINSTALL "uninstall"
-#define FLAG_2HY_REBUILD "rebuild"
 #define FLAG_2HY_NEW "new"
 #define FLAG_2HY_EDIT "edit"
 #define FLAG_2HY_UPDATE "update"
 #define FLAG_2HY_DUMP "dump"
-#define FLAG_2HY_SYNC "sync"
 #define FLAG_2HY_DROP_BROKEN_PKGS "drop-broken-pkgs"
 #define FLAG_2HY_DROP "drop"
 #define FLAG_2HY_FILES "files"
@@ -58,5 +58,6 @@ typedef enum {
 
 void usage(void);
 void copying(void);
+void help(const char *flag);
 
 #endif // FLAGS_H_INCLUDED

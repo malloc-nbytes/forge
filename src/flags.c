@@ -27,54 +27,153 @@
 #include "copying.h"
 #include "utils.h"
 
+#define INDENT printf("    ");
+
 static void
 help_help(void)
 {
+        printf("help(-%c, --%s):\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
+        INDENT printf("View the help information or provide a command/option\n");
+        INDENT printf("to view more information on it, or do '*' for all.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge -h\n");
+        INDENT INDENT printf("forge --help\n");
+        INDENT INDENT printf("forge --help=-h\n");
+        INDENT INDENT printf("forge --help=--help\n");
+        INDENT INDENT printf("forge --help=install\n");
 }
 
 static void
 help_rebuild(void)
 {
+        printf("help(-%c, --%s):\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
+        INDENT printf("Rebuild the C modules in each repository.\n");
+        INDENT printf("Doing this operation is required when adding\n");
+        INDENT printf("and dropping repositories.\n");
+        INDENT printf("What this option does is compile all C modules\n");
+        INDENT printf("into .so files for forge to link to during runtime.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge -r\n");
+        INDENT INDENT printf("forge --rebuild\n");
+        INDENT INDENT printf("forge -rs\n");
+        INDENT INDENT printf("forge -r edit author@mypkg\n");
 }
 
 static void
 help_sync(void)
 {
+        printf("help(-%c, --%s):\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
+        INDENT printf("Sync all repositories with remote.\n");
+        INDENT printf("This option will go through each repository that\n");
+        INDENT printf("is registered in forge and will perform `git pull` and\n");
+        INDENT printf("rebuild if needed.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge -s\n");
+        INDENT INDENT printf("forge --sync\n");
+        INDENT INDENT printf("forge -rs\n");
 }
 
 static void
 help_list(void)
 {
+        printf("help(%s):\n", FLAG_2HY_LIST);
+        INDENT printf("List all available packages that can be installed.\n");
+        INDENT printf("This shows the package meta-data\n");
+        INDENT printf("(name, version, installed, and description)\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("If you do not want to `grep` for a name,\n");
+        INDENT INDENT printf("use the `search` command instead\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge list\n");
 }
 
 static void
 help_search(void)
 {
+        printf("help(%s <names...>):\n", FLAG_2HY_SEARCH);
+        INDENT printf("List packages by a name using regex.\n");
+        INDENT printf("This command will search through all packages\n");
+        INDENT printf("and will only display the ones where the name\n");
+        INDENT printf("gets a regex match with the names provided.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge search malloc-nbytes\n");
+        INDENT INDENT printf("forge search malloc-nbytes GNU\n");
 }
 
 static void
 help_install(void)
 {
+        printf("help(%s <pkg...>):\n", FLAG_2HY_INSTALL);
+        INDENT printf("This command will install packages matching the names\n");
+        INDENT printf("of the packages provided.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge install malloc-nbytes@ampire\n");
+        INDENT INDENT printf("forge install malloc-nbytes@earl naskst@gf\n");
 }
 
 static void
 help_uninstall(void)
 {
+        printf("help(%s <pkg...>):\n", FLAG_2HY_UNINSTALL);
+        INDENT printf("This command will uninstall packages based\n");
+        INDENT printf("off of the package names provided.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge uninstall malloc-nbytes@ampire\n");
+        INDENT INDENT printf("forge uninstall malloc-nbytes@earl GNU@gdb\n");
 }
 
 static void
 help_update(void)
 {
+        printf("help(%s <pkg...>):\n", FLAG_2HY_UPDATE);
+        INDENT printf("This command will update packages based off of\n");
+        INDENT printf("the package names provided:\n");
+        INDENT INDENT printf("1. provide names to update those specific packages\n");
+        INDENT INDENT printf("2. leave empty to update all installed packages.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge update malloc-nbytes@earl\n");
+        INDENT INDENT printf("forge update malloc-nbytes@ampire Github@github-cli\n");
+        INDENT INDENT printf("forge update\n");
 }
 
 static void
 help_add_repo(void)
 {
+        printf("help(%s <git-link>):\n", FLAG_2HY_ADD_REPO);
+        INDENT printf("Add a new repository for forge to use.\n");
+        INDENT printf("A repository is expected to contain C files\n");
+        INDENT printf("with no entry point and they must fulfill everything\n");
+        INDENT printf("that a module needs.\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("The repository *must* be a Github link.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge add-repo https://github.com/malloc-nbytes/forge-modules.git\n");
 }
 
 static void
 help_drop_repo(void)
 {
+        printf("help(%s <name>):\n", FLAG_2HY_DROP_REPO);
+        INDENT printf("Drop a repository that forge is using.\n");
+        INDENT printf("This will completely remove all packages that\n");
+        INDENT printf("the repository provides.\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("use the `list-repos` command to see all available repositories.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge drop-repo my-test-repo\n");
 }
 
 static void
@@ -179,23 +278,49 @@ help(const char *flag)
 
         size_t n = strlen(flag);
 
+        // options
         if (n == 2 && flag[0] == '-' && flag[1] == FLAG_1HY_HELP) {
-        } else if (n == 1 && flag[0] == '-' && flag[1] == FLAG_1HY_REBUILD) {
-        } else if (n == 1 && flag[0] == '-' && flag[1] == FLAG_1HY_SYNC) {
+                hs[0]();
+        } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_HELP)) {
+                hs[0]();
+        } else if (n == 2 && flag[0] == '-' && flag[1] == FLAG_1HY_REBUILD) {
+                hs[1]();
+        } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_REBUILD)) {
+                hs[1]();
+        } else if (n == 2 && flag[0] == '-' && flag[1] == FLAG_1HY_SYNC) {
+                hs[2]();
+        } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_SYNC)) {
+                hs[2]();
         }
-        else if (!strcmp(flag, FLAG_2HY_HELP)) {}
-        else if (!strcmp(flag, FLAG_2HY_LIST)) {}
+
+        // commands
+        else if (!strcmp(flag, FLAG_2HY_LIST)) {
+                hs[3]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_SEARCH)) {
+                hs[4]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_INSTALL)) {
+                hs[5]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_UNINSTALL)) {
+                hs[6]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_UPDATE)) {
+                hs[7]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_ADD_REPO)) {
+                hs[8]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_DROP_REPO)) {
+                hs[9]();
+        }
+        else if (!strcmp(flag, FLAG_2HY_DROP)) {}
         else if (!strcmp(flag, FLAG_2HY_DEPS)) {}
-        else if (!strcmp(flag, FLAG_2HY_INSTALL)) {}
-        else if (!strcmp(flag, FLAG_2HY_UNINSTALL)) {}
-        else if (!strcmp(flag, FLAG_2HY_REBUILD)) {}
         else if (!strcmp(flag, FLAG_2HY_NEW)) {}
         else if (!strcmp(flag, FLAG_2HY_EDIT)) {}
-        else if (!strcmp(flag, FLAG_2HY_UPDATE)) {}
         else if (!strcmp(flag, FLAG_2HY_DUMP)) {}
-        else if (!strcmp(flag, FLAG_2HY_SYNC)) {}
         else if (!strcmp(flag, FLAG_2HY_DROP_BROKEN_PKGS)) {}
-        else if (!strcmp(flag, FLAG_2HY_DROP)) {}
         else if (!strcmp(flag, FLAG_2HY_FILES)) {}
         else if (!strcmp(flag, FLAG_2HY_COPYING)) {}
         else if (!strcmp(flag, FLAG_2HY_DEPGRAPH)) {}
@@ -204,9 +329,6 @@ help(const char *flag)
         else if (!strcmp(flag, FLAG_2HY_UPDATEFORGE)) {}
         else if (!strcmp(flag, FLAG_2HY_RESTORE)) {}
         else if (!strcmp(flag, FLAG_2HY_APILIST)) {}
-        else if (!strcmp(flag, FLAG_2HY_SEARCH)) {}
-        else if (!strcmp(flag, FLAG_2HY_ADD_REPO)) {}
-        else if (!strcmp(flag, FLAG_2HY_DROP_REPO)) {}
         else if (!strcmp(flag, FLAG_2HY_LIST_REPOS)) {}
         else if (!strcmp(flag, "*")) {
                 for (size_t i = 0; i < sizeof(hs)/sizeof(*hs); ++i) {
@@ -215,6 +337,8 @@ help(const char *flag)
         } else {
                 err_wargs("unknown flag `%s`", flag);
         }
+
+        exit(0);
 }
 
 void

@@ -2844,8 +2844,10 @@ main(int argc, char **argv)
         Clap_Arg arg = {0};
         while (clap_next(&arg)) {
                 if (arg.hyphc == 1 && arg.start[0] == FLAG_1HY_HELP) {
+                        if (arg.eq) { help(arg.eq); }
                         usage();
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_HELP)) {
+                        if (arg.eq) { help(arg.eq); }
                         usage();
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIST)) {
                         list_registerd_pkgs(&ctx);
