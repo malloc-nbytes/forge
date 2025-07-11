@@ -118,7 +118,7 @@ forge_str_contains_substr(const forge_str *fs,
                 return fs->data;
         }
 
-        // Edge case: forge_str length less than substring length
+        // Edge case: str length less than substring length
         if (fs->len < substr_n) {
                 return NULL;
         }
