@@ -89,6 +89,7 @@ char *forge_str_contains_substr(
  * VARIADIC         -> other strings
  * Returns: the concatination of all strings
  * Description: Build a string of the variadic parameters.
+ *              Note: Remember to put NULL as the last argument!
  */
 char *forge_str_builder(const char *first, ...);
 
