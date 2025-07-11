@@ -49,6 +49,7 @@
 #define FLAG_2HY_ADD_REPO "add-repo"
 #define FLAG_2HY_DROP_REPO "drop-repo"
 #define FLAG_2HY_LIST_REPOS "list-repos"
+#define FLAG_2HY_REPO_COMPILE_TEMPLATE "repo-compile-template"
 
 typedef enum {
         FT_REBUILD = 1 << 0,

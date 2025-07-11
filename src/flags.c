@@ -380,6 +380,21 @@ help_updateforge(void)
         INDENT INDENT printf("forge updateforge\n");
 }
 
+static void
+help_repo_compile_template(void)
+{
+        printf("help(%s):\n", FLAG_2HY_REPO_COMPILE_TEMPLATE);
+        INDENT printf("Generate a script for compiling forge C modules\n");
+        INDENT printf("for repository testing.\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("This script will remove all .so files\n");
+        INDENT INDENT printf("in the current directory, so use this wisely.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge repo-compile-template\n");
+}
+
 void
 help(const char *flag)
 {
@@ -409,6 +424,7 @@ help(const char *flag)
                 help_apilist,
                 help_editconf,
                 help_updateforge,
+                help_repo_compile_template,
         };
 
         size_t n = strlen(flag);
@@ -493,8 +509,9 @@ help(const char *flag)
         }
         else if (!strcmp(flag, FLAG_2HY_UPDATEFORGE)) {
                 hs[24]();
-        }
-        else if (!strcmp(flag, "*")) {
+        } else if (!strcmp(flag, FLAG_2HY_REPO_COMPILE_TEMPLATE)) {
+                hs[25]();
+        } else if (!strcmp(flag, "*")) {
                 for (size_t i = 0; i < sizeof(hs)/sizeof(*hs); ++i) {
                         if (i != 0) {
                                 putchar('\n');
@@ -559,6 +576,7 @@ usage(void)
         printf(GREEN BOLD "    %s" RESET                                          "                   view API headers\n", FLAG_2HY_APILIST);
         printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "   R "  RESET  "edit the forge configuration header\n", FLAG_2HY_EDITCONF);
         printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "R "  RESET  "update forge (used after %s)\n", FLAG_2HY_UPDATEFORGE, FLAG_2HY_EDITCONF);
+        printf(GREEN BOLD "    %s" RESET                                          "     generate a repo testing script\n", FLAG_2HY_REPO_COMPILE_TEMPLATE);
         printf("Note: " YELLOW BOLD "R" RESET " requires root permissions\n");
         exit(0);
 }

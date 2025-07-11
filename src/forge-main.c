@@ -2718,6 +2718,34 @@ list_repos(void)
         dyn_array_free(repos);
 }
 
+void
+create_repo_compile_template(void)
+{
+        char *script = "#!/bin/bash\n"
+                "\n"
+                "set -e\n"
+                "\n"
+                "for file in *.c; do\n"
+                "    if [[ -f \"$file\" ]]; then\n"
+                "        echo \"gcc -shared -fPIC -o \\\"${file%.c}.so\\\" \\\"$file\\\"\"\n"
+                "        gcc -shared -fPIC -o \"${file%.c}.so\" \"$file\"\n"
+                "\n"
+                "        if ! [[ $? -eq 0 ]]; then\n"
+                "                echo \"Failed to compile $file\"\n"
+                "                exit 1\n"
+                "        fi\n"
+                "    else\n"
+                "        echo \"No .c files found in the current directory\"\n"
+                "        exit 1\n"
+                "    fi\n"
+                "done\n"
+                "\n"
+                "echo \"Removing all .so files...\"\n"
+                "rm -f *.so\n"
+                "echo \"Done.\"\n";
+        printf("%s\n", script);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2900,6 +2928,8 @@ main(int argc, char **argv)
                         drop_repo(&ctx, arg.start);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIST_REPOS)) {
                         list_repos();
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_REPO_COMPILE_TEMPLATE)) {
+                        create_repo_compile_template();
                 }
 
                 else if (arg.hyphc == 1) { // one hyph options
