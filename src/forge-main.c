@@ -98,6 +98,9 @@ static const char *common_install_dirs[] = {
         "/usr/local/share",
 };
 
+#define CD(path, block) if (!cd(path)) block;
+#define CMD(c, block)   if (!cmd(c))   block;
+
 #define DB_DIR "/var/lib/forge/"
 #define DB_FP DB_DIR "forge.db"
 #define C_MODULE_DIR "/usr/src/forge/modules/"
@@ -2496,6 +2499,18 @@ pkg_search(const str_array *names)
         dyn_array_free(rows);
 }
 
+void
+add_repo(const char *name)
+{
+        CD(C_MODULE_DIR_PARENT, goto bad);
+        char *clone = forge_str_builder("git clone ", name, NULL);
+        CMD(clone, goto bad);
+        return;
+
+ bad:
+        printf("aborting...\n");
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2660,7 +2675,14 @@ main(int argc, char **argv)
                         pkg_search(&names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_ADD_REPO)) {
+                        if (!clap_next(&arg)) {
+                                err_wargs("flag `%s` requires a Github repo", FLAG_2HY_ADD_REPO);
+                        }
+                        assert_sudo();
+                        add_repo(arg.start);
                 }
+
                 else if (arg.hyphc == 1) { // one hyph options
                         for (size_t i = 0; arg.start[i]; ++i) {
                                 char c = arg.start[i];
