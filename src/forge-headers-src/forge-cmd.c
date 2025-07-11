@@ -301,3 +301,27 @@ ls(const char *dir)
         closedir(dp);
         return files;
 }
+
+int
+is_git_dir(const char *path)
+{
+        // Store the current working directory
+        char current_dir[1024];
+        if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
+                return 0;
+        }
+
+        if (!cd(path)) return 0;
+
+        // Check for .git directory
+        DIR* dir = opendir(".git");
+        int is_git = (dir != NULL);
+        if (dir) {
+                closedir(dir);
+        }
+
+        // Restore original working directory
+        if (!cd(current_dir)) return 0;
+
+        return is_git;
+}

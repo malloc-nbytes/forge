@@ -46,6 +46,9 @@
 #define FLAG_2HY_RESTORE "restore"
 #define FLAG_2HY_APILIST "apilist"
 #define FLAG_2HY_SEARCH "search"
+#define FLAG_2HY_ADD_REPO "add-repo"
+#define FLAG_2HY_DROP_REPO "drop-repo"
+#define FLAG_2HY_LIST_REPOS "list-repos"
 
 typedef enum {
         FT_REBUILD = 1 << 0,
