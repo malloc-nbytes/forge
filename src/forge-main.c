@@ -2978,12 +2978,14 @@ main(int argc, char **argv)
                                 err_wargs("flag `%s` requires a Github repo", FLAG_2HY_ADD_REPO);
                         }
                         assert_sudo();
+                        g_config.flags |= FT_REBUILD;
                         add_repo(arg.start);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DROP_REPO)) {
                         if (!clap_next(&arg)) {
                                 err_wargs("flag `%s` requires an argument", FLAG_2HY_DROP_REPO);
                         }
                         assert_sudo();
+                        g_config.flags |= FT_REBUILD;
                         drop_repo(&ctx, arg.start);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIST_REPOS)) {
                         list_repos();
