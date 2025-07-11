@@ -441,67 +441,120 @@ get_pkg_id(forge_context *ctx, const char *name)
         return id;
 }
 
+char *
+get_c_module_filepath_from_basic_name(const char *name)
+{
+        char **dirs = ls(C_MODULE_DIR_PARENT);
+        for (size_t i = 0; dirs[i]; ++i) {
+                char *module_dir = forge_str_builder(C_MODULE_DIR_PARENT, dirs[i], NULL);
+                if (forge_io_is_dir(module_dir)) {
+                        CD(module_dir, {});
+                        char *path = forge_str_builder(module_dir, "/", name, ".c", NULL);
+                        if (cio_file_exists(path)) {
+                                return path;
+                        }
+                        free(path);
+                }
+                free(module_dir);
+                free(dirs[i]);
+        }
+        free(dirs);
+        return NULL;
+}
+
 void
 restore_pkg(forge_context *ctx, const char *name)
 {
         (void)ctx;
 
-        // Construct the pattern to match backup files: <name>.c-<TIME HASH>
+        // Construct the pattern to match backup files: <name>.c-<timestamp>
         char pattern[256] = {0};
-        snprintf(pattern, sizeof(pattern), "%s%s.c-", C_MODULE_USER_DIR, name);
+        snprintf(pattern, sizeof(pattern), "%s.c-", name);
 
-        // Open the C module directory
-        DIR *dir = opendir(C_MODULE_USER_DIR);
-        if (!dir) {
-                fprintf(stderr, "Failed to open directory %s: %s\n", C_MODULE_USER_DIR, strerror(errno));
+        // Get all directories under C_MODULE_DIR_PARENT
+        char **dirs = ls(C_MODULE_DIR_PARENT);
+        if (!dirs) {
+                fprintf(stderr, "Failed to list directories in %s: %s\n", C_MODULE_DIR_PARENT, strerror(errno));
                 return;
         }
 
-        struct dirent *entry;
-        struct stat st;
         char *latest_file = NULL;
         time_t latest_mtime = 0;
+        char *target_dir = NULL;
 
-        // Iterate through directory to find matching backup files
-        while ((entry = readdir(dir))) {
-                // Check if the file starts with the pattern
-                if (strncmp(entry->d_name, pattern + strlen(C_MODULE_USER_DIR), strlen(pattern) - strlen(C_MODULE_USER_DIR)) == 0) {
-                        char full_path[512] = {0};
-                        snprintf(full_path, sizeof(full_path), "%s%s", C_MODULE_USER_DIR, entry->d_name);
-                        printf("PATH: %s\n", full_path);
+        // Iterate through each directory
+        for (size_t i = 0; dirs[i]; ++i) {
+                if (!strcmp(dirs[i], ".") || !strcmp(dirs[i], "..")) {
+                        free(dirs[i]);
+                        continue;
+                }
 
-                        // Get file modification time
-                        if (stat(full_path, &st) == -1) {
-                                fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
-                                continue;
-                        }
+                char *module_dir = forge_str_builder(C_MODULE_DIR_PARENT, dirs[i], NULL);
+                if (!forge_io_is_dir(module_dir)) {
+                        free(module_dir);
+                        free(dirs[i]);
+                        continue;
+                }
 
-                        // Update latest file if this one is newer
-                        if (st.st_mtime > latest_mtime) {
-                                latest_mtime = st.st_mtime;
-                                if (latest_file) {
-                                        free(latest_file);
+                DIR *dir = opendir(module_dir);
+                if (!dir) {
+                        fprintf(stderr, "Failed to open directory %s: %s\n", module_dir, strerror(errno));
+                        free(module_dir);
+                        free(dirs[i]);
+                        continue;
+                }
+
+                struct dirent *entry;
+                struct stat st;
+
+                // Iterate through files in the directory
+                while ((entry = readdir(dir))) {
+                        // Check if the file matches the pattern
+                        if (strncmp(entry->d_name, pattern, strlen(pattern)) == 0) {
+                                char full_path[512] = {0};
+                                snprintf(full_path, sizeof(full_path), "%s/%s", module_dir, entry->d_name);
+
+                                // Get file modification time
+                                if (stat(full_path, &st) == -1) {
+                                        fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
+                                        continue;
                                 }
-                                latest_file = strdup(full_path);
+
+                                // Update latest file if this one is newer
+                                if (st.st_mtime > latest_mtime) {
+                                        latest_mtime = st.st_mtime;
+                                        if (latest_file) {
+                                                free(latest_file);
+                                        }
+                                        if (target_dir) {
+                                                free(target_dir);
+                                        }
+                                        latest_file = strdup(full_path);
+                                        target_dir = strdup(module_dir);
+                                }
                         }
                 }
+                closedir(dir);
+                free(module_dir);
+                free(dirs[i]);
         }
-        closedir(dir);
+        free(dirs);
 
         // Check if a backup file was found
-        if (!latest_file) {
+        if (!latest_file || !target_dir) {
                 fprintf(stderr, "No backup file found for package %s\n", name);
                 return;
         }
 
         // Construct the original file path
         char original_path[256] = {0};
-        snprintf(original_path, sizeof(original_path), "%s%s.c", C_MODULE_USER_DIR, name);
+        snprintf(original_path, sizeof(original_path), "%s/%s.c", target_dir, name);
 
         // Check if the original file already exists
         if (cio_file_exists(original_path)) {
                 fprintf(stderr, "Original file %s already exists, cannot restore\n", original_path);
                 free(latest_file);
+                free(target_dir);
                 return;
         }
 
@@ -511,12 +564,105 @@ restore_pkg(forge_context *ctx, const char *name)
                 fprintf(stderr, "Failed to restore file %s to %s: %s\n",
                         latest_file, original_path, strerror(errno));
                 free(latest_file);
+                free(target_dir);
                 return;
         }
 
         printf(GREEN BOLD "*** Successfully restored package %s\n" RESET, name);
         free(latest_file);
+        free(target_dir);
 }
+
+/* void */
+/* restore_pkg(forge_context *ctx, const char *name) */
+/* { */
+/*         (void)ctx; */
+
+/*         // Construct the pattern to match backup files: <name>.c-<TIME HASH> */
+/*         char pattern[256] = {0}; */
+/*         /\* snprintf(pattern, sizeof(pattern), "%s%s.c-", C_MODULE_USER_DIR, name); *\/ */
+/*         char *abspath = get_c_module_filepath_from_basic_name(name); */
+/*         if (!abspath) { */
+/*                 err_wargs("package `%s` does not exist", name); */
+/*         } */
+/*         snprintf(pattern, sizeof(pattern), "%s.c-", abspath); */
+
+/*         int slash = -1; */
+/*         char parent_dir[512] = {0}; */
+/*         for (int i = 0; abspath[i] && abspath[i+1]/\*+1 to not get ending slash*\/; ++i) { */
+/*                 if (abspath[i] == '/') slash = i; */
+/*                 parent_dir[i] = abspath[i]; */
+/*         } */
+/*         free(abspath); */
+/*         parent_dir[slash] = 0; */
+
+/*         // Open the C module directory */
+/*         DIR *dir = opendir(parent_dir); */
+/*         if (!dir) { */
+/*                 fprintf(stderr, "Failed to open directory %s: %s\n", C_MODULE_USER_DIR, strerror(errno)); */
+/*                 return; */
+/*         } */
+
+/*         struct dirent *entry; */
+/*         struct stat st; */
+/*         char *latest_file = NULL; */
+/*         time_t latest_mtime = 0; */
+
+/*         // Iterate through directory to find matching backup files */
+/*         while ((entry = readdir(dir))) { */
+/*                 // Check if the file starts with the pattern */
+/*                 if (strncmp(entry->d_name, pattern + strlen(C_MODULE_USER_DIR), strlen(pattern) - strlen(C_MODULE_USER_DIR)) == 0) { */
+/*                         char full_path[512] = {0}; */
+/*                         snprintf(full_path, sizeof(full_path), "%s%s", C_MODULE_USER_DIR, entry->d_name); */
+/*                         printf("PATH: %s\n", full_path); */
+
+/*                         // Get file modification time */
+/*                         if (stat(full_path, &st) == -1) { */
+/*                                 fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno)); */
+/*                                 continue; */
+/*                         } */
+
+/*                         // Update latest file if this one is newer */
+/*                         if (st.st_mtime > latest_mtime) { */
+/*                                 latest_mtime = st.st_mtime; */
+/*                                 if (latest_file) { */
+/*                                         free(latest_file); */
+/*                                 } */
+/*                                 latest_file = strdup(full_path); */
+/*                         } */
+/*                 } */
+/*         } */
+/*         closedir(dir); */
+
+/*         // Check if a backup file was found */
+/*         if (!latest_file) { */
+/*                 fprintf(stderr, "No backup file found for package %s\n", name); */
+/*                 return; */
+/*         } */
+
+/*         // Construct the original file path */
+/*         char original_path[256] = {0}; */
+/*         snprintf(original_path, sizeof(original_path), "%s%s.c", C_MODULE_USER_DIR, name); */
+
+/*         // Check if the original file already exists */
+/*         if (cio_file_exists(original_path)) { */
+/*                 fprintf(stderr, "Original file %s already exists, cannot restore\n", original_path); */
+/*                 free(latest_file); */
+/*                 return; */
+/*         } */
+
+/*         // Rename the latest backup file to the original name */
+/*         printf(YELLOW "Restoring C module: %s to %s\n" RESET, latest_file, original_path); */
+/*         if (rename(latest_file, original_path) != 0) { */
+/*                 fprintf(stderr, "Failed to restore file %s to %s: %s\n", */
+/*                         latest_file, original_path, strerror(errno)); */
+/*                 free(latest_file); */
+/*                 return; */
+/*         } */
+
+/*         printf(GREEN BOLD "*** Successfully restored package %s\n" RESET, name); */
+/*         free(latest_file); */
+/* } */
 
 void
 drop_pkg(forge_context *ctx, const char *name)
@@ -559,9 +705,9 @@ drop_pkg(forge_context *ctx, const char *name)
         sqlite3_finalize(stmt);
 
         // Remove .c file
-        forge_str pkg_filename = forge_str_from(C_MODULE_USER_DIR);
-        forge_str_concat(&pkg_filename, name);
-        forge_str_concat(&pkg_filename, ".c");
+        char *abspath = get_c_module_filepath_from_basic_name(name);
+        forge_str pkg_filename = forge_str_from(abspath);
+        free(abspath);
         forge_str pkg_new_filename = forge_str_from(forge_str_to_cstr(&pkg_filename));
         char hash[32] = {0};
         snprintf(hash, 32, "%ld", time(NULL));
@@ -572,7 +718,6 @@ drop_pkg(forge_context *ctx, const char *name)
         if (rename(forge_str_to_cstr(&pkg_filename), forge_str_to_cstr(&pkg_new_filename)) != 0) {
                 fprintf(stderr, "failed to rename file: %s to %s: %s\n",
                         forge_str_to_cstr(&pkg_filename), forge_str_to_cstr(&pkg_new_filename), strerror(errno));
-                //return;
         }
 
         forge_str_destroy(&pkg_filename);
@@ -1409,10 +1554,14 @@ rebuild_pkgs(forge_context *ctx)
 
         good_major("Rebuilding package modules", 1);
 
-        const char *dirs[] = {C_MODULE_DIR, C_MODULE_USER_DIR};
-        for (size_t d = 0; d < sizeof(dirs)/sizeof(*dirs); ++d) {
-                //DIR *dir = opendir(C_MODULE_DIR);
-                DIR *dir = opendir(dirs[d]);
+        char **dirs = ls(C_MODULE_DIR_PARENT);
+        for (size_t d = 0; dirs[d]; ++d) {
+                if (!strcmp(dirs[d], ".") || !strcmp(dirs[d], "..")) {
+                        free(dirs[d]);
+                        continue;
+                }
+                char *abspath = forge_str_builder(C_MODULE_DIR_PARENT, dirs[d], NULL);
+                DIR *dir = opendir(abspath);
                 if (!dir) {
                         perror("Failed to open directory");
                         return;
@@ -1433,7 +1582,7 @@ rebuild_pkgs(forge_context *ctx)
                         }
                 }
 
-                if (!cd_silent(dirs[d])) {
+                if (!cd_silent(abspath)) {
                         fprintf(stderr, "aborting...\n");
                         goto cleanup;
                 }
@@ -1452,8 +1601,8 @@ rebuild_pkgs(forge_context *ctx)
                                 dyn_array_append(failed, files.data[i]);
                         } else {
                                 if (WIFEXITED(status)) {
-                                        /* printf("\033[1A"); */
-                                        /* printf("\033[2K"); */
+                                        printf("\033[1A");
+                                        printf("\033[2K");
                                         int exit_status = WEXITSTATUS(status);
                                         if (exit_status != 0) {
                                                 fflush(stdout);
@@ -1475,9 +1624,9 @@ rebuild_pkgs(forge_context *ctx)
                 }
 
                 if (failed.len > 0) {
-                        printf("%s: [ " BOLD GREEN "%zu Compiled" RESET ", " BOLD RED "%zu Failed" RESET " ]\n", dirs[d], passed.len, failed.len);
+                        printf("%s: [ " BOLD GREEN "%zu Compiled" RESET ", " BOLD RED "%zu Failed" RESET " ]\n", abspath, passed.len, failed.len);
                 } else {
-                        printf("%s: [ " BOLD GREEN "%zu Compiled" RESET " ]\n", dirs[d], passed.len);
+                        printf("%s: [ " BOLD GREEN "%zu Compiled" RESET " ]\n", abspath, passed.len);
                 }
 
         cleanup:
@@ -1486,6 +1635,8 @@ rebuild_pkgs(forge_context *ctx)
                 for (size_t i = 0; i < files.len; ++i) { free(files.data[i]); }
                 dyn_array_free(files);
                 closedir(dir);
+                free(dirs[d]);
+                free(abspath);
         }
 }
 
@@ -1574,28 +1725,20 @@ new_pkg(forge_context *ctx, str_array *names)
 }
 
 void
-edit_c_module(forge_context *ctx, str_array *names)
+edit_c_module(str_array *names)
 {
-        (void)ctx;
-
         for (size_t i = 0; i < names->len; ++i) {
-                char fp[256] = {0};
-                sprintf(fp, C_MODULE_USER_DIR "%s.c", names->data[i]);
-                if (!cio_file_exists(fp)) {
-                        memset(fp, 0, 256);
-                        sprintf(fp, C_MODULE_DIR "%s.c", names->data[i]);
-                        if (cio_file_exists(fp)) {
-                                err("Cannot edit C module provided by the forge modules repo");
-                        } else {
-                                err_wargs("C module %s does not exist", fp);
+                char *path = get_c_module_filepath_from_basic_name(names->data[i]);
+                if (path) {
+                        char cmd[512] = {0};
+                        snprintf(cmd, sizeof(cmd), "vim %s", path);
+                        if (system(cmd) == -1) {
+                                fprintf(stderr, "Failed to open %s in Vim: %s\n", path, strerror(errno));
                         }
+                } else {
+                        err_wargs("package %s does not exist", names->data[i]);
                 }
-
-                char cmd[512] = {0};
-                snprintf(cmd, sizeof(cmd), "vim %s", fp);
-                if (system(cmd) == -1) {
-                        fprintf(stderr, "Failed to open %s in Vim: %s\n", fp, strerror(errno));
-                }
+                free(path);
         }
 }
 
@@ -1869,14 +2012,29 @@ update_pkgs(forge_context *ctx, str_array *names)
 void
 sync(void)
 {
-        good_major("Pulling changes", 1);
-        if (!cd_silent(C_MODULE_DIR)) {
+        CD(C_MODULE_DIR_PARENT, {
                 fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
                 return;
+        });
+
+        char **files = ls(".");
+
+        for (size_t i = 0; files[i]; ++i) {
+                if (is_git_dir(files[i])) {
+                        printf(GREEN BOLD "Syncing [%s]\n" RESET, files[i]);
+                        CD(files[i], fprintf(stderr, "could not change directory: %s\n", strerror(errno)));
+                        CMD("git fetch origin && git pull origin main", {
+                                fprintf(stderr, "could not sync directory %s: %s\n",
+                                        files[i], strerror(errno));
+                        });
+                        CD(C_MODULE_DIR_PARENT, {
+                                fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
+                                return;
+                        });
+                }
+                free(files[i]);
         }
-        if (!cmd("git fetch origin && git pull origin main")) {
-                fprintf(stderr, "could not sync: %s\n", strerror(errno));
-        }
+        free(files);
 }
 
 void
@@ -2242,7 +2400,7 @@ api_dump(const char *name, int api)
 {
         forge_str path = forge_str_create();
         if (api) {
-                // Handle API header dump (unchanged)
+                // Handle API header dump
                 forge_str_concat(&path, FORGE_API_HEADER_DIR);
                 forge_str_concat(&path, "/");
                 forge_str_concat(&path, name);
@@ -2251,25 +2409,13 @@ api_dump(const char *name, int api)
                         err_wargs("API `%s` does not exist", name);
                 }
         } else {
-                // Try C_MODULE_DIR first
-                forge_str_concat(&path, C_MODULE_DIR);
-                forge_str_concat(&path, name);
-                forge_str_concat(&path, ".c");
-
-                // Check if file exists in C_MODULE_DIR
-                if (!forge_io_filepath_exists(forge_str_to_cstr(&path))) {
-                        // If not found, try C_MODULE_USER_DIR
-                        forge_str_clear(&path);
-                        forge_str_concat(&path, C_MODULE_USER_DIR);
-                        forge_str_concat(&path, name);
-                        forge_str_concat(&path, ".c");
-
-                        // If still not found, report error
-                        if (!forge_io_filepath_exists(forge_str_to_cstr(&path))) {
-                                err_wargs("path `%s` does not exist in either %s or %s",
-                                          name, C_MODULE_DIR, C_MODULE_USER_DIR);
-                        }
+                char *abspath = get_c_module_filepath_from_basic_name(name);
+                if (!abspath) {
+                        err_wargs("package `%s` does not exist", name);
+                        return;
                 }
+                else { forge_str_concat(&path, abspath); }
+                free(abspath);
         }
 
         if (api) {
@@ -2505,10 +2651,11 @@ add_repo(const char *name)
         CD(C_MODULE_DIR_PARENT, goto bad);
         char *clone = forge_str_builder("git clone ", name, NULL);
         CMD(clone, goto bad);
-        return;
-
+        goto ok;
  bad:
         printf("aborting...\n");
+ ok:
+        free(clone);
 }
 
 int
@@ -2593,7 +2740,7 @@ main(int argc, char **argv)
                         }
                         if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_EDIT);
                         assert_sudo();
-                        edit_c_module(&ctx, &names);
+                        edit_c_module(&names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_UPDATE)) {

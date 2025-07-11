@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <limits.h>
+#include <sys/stat.h>
 
 #include "forge/io.h"
 
@@ -176,4 +177,14 @@ forge_io_write_file(const char *fp,
         (void)fprintf(f, "%s", content);
         fclose(f);
         return 1;
+}
+
+int
+forge_io_is_dir(const char *path)
+{
+        struct stat path_stat;
+        if (stat(path, &path_stat) != 0) {
+                return 0;
+        }
+        return S_ISDIR(path_stat.st_mode);
 }

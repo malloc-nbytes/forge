@@ -47,4 +47,11 @@ char *forge_io_resolve_absolute_path(const char *fp);
  */
 int forge_io_write_file(const char *fp, const char *content);
 
+/**
+ * Parameter: path -> the filepath to check
+ * Returns: 1 if it is a directory, and 0 if not
+ * Description: Check if `path` is a directory.
+ */
+int forge_io_is_dir(const char *path);
+
 #endif // IO_H_INCLUDED

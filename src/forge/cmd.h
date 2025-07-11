@@ -116,4 +116,11 @@ int configure(const char *fp, const char *flags);
  */
 char **ls(const char *dir);
 
+/**
+ * Paramter: path -> the path to check
+ * Returns: 1 if `path` is a git directory, and 0 if otherwise
+ * Description: Check if `path` is a git directory.
+ */
+int is_git_dir(const char *path);
+
 #endif // CMD_H_INCLUDED
