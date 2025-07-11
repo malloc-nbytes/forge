@@ -395,6 +395,24 @@ help_repo_compile_template(void)
         INDENT INDENT printf("forge repo-compile-template\n");
 }
 
+static void
+help_create_repo(void)
+{
+        printf("help(%s <repo_name> <git_url>):\n", FLAG_2HY_CREATE_REPO);
+        INDENT printf("Create a new Github repository by repo_name at git_url.\n");
+        INDENT printf("This is good for if you have created a bunch of custom packages\n");
+        INDENT printf("and want to version control them.\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("It is *HIGHLY* recommended to have your environment being\n");
+        INDENT INDENT printf("used in this step, and `sudo` does not provide this by just\n");
+        INDENT INDENT printf("invoking it. Therefore, it is recommended to run `sudo -E` to\n");
+        INDENT INDENT printf("inherit the environment for your Github credentials.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("sudo -E forge add-repo my-repo https://www.github.com/username/my-repo.git\n");
+}
+
 void
 help(const char *flag)
 {
@@ -425,6 +443,7 @@ help(const char *flag)
                 help_editconf,
                 help_updateforge,
                 help_repo_compile_template,
+                help_create_repo,
         };
 
         size_t n = strlen(flag);
@@ -511,6 +530,8 @@ help(const char *flag)
                 hs[24]();
         } else if (!strcmp(flag, FLAG_2HY_REPO_COMPILE_TEMPLATE)) {
                 hs[25]();
+        } else if (!strcmp(flag, FLAG_2HY_CREATE_REPO)) {
+                hs[26]();
         } else if (!strcmp(flag, "*")) {
                 for (size_t i = 0; i < sizeof(hs)/sizeof(*hs); ++i) {
                         if (i != 0) {
@@ -562,6 +583,7 @@ usage(void)
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "        R "    RESET  "update packages or leave empty to update all\n", FLAG_2HY_UPDATE);
         printf(GREEN BOLD "    %s <git-link> " RESET YELLOW BOLD "    R "    RESET  "add a github repository to forge\n", FLAG_2HY_ADD_REPO);
         printf(GREEN BOLD "    %s <name>     " RESET YELLOW BOLD "   R "    RESET  "drop a repository from forge\n", FLAG_2HY_DROP_REPO);
+        printf(GREEN BOLD "    %s <n> <l>    " RESET YELLOW BOLD " R "    RESET  "create a new repository from your custom packages with the name `n` and git link `l`\n", FLAG_2HY_CREATE_REPO);
         printf(GREEN BOLD "    %s" RESET                                "                list all repositories that forge is using\n", FLAG_2HY_LIST_REPOS);
         printf(GREEN BOLD "    %s <pkg>    " RESET                                "            list dependencies of `pkg`\n", FLAG_2HY_DEPS);
         printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "        R " RESET  "create a new package module\n", FLAG_2HY_NEW);

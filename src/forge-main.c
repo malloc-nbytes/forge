@@ -2745,6 +2745,102 @@ create_repo_compile_template(void)
         printf("%s\n", script);
 }
 
+void
+create_repo(const char *repo_name,
+            const char *repo_url)
+{
+        char *new_repo_path = forge_str_builder(C_MODULE_DIR_PARENT, repo_name, NULL);
+        char *copy_cmd = forge_str_builder("cp ", C_MODULE_USER_DIR, "*.c ", new_repo_path, " 2>/dev/null || true", NULL); // Handle no .c files
+        char *del_cmd = forge_str_builder("rm -f ", C_MODULE_USER_DIR, "*.c", NULL);
+        char *add_origin_cmd = forge_str_builder("git remote add origin ", repo_url, NULL);
+
+        // Create the new repository directory
+        if (mkdir_p(new_repo_path, 0755) != 0) {
+                fprintf(stderr, "Failed to create directory %s: %s\n", new_repo_path, strerror(errno));
+                goto cleanup;
+        }
+
+        // Copy .c files from user_modules to new repo
+        if (!cmd(copy_cmd)) {
+                fprintf(stderr, "Warning: No .c files found in %s or failed to copy: %s\n", C_MODULE_USER_DIR, strerror(errno));
+        }
+
+        // Remove .c files from user_modules
+        if (!cmd(del_cmd)) {
+                fprintf(stderr, "Warning: Failed to remove .c files from %s: %s\n", C_MODULE_USER_DIR, strerror(errno));
+        }
+
+        if (!cd(new_repo_path)) {
+                fprintf(stderr, "Failed to change to directory %s: %s\n", new_repo_path, strerror(errno));
+                goto cleanup;
+        }
+
+        if (!cmd("git init")) {
+                fprintf(stderr, "Failed to initialize Git repository in %s: %s\n", new_repo_path, strerror(errno));
+                goto cleanup;
+        }
+
+        // Rename default branch to 'main'
+        if (!cmd("git branch -m master main")) {
+                fprintf(stderr, "Failed to rename branch from master to main: %s\n", strerror(errno));
+                goto cleanup;
+        }
+
+        // Set local Git user identity
+        if (!cmd("git config user.name \"Forge User\"")) {
+                fprintf(stderr, "Failed to set Git user.name: %s\n", strerror(errno));
+                goto cleanup;
+        }
+        if (!cmd("git config user.email \"forge@forge.com\"")) {
+                fprintf(stderr, "Failed to set Git user.email: %s\n", strerror(errno));
+                goto cleanup;
+        }
+
+        if (!cmd("git add .")) {
+                fprintf(stderr, "Failed to add files to Git: %s\n", strerror(errno));
+                goto cleanup;
+        }
+
+        if (!cmd("git commit -m 'Initial commit'")) {
+                fprintf(stderr, "Failed to commit changes: %s\n", strerror(errno));
+                goto cleanup;
+        }
+
+        // Add remote origin
+        if (!cmd(add_origin_cmd)) {
+                fprintf(stderr, "Failed to add remote origin %s: %s\n", repo_url, strerror(errno));
+                goto cleanup;
+        }
+
+        // Verify remote
+        if (!cmd("git remote -v")) {
+                fprintf(stderr, "Failed to verify remote: %s\n", strerror(errno));
+                goto cleanup;
+        }
+
+        // Pull with allow-unrelated-histories (in case the remote has history)
+        if (!cmd("git pull origin main --allow-unrelated-histories --no-rebase")) {
+                fprintf(stderr, "Warning: Failed to pull from origin main, repository might be empty or branch mismatch: %s\n", strerror(errno));
+                // Continue even if pull fails, as the remote might be empty
+        }
+
+        // Push to remote
+        if (!cmd("git push -u origin main")) {
+                fprintf(stderr, "Failed to push to %s: %s\n", repo_url, strerror(errno));
+                fprintf(stderr, "Ensure the repository exists, you have write access, and authentication is configured (e.g., SSH key or personal access token).\n");
+                goto cleanup;
+        }
+
+        printf(GREEN BOLD "*** Successfully created and pushed repository %s to %s\n" RESET, repo_name, repo_url);
+
+ cleanup:
+        fprintf(stderr, "Cleaning up...\n");
+        free(new_repo_path);
+        free(copy_cmd);
+        free(del_cmd);
+        free(add_origin_cmd);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2913,7 +3009,7 @@ main(int argc, char **argv)
                         dyn_array_free(names);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_ADD_REPO)) {
                         if (!clap_next(&arg)) {
-                                err_wargs("flag `%s` requires a Github repo", FLAG_2HY_ADD_REPO);
+                                err_wargs("flag `%s` requires a Github repo link", FLAG_2HY_ADD_REPO);
                         }
                         assert_sudo();
                         g_config.flags |= FT_REBUILD;
@@ -2929,6 +3025,20 @@ main(int argc, char **argv)
                         list_repos();
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_REPO_COMPILE_TEMPLATE)) {
                         create_repo_compile_template();
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_CREATE_REPO)) {
+                        if (!clap_next(&arg)) {
+                                err_wargs("flag `%s` requires a repo name", FLAG_2HY_CREATE_REPO);
+                        }
+                        char *repo_name = strdup(arg.start);
+                        if (!clap_next(&arg)) {
+                                err_wargs("flag `%s` requires a repo name", FLAG_2HY_CREATE_REPO);
+                        }
+                        char *repo_url = strdup(arg.start);
+                        assert_sudo();
+                        create_repo(repo_name, repo_url);
+                        g_config.flags |= FT_REBUILD;
+                        free(repo_name);
+                        free(repo_url);
                 }
 
                 else if (arg.hyphc == 1) { // one hyph options

@@ -50,6 +50,7 @@
 #define FLAG_2HY_DROP_REPO "drop-repo"
 #define FLAG_2HY_LIST_REPOS "list-repos"
 #define FLAG_2HY_REPO_COMPILE_TEMPLATE "repo-compile-template"
+#define FLAG_2HY_CREATE_REPO "create-repo"
 
 typedef enum {
         FT_REBUILD = 1 << 0,
