@@ -20,4 +20,6 @@ char *forge_str_contains_substr(
         const char *substr,
         int case_sensitive
 );
+char *forge_str_builder(const char *first, ...);
+
 #endif // STR_H_INCLUDED
