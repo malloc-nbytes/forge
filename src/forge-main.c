@@ -3044,7 +3044,7 @@ main(int argc, char **argv)
                         }
                         char *repo_name = strdup(arg.start);
                         if (!clap_next(&arg)) {
-                                err_wargs("flag `%s` requires a repo name", FLAG_2HY_CREATE_REPO);
+                                err_wargs("flag `%s` requires a repo url", FLAG_2HY_CREATE_REPO);
                         }
                         char *repo_url = strdup(arg.start);
                         assert_sudo();
