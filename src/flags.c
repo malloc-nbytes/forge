@@ -218,7 +218,7 @@ help_new(void)
         INDENT printf("Create new packages based off of the names provided.\n");
         INDENT printf("Using this will open a template file for you to edit\n");
         INDENT printf("as much as you want. The editor is based off of whatever\n");
-        INDENT printf("the environment variable for $EDITOR is.\n\n");
+        INDENT printf("the macro for FORGE_EDITOR is (see command `editconf`).\n\n");
 
         INDENT printf("Note:\n");
         INDENT INDENT printf("The names that you give it must match the\n");
@@ -239,7 +239,8 @@ help_edit(void)
 {
         printf("help(%s <pkg...>):\n", FLAG_2HY_EDIT);
         INDENT printf("Edit the packages that are provided.\n");
-        INDENT printf("The editor that it opens in is whatever $EDITOR is set to.\n\n");
+        INDENT printf("The editor that it opens in is whatever the\n");
+        INDENT printf("macro FORGE_EDITOR is set to (see command `editconf`).\n\n");
 
         INDENT printf("Example:\n");
         INDENT INDENT printf("forge edit author@pkg1\n");
@@ -353,7 +354,8 @@ help_editconf(void)
 {
         printf("help(%s):\n", FLAG_2HY_EDITCONF);
         INDENT printf("Edit the configuration file for forge.\n");
-        INDENT printf("It will open in the editor that the variable $EDITOR is set to.\n\n");
+        INDENT printf("It will open in the editor that the\n");
+        INDENT printf("macro FORGE_EDITOR is set to.\n\n");
 
         INDENT printf("Note:\n");
         INDENT INDENT printf("Because this is a C header file, forge needs to be\n");
