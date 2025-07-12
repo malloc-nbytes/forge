@@ -2,6 +2,12 @@
 #define CMD_H_INCLUDED
 
 /**
+ * Returns: the current working directory
+ * Description: Gets the current working directory or NULL on failure.
+ */
+char *cwd(void);
+
+/**
  * Parameter: fp -> the filepath to cd into
  * Returns: 1 on success, 0 on failure
  * Description: cd into the filepath `fp`.

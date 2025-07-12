@@ -31,6 +31,38 @@
 #include "forge/cmd.h"
 #include "forge/conf.h"
 
+char *
+cwd(void)
+{
+        size_t size = 1024;
+        char *buf = NULL;
+
+        while (1) {
+                char *tmp = (char *)realloc(buf, size);
+                if (!tmp) {
+                        free(buf);
+                        return NULL;
+                }
+                buf = tmp;
+
+                if (getcwd(buf, size) != NULL) {
+                        return buf;
+                }
+
+                // If buf was too small, double the size and try again
+                if (errno == ERANGE) {
+                        size *= 2;
+                        continue;
+                }
+
+                // Other errors
+                free(buf);
+                return NULL;
+        }
+
+        return NULL; // unreachable
+}
+
 int
 cd(const char *fp)
 {
