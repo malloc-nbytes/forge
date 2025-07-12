@@ -26,6 +26,8 @@ AC_DEFINE_UNQUOTED([COMPILER_PATH], ["`which $CC`"], [Full path to the C compile
 AC_SUBST([AM_CFLAGS], ["-I./include -I./forge -I./sqlite-autoconf-3500100 -march=native -pedantic -Wextra -Wall -Wno-maybe-uninitialized"])
 
 AC_DEFINE_UNQUOTED([COMPILER_FLAGS], ["$AM_CFLAGS"], [Compiler flags used])
+AC_DEFINE_UNQUOTED([PREFIX], ["$prefix"], [Installation prefix directory])
+AC_DEFINE_UNQUOTED([LIBDIR], ["$libdir"], [Library installation directory])
 
 # Define output files
 AC_CONFIG_FILES([Makefile src/Makefile])

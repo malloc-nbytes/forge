@@ -575,7 +575,9 @@ usage(void)
         printf("| cc: " COMPILER_NAME "\n");
         printf("| path: " COMPILER_PATH "\n");
         printf("| ver.: " COMPILER_VERSION "\n");
-        printf("| flags: " COMPILER_FLAGS "\n\n");
+        printf("| flags: " COMPILER_FLAGS "\n");
+        printf("| prefix: " PREFIX "\n");
+        printf("| libdir: " LIBDIR "\n\n");
 
         printf("Github repository: https://www.github.com/malloc-nbytes/forge.git/\n\n");
         printf("Send bug reports to:\n");
