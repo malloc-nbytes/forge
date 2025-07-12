@@ -150,78 +150,6 @@ struct {
         .flags = 0x00000000,
 };
 
-int
-remove_directory(const char *path)
-{
-        DIR *dir = opendir(path);
-        if (!dir) {
-                fprintf(stderr, "Failed to open directory %s: %s\n", path, strerror(errno));
-                return -1;
-        }
-
-        struct dirent *entry;
-        char full_path[512] = {0};
-
-        while ((entry = readdir(dir))) {
-                // Skip "." and ".." entries
-                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-                        continue;
-                }
-
-                snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
-
-                struct stat st;
-                if (stat(full_path, &st) == -1) {
-                        fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
-                        closedir(dir);
-                        return -1;
-                }
-
-                if (S_ISDIR(st.st_mode)) {
-                        // Recursively remove subdirectories
-                        if (remove_directory(full_path) == -1) {
-                                closedir(dir);
-                                return -1;
-                        }
-                } else {
-                        // Remove files
-                        if (unlink(full_path) == -1) {
-                                fprintf(stderr, "Failed to remove file %s: %s\n", full_path, strerror(errno));
-                                closedir(dir);
-                                return -1;
-                        }
-                }
-        }
-
-        closedir(dir);
-
-        // Remove the empty directory
-        if (rmdir(path) == -1) {
-                fprintf(stderr, "Failed to remove directory %s: %s\n", path, strerror(errno));
-                return -1;
-        }
-
-        return 0;
-}
-
-char *
-get_filename_from_dir(char *path)
-{
-        char *res = path;
-        int skip = 0;
-        for (size_t i = 0; path[i]; ++i) {
-                if (path[i] == '\\') {
-                        skip = 1;
-                        continue;
-                }
-                else if (path[i] == '/' && path[i+1] && !skip) {
-                        res = (path+i+1);
-                }
-                skip = 0;
-        }
-        return res;
-}
-
 str_array
 get_absolute_files_in_dir(const char *fp)
 {
@@ -343,7 +271,7 @@ clear_package_files_from_db(forge_context *ctx, const char *name, int pkg_id)
 
 // Create directory and all parent directories, `mkdir -p`.
 int
-mkdir_p(const char *path, mode_t mode)
+mkdir_p_wmode(const char *path, mode_t mode)
 {
         if (!path || !*path) return -1;
 
@@ -370,7 +298,7 @@ mkdir_p(const char *path, mode_t mode)
         *last_slash = '\0'; // Terminate at the parent path
 
         // Recursively create parent directories
-        int result = mkdir_p(parent, mode);
+        int result = mkdir_p_wmode(parent, mode);
         free(parent);
 
         if (result != 0) return -1;
@@ -1007,7 +935,7 @@ uninstall_pkg(forge_context *ctx,
                 char base[256] = {0};
 
                 if (pkg_src_loc) {
-                        const char *pkgname = get_filename_from_dir(pkg_src_loc);
+                        const char *pkgname = forge_io_basename(pkg_src_loc);
                         snprintf(base, sizeof(base), "%s%s", PKG_SOURCE_DIR, pkgname);
 
                         // Check if directory exists
@@ -1257,7 +1185,7 @@ install_pkg(forge_context *ctx,
                 const char *pkgname = NULL;
 
                 if (pkg_src_loc) {
-                        pkgname = get_filename_from_dir(pkg_src_loc);
+                        pkgname = forge_io_basename(pkg_src_loc);
                 }
                 else {
                         printf(GREEN "(%s)->download()\n" RESET, name);
@@ -1564,24 +1492,15 @@ init_env(void)
         sqlite3_close(db);
 
         // Module locations
-        if (mkdir_p(MODULE_LIB_DIR, 0755) != 0 && errno != EEXIST) {
+        if (mkdir_p_wmode(MODULE_LIB_DIR, 0755) != 0 && errno != EEXIST) {
                 fprintf(stderr, "could not create path: %s, %s\n", MODULE_LIB_DIR, strerror(errno));
         }
-        // if (mkdir_p(C_MODULE_DIR, 0755) != 0 && errno != EEXIST) {
-        //         fprintf(stderr, "could not create path: %s, %s\n", C_MODULE_DIR, strerror(errno));
-        // }
-        if (mkdir_p(C_MODULE_USER_DIR, 0755) != 0 && errno != EEXIST) {
+        if (mkdir_p_wmode(C_MODULE_USER_DIR, 0755) != 0 && errno != EEXIST) {
                 fprintf(stderr, "could not create path: %s, %s\n", C_MODULE_USER_DIR, strerror(errno));
         }
-        // if (!cd(C_MODULE_DIR_PARENT)) {
-        //         fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR_PARENT, strerror(errno));
-        // }
-        // if (!cmd("git clone https://www.github.com/malloc-nbytes/forge-modules.git/ ./modules")) {
-        //         fprintf(stderr, "could not git clone forge-modules: %s\n", strerror(errno));
-        // }
 
         // Pkg source location
-        if (mkdir_p(PKG_SOURCE_DIR, 0755) != 0 && errno != EEXIST) {
+        if (mkdir_p_wmode(PKG_SOURCE_DIR, 0755) != 0 && errno != EEXIST) {
                 fprintf(stderr, "could not create path: %s, %s\n", PKG_SOURCE_DIR, strerror(errno));
         }
 }
@@ -1727,7 +1646,7 @@ update_pkgs(forge_context *ctx, str_array *names)
                         continue;
                 }
 
-                const char *pkgname = get_filename_from_dir(pkg_src_loc);
+                const char *pkgname = forge_io_basename(pkg_src_loc);
                 char base[256] = {0};
                 snprintf(base, sizeof(base), "%s%s", PKG_SOURCE_DIR, pkgname);
 
@@ -1877,7 +1796,7 @@ update_pkgs(forge_context *ctx, str_array *names)
                                 pkg->get_changes();
                         } else {
                                 printf(YELLOW "Removing source directory: %s\n" RESET, base);
-                                if (remove_directory(base) == -1) {
+                                if (!forge_io_rm_dir(base)) {
                                         fprintf(stderr, "Failed to remove source directory %s: %s\n", base, strerror(errno));
                                         // Continue with reinstallation even if removal fails, as it may still be possible
                                 }
@@ -2663,7 +2582,7 @@ drop_repo(forge_context *ctx,
 
         // Remove the repository directory
         printf(YELLOW "Removing repository directory: %s\n" RESET, repo_path);
-        if (remove_directory(repo_path) == -1) {
+        if (!forge_io_rm_dir(repo_path)) {
                 fprintf(stderr, "Failed to remove repository directory %s: %s\n", repo_path, strerror(errno));
         } else {
                 printf(GREEN BOLD "*** Successfully removed repository %s\n" RESET, repo_name);
@@ -2771,7 +2690,7 @@ create_repo(const char *repo_name,
         char *add_origin_cmd = forge_str_builder("git remote add origin ", repo_url, NULL);
 
         // Create the new repository directory
-        if (mkdir_p(new_repo_path, 0755) != 0) {
+        if (mkdir_p_wmode(new_repo_path, 0755) != 0) {
                 fprintf(stderr, "Failed to create directory %s: %s\n", new_repo_path, strerror(errno));
                 goto cleanup;
         }

@@ -24,6 +24,8 @@
 #include <pwd.h>
 #include <limits.h>
 #include <sys/stat.h>
+#include <dirent.h>
+#include <errno.h>
 
 #include "forge/io.h"
 #include "forge/cmd.h"
@@ -210,4 +212,76 @@ forge_io_dir_contains_file(const char *dir,
         free(files);
 
         return 0;
+}
+
+char *
+forge_io_basename(char *path)
+{
+        char *res = path;
+        int skip = 0;
+        for (size_t i = 0; path[i]; ++i) {
+                if (path[i] == '\\') {
+                        skip = 1;
+                        continue;
+                }
+                else if (path[i] == '/' && path[i+1] && !skip) {
+                        res = (path+i+1);
+                }
+                skip = 0;
+        }
+        return res;
+}
+
+int
+forge_io_rm_dir(const char *path)
+{
+        DIR *dir = opendir(path);
+        if (!dir) {
+                fprintf(stderr, "Failed to open directory %s: %s\n", path, strerror(errno));
+                return 0;
+        }
+
+        struct dirent *entry;
+        char full_path[512] = {0};
+
+        while ((entry = readdir(dir))) {
+                // Skip "." and ".." entries
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                        continue;
+                }
+
+                snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
+
+                struct stat st;
+                if (stat(full_path, &st) == -1) {
+                        fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
+                        closedir(dir);
+                        return 0;
+                }
+
+                if (S_ISDIR(st.st_mode)) {
+                        // Recursively remove subdirectories
+                        if (!forge_io_rm_dir(full_path)) {
+                                closedir(dir);
+                                return 0;
+                        }
+                } else {
+                        // Remove files
+                        if (unlink(full_path) == -1) {
+                                fprintf(stderr, "Failed to remove file %s: %s\n", full_path, strerror(errno));
+                                closedir(dir);
+                                return 0;
+                        }
+                }
+        }
+
+        closedir(dir);
+
+        // Remove the empty directory
+        if (rmdir(path) == -1) {
+                fprintf(stderr, "Failed to remove directory %s: %s\n", path, strerror(errno));
+                return 0;
+        }
+
+        return 1;
 }

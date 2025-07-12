@@ -62,4 +62,19 @@ int forge_io_is_dir(const char *path);
  */
 int forge_io_dir_contains_file(const char *dir, const char *filename);
 
+/**
+ * Parameter: path -> the path to extract the basename from
+ * Returns: the basename
+ * Description: Given some path i.e., `/home/user/dev/main.c`,
+ *              will extract the basename `main.c` from the path.
+ */
+char *forge_io_basename(char *path);
+
+/**
+ * Parameter: path -> the directory to remove
+ * Return: 1 on success, and 0 on failure.
+ * Description: Remove the directory `path`.
+ */
+int forge_io_rm_dir(const char *path);
+
 #endif // IO_H_INCLUDED
