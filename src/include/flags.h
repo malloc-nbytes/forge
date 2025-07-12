@@ -51,11 +51,13 @@
 #define FLAG_2HY_LIST_REPOS "list-repos"
 #define FLAG_2HY_REPO_COMPILE_TEMPLATE "repo-compile-template"
 #define FLAG_2HY_CREATE_REPO "create-repo"
+#define FLAG_2HY_FORCE "force"
 
 typedef enum {
         FT_REBUILD = 1 << 0,
         FT_SYNC = 1 << 1,
         FT_DROP_BROKEN_PKGS = 1 << 2,
+        FT_FORCE = 1 << 3,
 } flag_type;
 
 void usage(void);

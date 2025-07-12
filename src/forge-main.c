@@ -89,6 +89,7 @@ static const char *common_install_dirs[] = {
         "/usr/lib",
         "/usr/lib64",
         "/etc",
+        "/opt",
         "/usr/share",
         "/usr/local/bin",
         "/usr/local/include",
@@ -1672,6 +1673,8 @@ update_pkgs(forge_context *ctx, str_array *names)
                 pkg_names = *names;
         }
 
+        str_array skipped_pkgs = dyn_array_empty(str_array);
+
         for (size_t i = 0; i < pkg_names.len; ++i) {
                 const char *name = pkg_names.data[i];
 
@@ -1764,8 +1767,10 @@ update_pkgs(forge_context *ctx, str_array *names)
                 printf(GREEN "(%s)->update()\n" RESET, name);
                 if (pkg->update) {
                         updated = pkg->update();
-                } else {
+                } else if ((g_config.flags & FT_FORCE) == 0) {
+                        // We are not forcing the update, notify that we are skipping.
                         printf(YELLOW "*** No update function defined for %s, skipping update step\n" RESET, name);
+                        dyn_array_append(skipped_pkgs, strdup(name));
                 }
 
                 // Take a snapshot after update
@@ -1866,7 +1871,7 @@ update_pkgs(forge_context *ctx, str_array *names)
                 }
 
                 // Reinstall package and its dependencies if updated
-                if (updated) {
+                if (updated || (g_config.flags & FT_FORCE)) {
                         if (pkg->get_changes) {
                                 printf(GREEN "(%s)->get_changes()\n" RESET, name);
                                 pkg->get_changes();
@@ -1907,6 +1912,17 @@ update_pkgs(forge_context *ctx, str_array *names)
                 sqlite3_finalize(stmt);
 
                 free(pkg_src_loc);
+        }
+
+        if (skipped_pkgs.len > 0) {
+                printf(BOLD YELLOW "*** %zu package(s) need to be checked for an updated manually:\n" RESET, skipped_pkgs.len);
+                for (size_t i = 0; i < skipped_pkgs.len; ++i) {
+                        printf(YELLOW "  %s\n" RESET, skipped_pkgs.data[i]);
+                        free(skipped_pkgs.data[i]);
+                }
+
+                dyn_array_free(skipped_pkgs);
+                printf(UNDERLINE YELLOW "Use the --force option to force the update\n" RESET);
         }
 
         // Clean up if we created the names array
@@ -2894,7 +2910,11 @@ main(int argc, char **argv)
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_HELP)) {
                         if (arg.eq) { help(arg.eq); }
                         usage();
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIST)) {
+                } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_FORCE)) {
+                        g_config.flags |= FT_FORCE;
+                }
+
+                else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIST)) {
                         list_registerd_pkgs(&ctx);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DEPS)) {
                         if (!clap_next(&arg)) {
@@ -3077,8 +3097,7 @@ main(int argc, char **argv)
                 assert_sudo();
                 for (size_t i = 0; i < ctx.pkgs.len; ++i) {
                         pkg *pkg = ctx.pkgs.data[i];
-                        if (!pkg->ver || !pkg->desc || !pkg->download
-                            || !pkg->build || !pkg->install || !pkg->update) {
+                        if (!pkg->ver || !pkg->desc || !pkg->download) {
                                 drop_pkg(&ctx, pkg->name());
                         }
                 }

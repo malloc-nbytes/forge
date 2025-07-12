@@ -34,4 +34,18 @@ int forge_pkg_git_update(void);
  */
 void forge_pkg_git_pull(void);
 
+/**
+ * Description: Used in the .update part of the pkg struct.
+ *              Use this if you want to notify that updates
+ *              need manual checking.
+ */
+#define forge_pkg_update_manual_check NULL
+
+/**
+ * Description: Used in the .get_changes part of the pkg struct.
+ *              Use this if you want to completely redownload
+ *              the source code to get the new changes.
+ */
+#define forge_pkg_get_changes_redownload NULL
+
 #endif // PKG_H_INCLUDED

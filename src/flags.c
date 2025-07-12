@@ -574,6 +574,7 @@ usage(void)
         printf(YELLOW BOLD "    -%c, --%s[=<flag>|*]" RESET "     display this message or view help on a command or option\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
         printf(YELLOW BOLD "    -%c, --%s           R"                         RESET  " rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
         printf(YELLOW BOLD "    -%c, --%s              R"                         RESET " sync the C modules repository\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
+        printf(YELLOW BOLD "        --%s              "                         RESET " force the action if it can\n", FLAG_2HY_FORCE);
         printf(YELLOW BOLD "        --%s  R"                         RESET " remove all broken packages\n", FLAG_2HY_DROP_BROKEN_PKGS);
         printf("Commands:\n");
         printf(GREEN BOLD "    %s          " RESET                                "            list available packages\n", FLAG_2HY_LIST);
