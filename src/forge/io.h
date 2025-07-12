@@ -54,4 +54,12 @@ int forge_io_write_file(const char *fp, const char *content);
  */
 int forge_io_is_dir(const char *path);
 
+/**
+ * Parameter: dir      -> the directory to search
+ * Parameter: filename -> the file to search for
+ * Returns: 1 if found, and 0 if otherwise
+ * Description: Checks to see if `dir` contains `filename`.
+ */
+int forge_io_dir_contains_file(const char *dir, const char *filename);
+
 #endif // IO_H_INCLUDED

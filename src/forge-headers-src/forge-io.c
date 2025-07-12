@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 
 #include "forge/io.h"
+#include "forge/cmd.h"
 
 int
 forge_io_filepath_exists(const char *fp)
@@ -108,7 +109,6 @@ forge_io_read_file_to_lines(const char *fp)
         };
 
         while ((read = getline(&line, &len, f)) != -1) {
-                //if (!strcmp(line, "\n")) { continue; }
                 if (line[read - 1] == '\n') {
                         line[read - 1] = '\0';
                 }
@@ -187,4 +187,27 @@ forge_io_is_dir(const char *path)
                 return 0;
         }
         return S_ISDIR(path_stat.st_mode);
+}
+
+int
+forge_io_dir_contains_file(const char *dir,
+                           const char *filename)
+{
+        if (!forge_io_filepath_exists(dir)) return 0;
+        if (!forge_io_is_dir(dir))          return 0;
+
+        char **files = ls(dir);
+        if (!files) return 0;
+
+        for (size_t i = 0; files[i]; ++i) {
+                if (!strcmp(files[i], filename)) {
+                        for (size_t j = i; files[j]; ++j) { free(files[j]); }
+                        free(files);
+                        return 1;
+                }
+                free(files[i]);
+        }
+        free(files);
+
+        return 0;
 }
