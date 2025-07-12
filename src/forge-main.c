@@ -2776,6 +2776,12 @@ create_repo(const char *repo_name,
         free(add_origin_cmd);
 }
 
+void
+show_lib(void)
+{
+        printf("-lforge\n");
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2991,6 +2997,8 @@ main(int argc, char **argv)
                         g_config.flags |= FT_REBUILD;
                         free(repo_name);
                         free(repo_url);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIB)) {
+                        show_lib();
                 }
 
                 else if (arg.hyphc == 1) { // one hyph options

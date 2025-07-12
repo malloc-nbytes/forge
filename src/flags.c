@@ -413,6 +413,16 @@ help_create_repo(void)
         INDENT INDENT printf("sudo -E forge add-repo my-repo https://www.github.com/username/my-repo.git\n");
 }
 
+static void
+help_lib(void)
+{
+        printf("help(%s):\n", FLAG_2HY_LIB);
+        INDENT printf("Print the library flag for linking forge with other programs.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge lib\n");
+}
+
 void
 help(const char *flag)
 {
@@ -444,6 +454,7 @@ help(const char *flag)
                 help_updateforge,
                 help_repo_compile_template,
                 help_create_repo,
+                help_lib,
         };
 
         size_t n = strlen(flag);
@@ -532,7 +543,11 @@ help(const char *flag)
                 hs[25]();
         } else if (!strcmp(flag, FLAG_2HY_CREATE_REPO)) {
                 hs[26]();
-        } else if (!strcmp(flag, "*")) {
+        } else if (!strcmp(flag, FLAG_2HY_LIB)) {
+                hs[27]();
+        }
+
+        else if (!strcmp(flag, "*")) {
                 for (size_t i = 0; i < sizeof(hs)/sizeof(*hs); ++i) {
                         if (i != 0) {
                                 putchar('\n');
@@ -600,6 +615,7 @@ usage(void)
         printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "   R "  RESET  "edit the forge configuration header\n", FLAG_2HY_EDITCONF);
         printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "R "  RESET  "update forge (used after %s)\n", FLAG_2HY_UPDATEFORGE, FLAG_2HY_EDITCONF);
         printf(GREEN BOLD "    %s" RESET                                          "     generate a repo testing script\n", FLAG_2HY_REPO_COMPILE_TEMPLATE);
+        printf(GREEN BOLD "    %s" RESET                                          "                       view forge library linking flag\n", FLAG_2HY_LIB);
         printf("Note: " YELLOW BOLD "R" RESET " requires root permissions\n");
         exit(0);
 }
