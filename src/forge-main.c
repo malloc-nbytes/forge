@@ -35,6 +35,7 @@
 #include "sqlite3.h"
 
 #include "forge/forge.h"
+#include "config.h"
 #include "depgraph.h"
 #include "flags.h"
 #include "utils.h"
@@ -102,14 +103,14 @@ static const char *common_install_dirs[] = {
 #define CD(path, block) if (!cd(path)) block;
 #define CMD(c, block)   if (!cmd(c))   block;
 
-#define DB_DIR "/var/lib/forge/"
-#define DB_FP DB_DIR "forge.db"
-#define C_MODULE_DIR "/usr/src/forge/modules/"
-#define C_MODULE_USER_DIR "/usr/src/forge/user_modules/"
-#define C_MODULE_DIR_PARENT "/usr/src/forge/"
-#define MODULE_LIB_DIR "/usr/lib/forge/modules/"
-#define PKG_SOURCE_DIR "/var/cache/forge/sources/"
-#define FORGE_API_HEADER_DIR "/usr/include/forge"
+#define DB_DIR                                    "/var/lib/forge/"
+#define DB_FP DB_DIR                              "forge.db"
+#define C_MODULE_DIR                              PREFIX "/src/forge/modules/"
+#define C_MODULE_USER_DIR                         PREFIX "/src/forge/user_modules/"
+#define C_MODULE_DIR_PARENT                       PREFIX "/src/forge/"
+#define MODULE_LIB_DIR                            PREFIX "/lib/forge/modules/"
+#define PKG_SOURCE_DIR                            "/var/cache/forge/sources/"
+#define FORGE_API_HEADER_DIR                      PREFIX "/include/forge"
 #define FORGE_CONF_HEADER_FP FORGE_API_HEADER_DIR "/conf.h"
 
 #define CHECK_SQLITE(rc, db)                                            \
@@ -1038,12 +1039,15 @@ list_files(forge_context *ctx,
            int            pad)
 {
         if (!strcmp(name, "forge")) {
-                printf(DB_FP "\n");
                 str_array files = dyn_array_empty(str_array);
+                list_files_recursive(DB_DIR, &files);
+                list_files_recursive(C_MODULE_DIR_PARENT, &files);
+                list_files_recursive(FORGE_API_HEADER_DIR, &files);
                 list_files_recursive(FORGE_API_HEADER_DIR, &files);
                 for (size_t i = 0; i < files.len; ++i) {
                         printf("%s\n", files.data[i]);
                 }
+                dyn_array_free(files);
                 return;
         }
 
