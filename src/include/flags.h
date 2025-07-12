@@ -44,7 +44,7 @@
 #define FLAG_2HY_EDITCONF "editconf"
 #define FLAG_2HY_UPDATEFORGE "updateforge"
 #define FLAG_2HY_RESTORE "restore"
-#define FLAG_2HY_APILIST "apilist"
+#define FLAG_2HY_APILIST "api-list"
 #define FLAG_2HY_SEARCH "search"
 #define FLAG_2HY_ADD_REPO "add-repo"
 #define FLAG_2HY_DROP_REPO "drop-repo"

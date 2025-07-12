@@ -1,4 +1,4 @@
-* TODO [69%]
+* TODO [84%]
 - [X] store DB file in =/var/lib/forge/forge.db=
 - [X] store C module files in =/usr/src/forge/pkgs/*.c=
 - [X] store C mdoule .so files in =/usr/lib/forge/pkgs/*.so=
@@ -8,9 +8,9 @@
 - [X] add --edit option to edit C src modules
 - [X] be able to update packages
 - [X] install deps when installing a package
+- [X] add dumping a module file
+- [X] add a search feature
 - [ ] remove old deps when nothing depends on them
   - [ ] add --depclean equivalent
   - [ ] add new field in Pkg table (=is_dep=)
-- [ ] add dumping a module file
-- [ ] add a search feature
 - [ ] add =version= data structure to compare versions

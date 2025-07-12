@@ -294,7 +294,7 @@ help_api(void)
         INDENT printf("View API files in a program similar to `less`.\n\n");
 
         INDENT printf("Note:\n");
-        INDENT INDENT printf("Use the command `apilist` so see available APIs.\n\n");
+        INDENT INDENT printf("Use the command `api-list` so see available APIs.\n\n");
 
         INDENT printf("Example:\n");
         INDENT INDENT printf("forge api cmd\n");
@@ -346,7 +346,7 @@ help_apilist(void)
         INDENT INDENT printf("you can link with forge with `-lforge`.\n\n");
 
         INDENT printf("Example:\n");
-        INDENT INDENT printf("forge apilist\n");
+        INDENT INDENT printf("forge api-list\n");
 }
 
 static void
@@ -596,7 +596,7 @@ usage(void)
         printf(GREEN BOLD "    %s <name>" RESET                                   "            restore a recently dropped package\n", FLAG_2HY_RESTORE);
         printf(GREEN BOLD "    %s" RESET                                          "                   view copying information\n", FLAG_2HY_COPYING);
         printf(GREEN BOLD "    %s" RESET                                          "                  view the depgraph of all C modules\n", FLAG_2HY_DEPGRAPH);
-        printf(GREEN BOLD "    %s" RESET                                          "                   view API headers\n", FLAG_2HY_APILIST);
+        printf(GREEN BOLD "    %s" RESET                                          "                  view API headers\n", FLAG_2HY_APILIST);
         printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "   R "  RESET  "edit the forge configuration header\n", FLAG_2HY_EDITCONF);
         printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "R "  RESET  "update forge (used after %s)\n", FLAG_2HY_UPDATEFORGE, FLAG_2HY_EDITCONF);
         printf(GREEN BOLD "    %s" RESET                                          "     generate a repo testing script\n", FLAG_2HY_REPO_COMPILE_TEMPLATE);
