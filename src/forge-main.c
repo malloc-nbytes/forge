@@ -1218,7 +1218,7 @@ install_pkg(forge_context *ctx,
                 forge_smap snapshot_after = snapshot_files();
 
                 str_array diff_files = dyn_array_empty(str_array);
-                char **keys = smap_iter(&snapshot_after);
+                char **keys = forge_smap_iter(&snapshot_after);
                 for (size_t j = 0; keys[j]; ++j) {
                         if (!forge_smap_contains(&snapshot_before, keys[j])) {
                                 dyn_array_append(diff_files, strdup(keys[j]));
@@ -1717,7 +1717,7 @@ update_pkgs(forge_context *ctx, str_array *names)
 
                 // Find new or modified files
                 str_array diff_files = dyn_array_empty(str_array);
-                char **keys = smap_iter(&snapshot_after);
+                char **keys = forge_smap_iter(&snapshot_after);
                 for (size_t j = 0; keys[j]; ++j) {
                         // Add file if it's not in snapshot_before and not already in db_files
                         int in_db = 0;

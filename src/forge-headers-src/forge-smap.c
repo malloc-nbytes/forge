@@ -111,7 +111,7 @@ forge_smap_destroy(forge_smap *map)
 }
 
 char **
-smap_iter(const forge_smap *map)
+forge_smap_iter(const forge_smap *map)
 {
         char **keys = (char **)malloc(sizeof(char *) * (map->sz + 1));
         if (!keys) {

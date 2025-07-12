@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <unistd.h>
 
 #include "testapi.h"
@@ -81,4 +82,47 @@ test_forge_api_cmd_env(void)
         tassert_true(home != NULL);
 
         tassert_streq(home, getenv("HOME"));
+}
+
+void
+test_forge_api_cmd_get_prev_user(void)
+{
+        tskip();
+}
+
+void
+test_forge_api_cmd_change_file_owner(void)
+{
+        tskip();
+}
+
+void
+test_forge_api_cmd_make(void)
+{
+        tskip();
+}
+
+void
+test_forge_api_cmd_configure(void)
+{
+        tskip();
+}
+
+void
+test_forge_api_cmd_ls(void)
+{
+        char **files = ls(".");
+        tassert_true(files != NULL);
+        tassert_true(files[0] != NULL);
+
+        for (int i = 0; files[i]; ++i) {
+                free(files[i]);
+        }
+        free(files);
+}
+
+void
+test_forge_api_cmd_is_git_dir(void)
+{
+        tassert_false(is_git_dir("."));
 }

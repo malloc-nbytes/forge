@@ -64,7 +64,7 @@ void forge_smap_destroy(forge_smap *map);
  *              The result needs to be free()'d. The individual strings
  *              do not need to be free()'d.
  */
-char **smap_iter(const forge_smap *map);
+char **forge_smap_iter(const forge_smap *map);
 
 /**
  * Paramter: map -> the map to get the size from
