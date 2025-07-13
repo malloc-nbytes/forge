@@ -290,13 +290,16 @@ help_files(void)
 static void
 help_api(void)
 {
-        printf("help(%s <name...>):\n", FLAG_2HY_API);
-        INDENT printf("View API files in a program similar to `less`.\n\n");
+        printf("help(%s [name...]):\n", FLAG_2HY_API);
+        INDENT printf("View API files in a program similar to `less`.\n");
+        INDENT printf("Either supply some API names to view those, or\n");
+        INDENT printf("give it no names to view all APIs.\n\n");
 
         INDENT printf("Note:\n");
         INDENT INDENT printf("Use the command `api-list` so see available APIs.\n\n");
 
         INDENT printf("Example:\n");
+        INDENT INDENT printf("forge api\n");
         INDENT INDENT printf("forge api cmd\n");
         INDENT INDENT printf("forge api str smap\n");
 }
@@ -609,7 +612,7 @@ usage(void)
         printf(GREEN BOLD "    %s <name...>" RESET                                "            dump a package module\n", FLAG_2HY_DUMP);
         printf(GREEN BOLD "    %s <name...>" RESET                                "            drop a package\n", FLAG_2HY_DROP);
         printf(GREEN BOLD "    %s <name>" RESET                                   "              list all installed files for package <name>\n", FLAG_2HY_FILES);
-        printf(GREEN BOLD "    %s <name...>" RESET                                "             show the header files for the Forge API\n", FLAG_2HY_API);
+        printf(GREEN BOLD "    %s [name...]" RESET                                "             show the header files for the Forge API\n", FLAG_2HY_API);
         printf(GREEN BOLD "    %s <name>" RESET                                   "            restore a recently dropped package\n", FLAG_2HY_RESTORE);
         printf(GREEN BOLD "    %s" RESET                                          "                   view copying information\n", FLAG_2HY_COPYING);
         printf(GREEN BOLD "    %s" RESET                                          "                  view the depgraph of all C modules\n", FLAG_2HY_DEPGRAPH);
