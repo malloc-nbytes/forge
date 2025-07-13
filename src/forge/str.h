@@ -1,5 +1,5 @@
-#ifndef STR_H_INCLUDED
-#define STR_H_INCLUDED
+#ifndef FORGE_STR_H_INCLUDED
+#define FORGE_STR_H_INCLUDED
 
 typedef struct {
         char *data;
@@ -93,4 +93,4 @@ char *forge_str_contains_substr(
  */
 char *forge_str_builder(const char *first, ...);
 
-#endif // STR_H_INCLUDED
+#endif // FORGE_STR_H_INCLUDED

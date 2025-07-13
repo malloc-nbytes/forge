@@ -1,5 +1,5 @@
-#ifndef FORGE_H_INCLUDED
-#define FORGE_H_INCLUDED
+#ifndef FORGE_FORGE_H_INCLUDED
+#define FORGE_FORGE_H_INCLUDED
 
 #include "forge/pkg.h"
 #include "forge/cmd.h"
@@ -7,6 +7,7 @@
 #include "forge/array.h"
 #include "forge/io.h"
 #include "forge/smap.h"
+#include "forge/viewer.h"
 #include "forge/conf.h"
 
 /**
@@ -14,4 +15,4 @@
  * API headers. Nothing else should be added here!
  */
 
-#endif // FORGE_H_INCLUDED
+#endif // FORGE_FORGE_H_INCLUDED

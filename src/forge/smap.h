@@ -1,5 +1,5 @@
-#ifndef SMAP_H_INCLUDED
-#define SMAP_H_INCLUDED
+#ifndef FORGE_SMAP_H_INCLUDED
+#define FORGE_SMAP_H_INCLUDED
 
 #include <stddef.h>
 
@@ -73,4 +73,4 @@ char **forge_smap_iter(const forge_smap *map);
  */
 size_t forge_smap_size(const forge_smap *map);
 
-#endif // SMAP_H_INCLUDED
+#endif // FORGE_SMAP_H_INCLUDED

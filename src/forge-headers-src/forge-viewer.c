@@ -6,8 +6,8 @@
 #include <sys/ioctl.h>
 #include <signal.h>
 
-#include "matrix.h"
-#include "colors.h"
+#include "forge/viewer.h"
+#include "forge/colors.h"
 #include "utils.h"
 
 #define CTRL_N 14
@@ -46,33 +46,33 @@ typedef enum {
     USER_INPUT_TYPE_UNKNOWN,
 } user_input_type;
 
-static matrix *current_matrix = NULL;         // For signal handler (resizing window)
+static forge_viewer *current_viewer = NULL;         // For signal handler (resizing window)
 static volatile sig_atomic_t resize_flag = 0; // Indicate resize occurred
 
 static void
 handle_sigwinch(int sig)
 {
         (void)sig; // Unused
-        if (current_matrix != NULL) {
+        if (current_viewer != NULL) {
                 struct winsize w;
                 if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
-                        current_matrix->win_width = w.ws_col - 1;
-                        current_matrix->win_height = w.ws_row - 1;
+                        current_viewer->win_width = w.ws_col - 1;
+                        current_viewer->win_height = w.ws_row - 1;
 
                         // Adjust height_offset to prevent going past the end
-                        if (current_matrix->rows > current_matrix->win_height &&
-                            current_matrix->height_offset > current_matrix->rows - current_matrix->win_height) {
-                                current_matrix->height_offset = current_matrix->rows - current_matrix->win_height;
+                        if (current_viewer->rows > current_viewer->win_height &&
+                            current_viewer->height_offset > current_viewer->rows - current_viewer->win_height) {
+                                current_viewer->height_offset = current_viewer->rows - current_viewer->win_height;
                         }
                 }
                 resize_flag = 1;
         }
 }
 
-matrix *
-matrix_alloc(char **data, size_t data_n)
+forge_viewer *
+forge_viewer_alloc(char **data, size_t data_n)
 {
-        matrix *m = (matrix*)malloc(sizeof(matrix));
+        forge_viewer *m = (forge_viewer*)malloc(sizeof(forge_viewer));
 
         // Set up SIGWINCH handler
         struct sigaction sa = {0};
@@ -101,7 +101,7 @@ matrix_alloc(char **data, size_t data_n)
         raw.c_iflag &= ~IXON;
         tcsetattr(STDIN_FILENO, TCSANOW, &raw);
 
-        // Initialize matrix data
+        // Initialize viewer data
         size_t col_max = 0;
         for (size_t i = 0; i < data_n; ++i) {
                 size_t n = strlen(data[i]);
@@ -141,7 +141,7 @@ matrix_alloc(char **data, size_t data_n)
         m->match.cap = data_n;
         m->match.current = 0;
 
-        current_matrix = m;
+        current_viewer = m;
         return m;
 }
 
@@ -154,7 +154,7 @@ reset_scrn(void)
 }
 
 static inline void
-controls(const matrix *m)
+controls(const forge_viewer *m)
 {
         if (m->search.mode) {
                 return;
@@ -193,7 +193,7 @@ controls(const matrix *m)
 }
 
 void
-matrix_dump(const matrix *m)
+forge_viewer_dump(const forge_viewer *m)
 {
         reset_scrn();
         if (m->rows == 0 || m->win_height <= 1) {
@@ -204,7 +204,7 @@ matrix_dump(const matrix *m)
                 return;
         }
 
-        // Display matrix data up to win_height - 1
+        // Display viewer data up to win_height - 1
         size_t display_height = m->win_height - 1;
         size_t end_row = m->height_offset + display_height;
         if (end_row > m->rows) {
@@ -222,7 +222,7 @@ matrix_dump(const matrix *m)
 }
 
 void
-matrix_free(matrix *m)
+forge_viewer_free(forge_viewer *m)
 {
         for (size_t i = 0; i < m->rows; ++i) {
                 free(m->data[i]);
@@ -233,7 +233,7 @@ matrix_free(matrix *m)
         free(m->match.matches);
         tcsetattr(STDIN_FILENO, TCSANOW, &m->old_termios);
         free(m);
-        current_matrix = NULL;
+        current_viewer = NULL;
 }
 
 static char
@@ -301,10 +301,10 @@ get_user_input(char *c)
 }
 
 static inline void
-down(matrix *m)
+down(forge_viewer *m)
 {
         if (m->win_height <= 1 || m->rows <= m->win_height - 1) {
-                m->height_offset = 0; // No scrolling if matrix fits or window too small
+                m->height_offset = 0; // No scrolling if viewer fits or window too small
                 return;
         }
         if (m->height_offset < m->rows - (m->win_height - 1)) {
@@ -313,7 +313,7 @@ down(matrix *m)
 }
 
 static inline void
-up(matrix *m)
+up(forge_viewer *m)
 {
         if (m->height_offset > 0) {
                 --m->height_offset;
@@ -321,13 +321,13 @@ up(matrix *m)
 }
 
 static inline void
-top(matrix *m)
+top(forge_viewer *m)
 {
         m->height_offset = 0;
 }
 
 static inline void
-bottom(matrix *m)
+bottom(forge_viewer *m)
 {
         if (m->win_height <= 1 || m->rows <= m->win_height - 1) {
                 m->height_offset = 0;
@@ -337,10 +337,10 @@ bottom(matrix *m)
 }
 
 static inline void
-page_down(matrix *m)
+page_down(forge_viewer *m)
 {
         if (m->win_height <= 1 || m->rows <= m->win_height - 1) {
-                m->height_offset = 0; // No scrolling if matrix fits or window too small
+                m->height_offset = 0; // No scrolling if viewer fits or window too small
                 return;
         }
         if (m->height_offset + (m->win_height - 1) >= m->rows) {
@@ -351,10 +351,10 @@ page_down(matrix *m)
 }
 
 static inline void
-page_up(matrix *m)
+page_up(forge_viewer *m)
 {
         if (m->win_height <= 1 || m->rows <= m->win_height - 1) {
-                m->height_offset = 0; // No scrolling if matrix fits or window too small
+                m->height_offset = 0; // No scrolling if viewer fits or window too small
                 return;
         }
         if (m->height_offset <= m->win_height - 1) {
@@ -365,7 +365,7 @@ page_up(matrix *m)
 }
 
 static inline void
-search_prompt(const matrix *m)
+search_prompt(const forge_viewer *m)
 {
         printf("\033[%zu;1H", m->win_height); // Move to last row
         printf("\033[K");                     // Clear the line
@@ -374,7 +374,7 @@ search_prompt(const matrix *m)
 }
 
 static inline void
-next_match(matrix *m)
+next_match(forge_viewer *m)
 {
         if (m->match.count == 0 || m->search.last[0] == '\0') {
                 return; // No matches or no search performed
@@ -385,7 +385,7 @@ next_match(matrix *m)
 }
 
 static inline void
-prev_match(matrix *m)
+prev_match(forge_viewer *m)
 {
         if (m->match.count == 0 || m->search.last[0] == '\0') {
                 return; // No matches or no search performed
@@ -396,14 +396,14 @@ prev_match(matrix *m)
 }
 
 static void
-search(matrix *m)
+search(forge_viewer *m)
 {
         m->search.mode = 1;
         m->search.buffer[0] = '\0';
         m->search.len = 0;
 
         while (1) {
-                matrix_dump(m);
+                forge_viewer_dump(m);
                 search_prompt(m);
 
                 char ch;
@@ -417,7 +417,7 @@ search(matrix *m)
 
                                 strcpy(m->search.last, m->search.buffer);
 
-                                // Search for the query in the matrix and store all matches
+                                // Search for the query in the viewer and store all matches
                                 for (size_t i = 0; i < m->rows; ++i) {
                                         if (strstr(m->data[i], m->search.buffer) != NULL) {
                                                 if (m->match.count >= m->match.cap) {
@@ -459,7 +459,7 @@ search(matrix *m)
 
                 // Handle resize during search
                 if (resize_flag) {
-                        matrix_dump(m);
+                        forge_viewer_dump(m);
                         search_prompt(m);
                         resize_flag = 0;
                 }
@@ -467,11 +467,11 @@ search(matrix *m)
 }
 
 void
-matrix_display(matrix *m)
+forge_viewer_display(forge_viewer *m)
 {
-        current_matrix = m;
+        current_viewer = m;
         while (1) {
-                matrix_dump(m);
+                forge_viewer_dump(m);
                 resize_flag = 0;
 
                 char ch;
@@ -509,7 +509,7 @@ matrix_display(matrix *m)
 
                 // Redraw if resize occurred (SIGWINCH set the flag)
                 if (resize_flag) {
-                        matrix_dump(m); // Immediate redraw after resize
+                        forge_viewer_dump(m); // Immediate redraw after resize
                         resize_flag = 0;
                 }
         }

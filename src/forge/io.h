@@ -1,5 +1,5 @@
-#ifndef IO_H_INCLUDED
-#define IO_H_INCLUDED
+#ifndef FORGE_IO_H_INCLUDED
+#define FORGE_IO_H_INCLUDED
 
 /**
  * Parameter: fp -> the filepath
@@ -77,4 +77,4 @@ const char *forge_io_basename(const char *path);
  */
 int forge_io_rm_dir(const char *path);
 
-#endif // IO_H_INCLUDED
+#endif // FORGE_IO_H_INCLUDED

@@ -1,5 +1,5 @@
-#ifndef CMD_H_INCLUDED
-#define CMD_H_INCLUDED
+#ifndef FORGE_CMD_H_INCLUDED
+#define FORGE_CMD_H_INCLUDED
 
 /**
  * Returns: the current working directory
@@ -129,4 +129,4 @@ char **ls(const char *dir);
  */
 int is_git_dir(const char *path);
 
-#endif // CMD_H_INCLUDED
+#endif // FORGE_CMD_H_INCLUDED

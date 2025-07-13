@@ -1,5 +1,5 @@
-#ifndef PKG_H_INCLUDED
-#define PKG_H_INCLUDED
+#ifndef FORGE_PKG_H_INCLUDED
+#define FORGE_PKG_H_INCLUDED
 
 #include <stddef.h>
 
@@ -48,4 +48,4 @@ void forge_pkg_git_pull(void);
  */
 #define forge_pkg_get_changes_redownload NULL
 
-#endif // PKG_H_INCLUDED
+#endif // FORGE_PKG_H_INCLUDED

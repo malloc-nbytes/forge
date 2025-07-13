@@ -1,5 +1,5 @@
-#ifndef CONF_H_INCLUDED
-#define CONF_H_INCLUDED
+#ifndef FORGE_CONF_H_INCLUDED
+#define FORGE_CONF_H_INCLUDED
 
 // How many j flags to pass to make
 #define FORGE_PREFERRED_MAKEFILE_JFLAGS "$(nproc)"
@@ -12,4 +12,4 @@
 
 #define FORGE_EDITOR "vim"
 
-#endif // CONF_H_INCLUDED
+#endif // FORGE_CONF_H_INCLUDED

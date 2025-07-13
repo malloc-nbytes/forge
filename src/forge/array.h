@@ -1,5 +1,5 @@
-#ifndef ARRAY_H_INCLUDED
-#define ARRAY_H_INCLUDED
+#ifndef FORGE_ARRAY_H_INCLUDED
+#define FORGE_ARRAY_H_INCLUDED
 
 // MIT License
 
@@ -177,4 +177,4 @@ DYN_ARRAY_TYPE(long,     long_array);
 DYN_ARRAY_TYPE(unsigned, unsigned_array);
 DYN_ARRAY_TYPE(void *,   void_ptr_array);
 
-#endif // ARRAY_H_INCLUDED
+#endif // FORGE_ARRAY_H_INCLUDED

@@ -40,7 +40,7 @@
 #include "flags.h"
 #include "utils.h"
 #include "colors.h"
-#include "matrix.h"
+#include "viewer.h"
 #define CIO_IMPL
 #include "cio.h"
 #define CLAP_IMPL
@@ -2154,9 +2154,9 @@ api_dump(const char *name, int api)
         }
         free(lines);
 
-        matrix *m = matrix_alloc(colored_lines, line_count);
-        matrix_display(m);
-        matrix_free(m);
+        forge_viewer *m = forge_viewer_alloc(colored_lines, line_count);
+        forge_viewer_display(m);
+        forge_viewer_free(m);
         forge_str_destroy(&path);
 }
 
@@ -2653,9 +2653,9 @@ browse_api(void)
                 free(apis[i]);
         }
 
-        matrix *m = matrix_alloc(combined.data, combined.len);
-        matrix_display(m);
-        matrix_free(m);
+        forge_viewer *m = forge_viewer_alloc(combined.data, combined.len);
+        forge_viewer_display(m);
+        forge_viewer_free(m);
 
         for (size_t i = 0; i < combined.len; ++i) {
                 free(combined.data[i]);
