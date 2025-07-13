@@ -1466,7 +1466,7 @@ rebuild_pkgs(forge_context *ctx)
                         }
                 }
 
-                char *basename = forge_io_basename(abspath);
+                const char *basename = forge_io_basename(abspath);
                 if (failed.len > 0) {
                         printf(YELLOW "%s:" RESET " [ " BOLD GREEN "%zu Compiled" RESET ", " BOLD RED "%zu Failed" RESET " ]\n",
                                basename, passed.len, failed.len);
