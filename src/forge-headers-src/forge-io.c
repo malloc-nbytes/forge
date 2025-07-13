@@ -214,10 +214,10 @@ forge_io_dir_contains_file(const char *dir,
         return 0;
 }
 
-char *
-forge_io_basename(char *path)
+const char *
+forge_io_basename(const char *path)
 {
-        char *res = path;
+        const char *res = path;
         int skip = 0;
         for (size_t i = 0; path[i]; ++i) {
                 if (path[i] == '\\') {

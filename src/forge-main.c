@@ -1435,7 +1435,8 @@ rebuild_pkgs(forge_context *ctx)
                         char buf[256] = {0};
                         sprintf(buf, "gcc -Wextra -Wall -Werror -shared -fPIC %s.c -lforge -L/usr/local/lib -o" MODULE_LIB_DIR "%s.so -I../include",
                                 files.data[i], files.data[i]);
-                        printf("%s\n", buf);
+                        printf("[CC] %s.c\n", files.data[i]);
+                        //printf("%s\n", buf);
                         fflush(stdout);
                         int status = system(buf);
                         if (status == -1) {
@@ -1465,10 +1466,13 @@ rebuild_pkgs(forge_context *ctx)
                         }
                 }
 
+                char *basename = forge_io_basename(abspath);
                 if (failed.len > 0) {
-                        printf("%s: [ " BOLD GREEN "%zu Compiled" RESET ", " BOLD RED "%zu Failed" RESET " ]\n", abspath, passed.len, failed.len);
+                        printf(YELLOW "%s:" RESET " [ " BOLD GREEN "%zu Compiled" RESET ", " BOLD RED "%zu Failed" RESET " ]\n",
+                               basename, passed.len, failed.len);
                 } else {
-                        printf("%s: [ " BOLD GREEN "%zu Compiled" RESET " ]\n", abspath, passed.len);
+                        printf(YELLOW "%s:" RESET " [ " BOLD GREEN "%zu Compiled" RESET " ]\n",
+                               basename, passed.len);
                 }
 
         cleanup:
