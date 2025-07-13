@@ -1,6 +1,8 @@
 #ifndef FORGE_ARRAY_H_INCLUDED
 #define FORGE_ARRAY_H_INCLUDED
 
+#include <stdlib.h>
+
 // MIT License
 
 // Copyright (c) 2025 malloc-nbytes

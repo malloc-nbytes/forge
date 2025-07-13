@@ -28,4 +28,6 @@
 #define INVERT               "\033[7m"
 #define RESET                "\033[0m"
 
+char *forge_colors_c_to_string(const char *s);
+
 #endif // FORGE_COLORS_H_INCLUDED

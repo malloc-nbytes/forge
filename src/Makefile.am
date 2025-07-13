@@ -14,7 +14,8 @@ sqlite-build:
 libforge_la_SOURCES = utils.c colors.c depgraph.c flags.c forge-main.c \
 	forge-headers-src/forge-cmd.c forge-headers-src/forge-io.c \
 	forge-headers-src/forge-pkg.c forge-headers-src/forge-str.c \
-	forge-headers-src/forge-smap.c forge-headers-src/forge-viewer.c
+	forge-headers-src/forge-smap.c forge-headers-src/forge-viewer.c \
+	forge-headers-src/forge-colors.c
 
 # Flags for libforge.so
 libforge_la_CFLAGS = $(AM_CFLAGS) -fPIC
@@ -27,7 +28,8 @@ bin_PROGRAMS = forge_production
 forge_production_SOURCES = utils.c colors.c depgraph.c flags.c forge-main.c \
 	forge-headers-src/forge-cmd.c forge-headers-src/forge-io.c \
 	forge-headers-src/forge-pkg.c forge-headers-src/forge-str.c \
-	forge-headers-src/forge-smap.c forge-headers-src/forge-viewer.c
+	forge-headers-src/forge-smap.c forge-headers-src/forge-viewer.c \
+	forge-headers-src/forge-colors.c
 
 # Flags for forge executable
 forge_production_CFLAGS = $(AM_CFLAGS)
