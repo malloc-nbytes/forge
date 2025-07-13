@@ -226,11 +226,14 @@ void
 depgraph_dump(const depgraph *dg)
 {
         for (size_t i = 0; i < dg->len; ++i) {
-                printf("package: %s\n", dg->tbl[i]->name);
+                printf("* %s", dg->tbl[i]->name);
                 depgraph_node *it = dg->tbl[i]->next;
+                if (it) { printf(" -> "); }
                 while (it) {
-                        printf("  depends: %s\n", it->name);
+                        printf("%s", it->name);
                         it = it->next;
+                        if (it) { printf(" -> "); }
                 }
+                putchar('\n');
         }
 }
