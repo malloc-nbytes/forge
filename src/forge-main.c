@@ -2112,142 +2112,6 @@ api_colorize_to_string(const char *s)
 }
 
 void
-api_colorize(char *s)
-{
-        char_array buf = dyn_array_empty(char_array);
-        static int in_multiline_comment = 0; // Persists across calls
-        int in_single_line_comment = 0;
-        int in_string = 0; // Track if inside a string literal
-        int in_char = 0;   // Track if inside a character literal
-        int escape = 0;    // Track escape sequences in strings/chars
-
-        for (size_t i = 0; s[i]; ++i) {
-                if (in_multiline_comment) {
-                        // Inside a multiline comment, look for the end (*/)
-                        if (s[i] == '*' && s[i + 1] == '/') {
-                                dyn_array_append(buf, s[i]);
-                                dyn_array_append(buf, s[i + 1]);
-                                dyn_array_append(buf, 0);
-                                printf(PINK BOLD);
-                                printf("%s", buf.data);
-                                printf(RESET);
-                                dyn_array_clear(buf);
-                                in_multiline_comment = 0;
-                                i++; // Skip the '/'
-                                continue;
-                        }
-                        dyn_array_append(buf, s[i]);
-                } else if (in_single_line_comment) {
-                        // Inside a single-line comment, append until newline
-                        if (s[i] == '\n') {
-                                in_single_line_comment = 0;
-                                dyn_array_append(buf, 0);
-                                printf(PINK BOLD);
-                                printf("%s", buf.data);
-                                printf(RESET);
-                                dyn_array_clear(buf);
-                                putchar(s[i]);
-                        } else {
-                                dyn_array_append(buf, s[i]);
-                        }
-                } else if (in_string) {
-                        // Inside a string literal
-                        dyn_array_append(buf, s[i]);
-                        if (escape) {
-                                escape = 0; // Reset escape flag after handling
-                        } else if (s[i] == '\\') {
-                                escape = 1; // Next character is escaped
-                        } else if (s[i] == '"') {
-                                // End of string literal
-                                in_string = 0;
-                                dyn_array_append(buf, 0);
-                                printf(GREEN BOLD);
-                                printf("%s", buf.data);
-                                printf(RESET);
-                                dyn_array_clear(buf);
-                        }
-                } else if (in_char) {
-                        // Inside a character literal
-                        dyn_array_append(buf, s[i]);
-                        if (escape) {
-                                escape = 0; // Reset escape flag
-                        } else if (s[i] == '\\') {
-                                escape = 1; // Next character is escaped
-                        } else if (s[i] == '\'') {
-                                // End of character literal
-                                in_char = 0;
-                                dyn_array_append(buf, 0);
-                                printf(GREEN BOLD);
-                                printf("%s", buf.data);
-                                printf(RESET);
-                                dyn_array_clear(buf);
-                        }
-                } else {
-                        // Not in a comment, string, or char; check for starts or delimiters
-                        if (s[i] == '/' && s[i + 1] == '*') {
-                                dyn_array_append(buf, s[i]);
-                                dyn_array_append(buf, s[i + 1]);
-                                dyn_array_append(buf, 0);
-                                printf(PINK BOLD);
-                                printf("%s", buf.data);
-                                printf(RESET);
-                                dyn_array_clear(buf);
-                                in_multiline_comment = 1;
-                                i++; // Skip the '*'
-                                continue;
-                        } else if (s[i] == '/' && s[i + 1] == '/') {
-                                dyn_array_append(buf, s[i]);
-                                dyn_array_append(buf, s[i + 1]);
-                                in_single_line_comment = 1;
-                                i++; // Skip the '/'
-                                continue;
-                        } else if (s[i] == '"') {
-                                // Start of string literal
-                                in_string = 1;
-                                dyn_array_append(buf, s[i]);
-                                continue;
-                        } else if (s[i] == '\'') {
-                                // Start of character literal
-                                in_char = 1;
-                                dyn_array_append(buf, s[i]);
-                                continue;
-                        } else if (s[i] == ';' || s[i] == '\n' || s[i] == '\t' ||
-                                   s[i] == ' ' || s[i] == '(' || s[i] == ')' || s[i] == ',') {
-                                // Handle delimiters
-                                dyn_array_append(buf, 0);
-                                if (buf.len > 0 && iskw(buf.data)) {
-                                        printf(YELLOW BOLD);
-                                        printf("%s", buf.data);
-                                        printf(RESET);
-                                } else if (buf.len > 0) {
-                                        printf("%s", buf.data);
-                                }
-                                dyn_array_clear(buf);
-                                putchar(s[i]);
-                        } else {
-                                dyn_array_append(buf, s[i]);
-                        }
-                }
-        }
-
-        dyn_array_append(buf, 0);
-        if (buf.len > 0) {
-                if (in_multiline_comment || in_single_line_comment) {
-                        printf(PINK BOLD);
-                } else if (in_string || in_char) {
-                        printf(GREEN BOLD); // Color incomplete strings/chars green
-                } else if (iskw(buf.data)) {
-                        printf(YELLOW BOLD);
-                }
-                printf("%s", buf.data);
-                printf(RESET);
-        }
-
-        dyn_array_free(buf);
-        putchar('\n');
-}
-
-void
 api_dump(const char *name, int api)
 {
         forge_str path = forge_str_create();
@@ -2382,27 +2246,6 @@ apilist(void)
         }
         printf("Name: forge\n");
         printf("  #include <forge/forge.h> // includes all headers\n");
-}
-
-static int
-regex(const char *pattern,
-      const char *s)
-{
-        regex_t regex;
-        int reti;
-
-        reti = regcomp(&regex, pattern, REG_ICASE);
-        if (reti) {
-                perror("regex");
-                return 0;
-        }
-
-        reti = regexec(&regex, s, 0, NULL, 0);
-
-        regfree(&regex);
-
-        if (!reti) return 1;
-        else return 0;
 }
 
 void
@@ -2790,6 +2633,37 @@ show_lib(void)
         printf("-lforge\n");
 }
 
+void
+browse_api(void)
+{
+        char **apis = ls(FORGE_API_HEADER_DIR);
+        str_array combined = dyn_array_empty(str_array);
+
+        for (size_t i = 0; apis[i]; ++i) {
+                char *path = forge_str_builder(FORGE_API_HEADER_DIR, "/", apis[i], NULL);
+                char **lines = forge_io_read_file_to_lines(path);
+
+                for (size_t j = 0; lines[j]; ++j) {
+                        dyn_array_append(combined, api_colorize_to_string(lines[j]));
+                        free(lines[j]);
+                }
+
+                free(lines);
+                free(path);
+                free(apis[i]);
+        }
+
+        matrix *m = matrix_alloc(combined.data, combined.len);
+        matrix_display(m);
+        matrix_free(m);
+
+        for (size_t i = 0; i < combined.len; ++i) {
+                free(combined.data[i]);
+        }
+        dyn_array_free(combined);
+        free(apis);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2940,10 +2814,14 @@ main(int argc, char **argv)
                         while (clap_next(&arg)) {
                                 dyn_array_append(names, strdup(arg.start));
                         }
-                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_API);
-                        for (size_t i = 0; i < names.len; ++i)
-                                api_dump(names.data[i], 1);
-                        for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
+                        if (names.len == 0) {
+                                browse_api();
+                        } else {
+                                for (size_t i = 0; i < names.len; ++i)
+                                        api_dump(names.data[i], 1);
+                                for (size_t i = 0; i < names.len; ++i)
+                                        free(names.data[i]);
+                        }
                         dyn_array_free(names);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_EDITCONF)) {
                         assert_sudo();
