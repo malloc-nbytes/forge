@@ -2640,6 +2640,10 @@ browse_api(void)
         str_array combined = dyn_array_empty(str_array);
 
         for (size_t i = 0; apis[i]; ++i) {
+                if (!strcmp(apis[i], "..") || !strcmp(apis[i], ".")) {
+                        continue;
+                }
+
                 char *path = forge_str_builder(FORGE_API_HEADER_DIR, "/", apis[i], NULL);
                 char **lines = forge_io_read_file_to_lines(path);
 
