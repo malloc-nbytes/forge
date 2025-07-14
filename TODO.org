@@ -1,4 +1,4 @@
-* TODO [84%]
+* TODO [92%]
 - [X] store DB file in =/var/lib/forge/forge.db=
 - [X] store C module files in =/usr/src/forge/pkgs/*.c=
 - [X] store C mdoule .so files in =/usr/lib/forge/pkgs/*.so=
@@ -10,7 +10,7 @@
 - [X] install deps when installing a package
 - [X] add dumping a module file
 - [X] add a search feature
-- [ ] remove old deps when nothing depends on them
-  - [ ] add --depclean equivalent
-  - [ ] add new field in Pkg table (=is_dep=)
+- [X] remove old deps when nothing depends on them
+  - [X] add --depclean equivalent
+  - [X] add new field in Pkg table (=is_dep=)
 - [ ] add =version= data structure to compare versions

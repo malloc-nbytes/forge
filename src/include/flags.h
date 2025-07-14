@@ -53,6 +53,8 @@
 #define FLAG_2HY_CREATE_REPO "create-repo"
 #define FLAG_2HY_FORCE "force"
 #define FLAG_2HY_LIB "lib"
+#define FLAG_2HY_CLEAN "clean"
+#define FLAG_2HY_SAVE_DEP "save-dep"
 
 typedef enum {
         FT_REBUILD = 1 << 0,
