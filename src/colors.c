@@ -25,8 +25,8 @@
 void
 good_major(const char *msg, int newline)
 {
-        printf(GREEN BOLD "*** %s" RESET, msg);
-        if (newline) { putchar('\n'); }
+        printf(GREEN BOLD "\n*** %s" RESET, msg);
+        if (newline) { printf("\n\n"); }
         sleep(1);
 }
 

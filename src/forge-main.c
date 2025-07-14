@@ -929,7 +929,7 @@ uninstall_pkg(forge_context *ctx,
 {
         for (size_t i = 0; i < names->len; ++i) {
                 const char *name = names->data[i];
-                printf(GREEN BOLD "*** Uninstalling package %s [%zu of %zu]\n" RESET, name, i+1, names->len);
+                printf(GREEN BOLD "\n*** Uninstalling package %s [%zu of %zu]\n" RESET, name, i+1, names->len);
                 fflush(stdout);
                 sleep(1);
 
@@ -990,7 +990,7 @@ uninstall_pkg(forge_context *ctx,
                 }
 
                 // Perform uninstall
-                printf(GREEN "(%s)->uninstall()\n" RESET, name);
+                printf(GREEN "\n(%s)->uninstall()\n\n" RESET, name);
                 pkg->uninstall();
 
                 // Update installed status in database
@@ -1181,10 +1181,10 @@ install_pkg(forge_context *ctx,
         for (size_t i = 0; i < names->len; ++i) {
                 const char *name = names->data[i];
                 if (is_dep) {
-                        printf(GREEN BOLD "*** Installing dependency %s [%zu of %zu]\n" RESET,
+                        printf(GREEN BOLD "\n*** Installing dependency %s [%zu of %zu]\n\n" RESET,
                                name, i+1, names->len);
                 } else {
-                        printf(GREEN BOLD "*** Installing package %s [%zu of %zu]\n" RESET,
+                        printf(GREEN BOLD "\n*** Installing package %s [%zu of %zu]\n" RESET,
                                name, i+1, names->len);
                 }
                 fflush(stdout);
@@ -1215,7 +1215,7 @@ install_pkg(forge_context *ctx,
                 // Install deps
                 if (pkg->deps) {
                         good_major("installing dependencies", 1);
-                        printf(GREEN "(%s)->deps()\n" RESET, name);
+                        printf(GREEN "\n(%s)->deps()\n\n" RESET, name);
                         char **deps = pkg->deps();
                         str_array depnames = dyn_array_empty(str_array);
                         for (size_t j = 0; deps[j]; ++j) {
@@ -1260,7 +1260,7 @@ install_pkg(forge_context *ctx,
                 if (pkg_src_loc) {
                         pkgname = forge_io_basename(pkg_src_loc);
                 } else {
-                        printf(GREEN "(%s)->download()\n" RESET, name);
+                        printf(GREEN "(%s)->download()\n\n" RESET, name);
                         pkgname = pkg->download();
                 }
 
@@ -1276,7 +1276,7 @@ install_pkg(forge_context *ctx,
                 char base[256] = {0};
                 sprintf(base, PKG_SOURCE_DIR "%s", pkgname);
 
-                printf(GREEN "(%s)->build()\n" RESET, name);
+                printf(GREEN "\n(%s)->build()\n\n" RESET, name);
                 pkg->build();
                 if (!cd(base)) {
                         fprintf(stderr, "aborting...\n");
@@ -1286,7 +1286,7 @@ install_pkg(forge_context *ctx,
 
                 forge_smap snapshot_before = snapshot_files();
 
-                printf(GREEN "(%s)->install()\n" RESET, name);
+                printf(GREEN "\n(%s)->install()\n\n" RESET, name);
                 pkg->install();
 
                 forge_smap snapshot_after = snapshot_files();
@@ -1355,9 +1355,8 @@ install_pkg(forge_context *ctx,
                 }
                 sqlite3_finalize(stmt);
 
-                printf(PINK ITALIC BOLD "*** Installed:\n" RESET PINK ITALIC);
+                printf(PINK ITALIC BOLD "\n*** Installed:\n" RESET PINK ITALIC);
                 list_files(ctx, name, 1);
-                printf(RESET);
 
                 free(pkg_src_loc);
         }
@@ -1662,12 +1661,12 @@ update_pkgs(forge_context *ctx, str_array *names)
                 sqlite3_finalize(stmt);
 
                 if (!installed) {
-                        printf(YELLOW "*** Skipping update for %s: not installed\n" RESET, name);
+                        printf(YELLOW "\n*** Skipping update for %s: not installed\n\n" RESET, name);
                         free(pkg_src_loc);
                         continue;
                 }
 
-                printf(GREEN BOLD "*** Updating package %s [%zu of %zu]\n" RESET, name, i+1, pkg_names.len);
+                printf(GREEN BOLD "*** Updating package %s [%zu of %zu]\n\n" RESET, name, i+1, pkg_names.len);
                 fflush(stdout);
                 sleep(1);
 
@@ -1728,12 +1727,12 @@ update_pkgs(forge_context *ctx, str_array *names)
                 int updated = 0;
 
                 // Perform update
-                printf(GREEN "(%s)->update()\n" RESET, name);
+                printf(GREEN "(%s)->update()\n\n" RESET, name);
                 if (pkg->update) {
                         updated = pkg->update();
                 } else if ((g_config.flags & FT_FORCE) == 0) {
                         // We are not forcing the update, notify that we are skipping.
-                        printf(YELLOW "*** No update function defined for %s, skipping update step\n" RESET, name);
+                        printf(YELLOW "\n*** No update function defined for %s, skipping update step\n" RESET, name);
                         dyn_array_append(skipped_pkgs, strdup(name));
                 }
 
@@ -1837,10 +1836,10 @@ update_pkgs(forge_context *ctx, str_array *names)
                 // Reinstall package and its dependencies if updated
                 if (updated || (g_config.flags & FT_FORCE)) {
                         if (pkg->get_changes) {
-                                printf(GREEN "(%s)->get_changes()\n" RESET, name);
+                                printf(GREEN "\n(%s)->get_changes()\n\n" RESET, name);
                                 pkg->get_changes();
                         } else {
-                                printf(YELLOW "Removing source directory: %s\n" RESET, base);
+                                printf(YELLOW "\nRemoving source directory: %s\n\n" RESET, base);
                                 if (!forge_io_rm_dir(base)) {
                                         fprintf(stderr, "Failed to remove source directory %s: %s\n", base, strerror(errno));
                                         // Continue with reinstallation even if removal fails, as it may still be possible
@@ -1879,14 +1878,14 @@ update_pkgs(forge_context *ctx, str_array *names)
         }
 
         if (skipped_pkgs.len > 0) {
-                printf(BOLD YELLOW "*** %zu package(s) need to be checked for an updated manually:\n" RESET, skipped_pkgs.len);
+                printf(BOLD YELLOW "*** %zu package(s) need to be checked for an update manually:\n" RESET, skipped_pkgs.len);
                 for (size_t i = 0; i < skipped_pkgs.len; ++i) {
                         printf(YELLOW "  %s\n" RESET, skipped_pkgs.data[i]);
                         free(skipped_pkgs.data[i]);
                 }
 
                 dyn_array_free(skipped_pkgs);
-                printf(UNDERLINE YELLOW "Use the --force option to force the update\n" RESET);
+                printf(UNDERLINE YELLOW "\nUse the --force option to force the update\n\n" RESET);
         }
 
         // Clean up if we created the names array
