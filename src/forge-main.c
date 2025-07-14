@@ -703,7 +703,8 @@ register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
 }
 
 void
-list_deps(forge_context *ctx, const char *pkg_name)
+deps(forge_context *ctx,
+          const char    *pkg_name)
 {
         (void)ctx;
 
@@ -2535,6 +2536,118 @@ savedep(forge_context *ctx,
         sqlite3_finalize(stmt);
 }
 
+void
+list_deps(const forge_context *ctx)
+{
+        sqlite3 *db = ctx->db;
+        sqlite3_stmt *stmt;
+
+        // Query all installed packages with is_explicit = 0
+        const char *sql_deps = "SELECT name FROM Pkgs WHERE installed = 1 AND is_explicit = 0 ORDER BY name;";
+        int rc = sqlite3_prepare_v2(db, sql_deps, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, db);
+
+        typedef struct {
+                char *name;
+                str_array dependents;
+        } dep_info;
+
+        str_array dep_names = dyn_array_empty(str_array);
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                dyn_array_append(dep_names, strdup(name));
+        }
+        sqlite3_finalize(stmt);
+
+        if (dep_names.len == 0) {
+                printf(YELLOW "No dependency packages found.\n" RESET);
+                dyn_array_free(dep_names);
+                return;
+        }
+
+        // Collect dependents for each dependency package
+        dep_info *dep_infos = calloc(dep_names.len, sizeof(dep_info));
+        size_t max_name_len = strlen("Dependency");
+        size_t max_dependents_len = strlen("Required By");
+
+        for (size_t i = 0; i < dep_names.len; ++i) {
+                dep_infos[i].name = dep_names.data[i];
+                dep_infos[i].dependents = dyn_array_empty(str_array);
+                max_name_len = MAX(max_name_len, strlen(dep_infos[i].name));
+
+                const char *sql_dependents =
+                        "SELECT p.name FROM Pkgs p "
+                        "JOIN Deps d ON p.id = d.pkg_id "
+                        "WHERE d.dep_id = (SELECT id FROM Pkgs WHERE name = ?) "
+                        "AND p.installed = 1 ORDER BY p.name;";
+                rc = sqlite3_prepare_v2(db, sql_dependents, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, db);
+
+                sqlite3_bind_text(stmt, 1, dep_infos[i].name, -1, SQLITE_STATIC);
+
+                char dependents_buf[1024] = {0};
+                size_t buf_len = 0;
+                int first = 1;
+                while (sqlite3_step(stmt) == SQLITE_ROW) {
+                        const char *dep_name = (const char *)sqlite3_column_text(stmt, 0);
+                        size_t dep_len = strlen(dep_name);
+                        if (buf_len + dep_len + (first ? 0 : 2) < sizeof(dependents_buf) - 1) {
+                                if (!first) {
+                                        strcat(dependents_buf, ", ");
+                                        buf_len += 2;
+                                }
+                                strcat(dependents_buf, dep_name);
+                                buf_len += dep_len;
+                                dyn_array_append(dep_infos[i].dependents, strdup(dep_name));
+                                first = 0;
+                        }
+                }
+                sqlite3_finalize(stmt);
+
+                if (dep_infos[i].dependents.len == 0) {
+                        strcpy(dependents_buf, "(none)");
+                        buf_len = strlen("(none)");
+                }
+                max_dependents_len = MAX(max_dependents_len, buf_len);
+        }
+
+        printf(GREEN BOLD "Dependency Packages:\n" RESET);
+        printf("%-*s  %-*s\n",
+               (int)max_name_len, "Dependency",
+               (int)max_dependents_len, "Required By");
+        printf("%-*s  %-*s\n",
+               (int)max_name_len, "----------",
+               (int)max_dependents_len, "-----------");
+
+        for (size_t i = 0; i < dep_names.len; ++i) {
+                char dependents_buf[1024] = {0};
+                if (dep_infos[i].dependents.len == 0) {
+                        strcpy(dependents_buf, "(none)");
+                } else {
+                        int first = 1;
+                        for (size_t j = 0; j < dep_infos[i].dependents.len; ++j) {
+                                if (!first) strcat(dependents_buf, ", ");
+                                strcat(dependents_buf, dep_infos[i].dependents.data[j]);
+                                first = 0;
+                        }
+                }
+                printf("%-*s  %-*s\n",
+                       (int)max_name_len, dep_infos[i].name,
+                       (int)max_dependents_len, dependents_buf);
+        }
+
+        // Clean up
+        for (size_t i = 0; i < dep_names.len; ++i) {
+                for (size_t j = 0; j < dep_infos[i].dependents.len; ++j) {
+                        free(dep_infos[i].dependents.data[j]);
+                }
+                dyn_array_free(dep_infos[i].dependents);
+                free(dep_infos[i].name);
+        }
+        free(dep_infos);
+        dyn_array_free(dep_names);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2598,7 +2711,7 @@ main(int argc, char **argv)
                         if (!clap_next(&arg)) {
                                 err_wargs("flag `%s` requires an argument", FLAG_2HY_DEPS);
                         }
-                        list_deps(&ctx, arg.start);
+                        deps(&ctx, arg.start);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_INSTALL)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
@@ -2765,6 +2878,8 @@ main(int argc, char **argv)
                         }
                         assert_sudo();
                         savedep(&ctx, arg.start);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIST_DEPS)) {
+                        list_deps(&ctx);
                 }
 
                 else if (arg.hyphc == 1) { // one hyph options

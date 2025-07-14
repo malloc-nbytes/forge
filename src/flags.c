@@ -450,6 +450,16 @@ help_save_dep(void) {
         INDENT INDENT printf("forge save-dep malloc-nbytes@earl\n");
 }
 
+static void
+help_list_deps(void)
+{
+        printf("help(%s):\n", FLAG_2HY_LIST_DEPS);
+        INDENT printf("Show all dependency packages and what they are required by.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge list-deps\n");
+}
+
 void
 help(const char *flag)
 {
@@ -484,6 +494,7 @@ help(const char *flag)
                 help_lib,
                 help_clean,
                 help_save_dep,
+                help_list_deps,
         };
 
         size_t n = strlen(flag);
@@ -578,6 +589,8 @@ help(const char *flag)
                 hs[28]();
         } else if (!strcmp(flag, FLAG_2HY_SAVE_DEP)) {
                 hs[29]();
+        } else if (!strcmp(flag, FLAG_2HY_LIST_DEPS)) {
+                hs[30]();
         }
 
         else if (!strcmp(flag, "*")) {
@@ -619,42 +632,45 @@ usage(void)
 
         printf("The documentation can be found at https://malloc-nbytes.github.io/forge-web/index.html\n\n");
 
-        printf("Usage: forge " YELLOW BOLD "[options...] " RESET GREEN BOLD "<command>" RESET " [arguments...]\n");
-        printf("Options:\n");
-        printf(YELLOW BOLD "    -%c, --%s[=<flag>|*]" RESET "     display this message or view help on a command or option\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
-        printf(YELLOW BOLD "    -%c, --%s           R"                         RESET  " rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
-        printf(YELLOW BOLD "    -%c, --%s              R"                         RESET " sync the C modules repository\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
-        printf(YELLOW BOLD "        --%s              "                         RESET " force the action if it can\n", FLAG_2HY_FORCE);
-        printf(YELLOW BOLD "        --%s  R"                         RESET " remove all broken packages\n", FLAG_2HY_DROP_BROKEN_PKGS);
-        printf("Commands:\n");
-        printf(GREEN BOLD "    %s          " RESET                                "            list available packages\n", FLAG_2HY_LIST);
-        printf(GREEN BOLD "    %s <pkg...> "                         RESET "          search for packages\n", FLAG_2HY_SEARCH);
-        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "       R "     RESET  "install packages\n", FLAG_2HY_INSTALL);
-        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "     R "       RESET  "uninstall packages\n", FLAG_2HY_UNINSTALL);
-        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "        R "    RESET  "update packages or leave empty to update all\n", FLAG_2HY_UPDATE);
-        printf(GREEN BOLD "    %s <name> " RESET YELLOW BOLD "        R "    RESET  "save a dependency package as explictly installed\n", FLAG_2HY_SAVE_DEP);
-        printf(GREEN BOLD "    %s" RESET YELLOW BOLD "                   R "    RESET  "remove unused dependency packages\n", FLAG_2HY_CLEAN);
-        printf(GREEN BOLD "    %s <git-link> " RESET YELLOW BOLD "    R "    RESET  "add a github repository to forge\n", FLAG_2HY_ADD_REPO);
-        printf(GREEN BOLD "    %s <name>     " RESET YELLOW BOLD "   R "    RESET  "drop a repository from forge\n", FLAG_2HY_DROP_REPO);
-        printf(GREEN BOLD "    %s <n> <l>    " RESET YELLOW BOLD " R "    RESET  "create a new repository from your custom packages with the name `n` and git link `l`\n", FLAG_2HY_CREATE_REPO);
-        printf(GREEN BOLD "    %s" RESET                                "                list all repositories that forge is using\n", FLAG_2HY_LIST_REPOS);
-        printf(GREEN BOLD "    %s <pkg>    " RESET                                "            list dependencies of `pkg`\n", FLAG_2HY_DEPS);
-        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "        R " RESET  "create a new package module\n", FLAG_2HY_NEW);
-        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "       R "  RESET  "edit an existing package module\n", FLAG_2HY_EDIT);
-        printf(GREEN BOLD "    %s <name...>" RESET                                "            dump a package module\n", FLAG_2HY_DUMP);
-        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "       R "  RESET  "drop a package\n", FLAG_2HY_DROP);
-        /* printf(GREEN BOLD "    %s <name...>" RESET                                "            drop a package\n", FLAG_2HY_DROP); */
-        printf(GREEN BOLD "    %s <name>" RESET                                   "              list all installed files for package <name>\n", FLAG_2HY_FILES);
-        printf(GREEN BOLD "    %s [name...]" RESET                                "             show the header files for the Forge API\n", FLAG_2HY_API);
-        printf(GREEN BOLD "    %s <name>" RESET                                   "            restore a recently dropped package\n", FLAG_2HY_RESTORE);
-        printf(GREEN BOLD "    %s" RESET                                          "                   view copying information\n", FLAG_2HY_COPYING);
-        printf(GREEN BOLD "    %s" RESET                                          "                  view the depgraph of all C modules\n", FLAG_2HY_DEPGRAPH);
-        printf(GREEN BOLD "    %s" RESET                                          "                  view API headers\n", FLAG_2HY_APILIST);
-        printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "   R "  RESET  "edit the forge configuration header\n", FLAG_2HY_EDITCONF);
-        printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "R "  RESET  "update forge (used after %s)\n", FLAG_2HY_UPDATEFORGE, FLAG_2HY_EDITCONF);
-        printf(GREEN BOLD "    %s" RESET                                          "     generate a repo testing script\n", FLAG_2HY_REPO_COMPILE_TEMPLATE);
-        printf(GREEN BOLD "    %s" RESET                                          "                       view forge library linking flag\n", FLAG_2HY_LIB);
-        printf("Note: " YELLOW BOLD "R" RESET " requires root permissions\n");
+        printf("Usage: forge " YELLOW BOLD "[options...] " RESET GREEN BOLD "<command>" RESET " [arguments...]\n\n");
+
+        printf("[(" BOLD YELLOW "R" RESET ") requires root access]\n");
+        printf("[(" BOLD YELLOW "N" RESET ") has an important note (see -h=<option|cmd>)]\n");
+
+        printf("\nOptions:\n");
+        printf(YELLOW BOLD "    -%c, --%s[=<flag>|*]" RESET "      display this message or view help on a command or option\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
+        printf(YELLOW BOLD "    -%c, --%s           R"                         RESET  "  rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
+        printf(YELLOW BOLD "    -%c, --%s              R"                         RESET "  sync the C modules repository\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
+        printf(YELLOW BOLD "        --%s              "                         RESET "  force the action if it can\n", FLAG_2HY_FORCE);
+        printf(YELLOW BOLD "        --%s  R"                         RESET "  remove all broken packages\n", FLAG_2HY_DROP_BROKEN_PKGS);
+        printf("\nCommands:\n");
+        printf(GREEN BOLD "    %s          " RESET                                "             list available packages\n", FLAG_2HY_LIST);
+        printf(GREEN BOLD "    %s <pkg...> "                         RESET "           search for packages\n", FLAG_2HY_SEARCH);
+        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "       R "     RESET  " install packages\n", FLAG_2HY_INSTALL);
+        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "     R "       RESET  " uninstall packages\n", FLAG_2HY_UNINSTALL);
+        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "        R "    RESET  " update packages or leave empty to update all\n", FLAG_2HY_UPDATE);
+        printf(GREEN BOLD "    %s <name> " RESET YELLOW BOLD "        R "    RESET  " save a dependency package as explictly installed\n", FLAG_2HY_SAVE_DEP);
+        printf(GREEN BOLD "    %s" RESET YELLOW BOLD "                   RN"    RESET  " remove unused dependency packages\n", FLAG_2HY_CLEAN);
+        printf(GREEN BOLD "    %s <git-link> " RESET YELLOW BOLD "    RN"    RESET  " add a github repository to forge\n", FLAG_2HY_ADD_REPO);
+        printf(GREEN BOLD "    %s <name>     " RESET YELLOW BOLD "   R "    RESET  " drop a repository from forge\n", FLAG_2HY_DROP_REPO);
+        printf(GREEN BOLD "    %s <n> <l>    " RESET YELLOW BOLD " RN"    RESET  " create a new repository from your custom packages with the name `n` and git link `l`\n", FLAG_2HY_CREATE_REPO);
+        printf(GREEN BOLD "    %s" RESET                                "                 list all repositories that forge is using\n", FLAG_2HY_LIST_REPOS);
+        printf(GREEN BOLD "    %s <pkg>    " RESET                                "             list dependencies of `pkg`\n", FLAG_2HY_DEPS);
+        printf(GREEN BOLD "    %s     " RESET                                "             list all dependency packages\n", FLAG_2HY_LIST_DEPS);
+        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "        RN" RESET  " create a new package module\n", FLAG_2HY_NEW);
+        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "       R "  RESET  " edit an existing package module\n", FLAG_2HY_EDIT);
+        printf(GREEN BOLD "    %s <name...>" RESET                                "             dump a package module\n", FLAG_2HY_DUMP);
+        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "       RN"  RESET  " drop a package\n", FLAG_2HY_DROP);
+        printf(GREEN BOLD "    %s <name>" RESET                                   "               list all installed files for package <name>\n", FLAG_2HY_FILES);
+        printf(GREEN BOLD "    %s [name...]" RESET                                "              show the header files for the Forge API\n", FLAG_2HY_API);
+        printf(GREEN BOLD "    %s <name>" RESET                                   "             restore a recently dropped package\n", FLAG_2HY_RESTORE);
+        printf(GREEN BOLD "    %s" RESET                                          "                    view copying information\n", FLAG_2HY_COPYING);
+        printf(GREEN BOLD "    %s" RESET                                          "                   view the depgraph of all C modules\n", FLAG_2HY_DEPGRAPH);
+        printf(GREEN BOLD "    %s" RESET                                          "                   view API headers\n", FLAG_2HY_APILIST);
+        printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "   RN"  RESET  " edit the forge configuration header\n", FLAG_2HY_EDITCONF);
+        printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "R "  RESET  " update and recompile forge\n", FLAG_2HY_UPDATEFORGE);
+        printf(GREEN BOLD "    %s   " RESET YELLOW BOLD " N"  RESET  " generate a repo testing script\n", FLAG_2HY_REPO_COMPILE_TEMPLATE);
+        printf(GREEN BOLD "    %s" RESET                                          "                        view forge library linking flag\n", FLAG_2HY_LIB);
         exit(0);
 }
 

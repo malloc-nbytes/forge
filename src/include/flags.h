@@ -55,6 +55,7 @@
 #define FLAG_2HY_LIB "lib"
 #define FLAG_2HY_CLEAN "clean"
 #define FLAG_2HY_SAVE_DEP "save-dep"
+#define FLAG_2HY_LIST_DEPS "list-deps"
 
 typedef enum {
         FT_REBUILD = 1 << 0,
