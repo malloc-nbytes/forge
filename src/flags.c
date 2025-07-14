@@ -426,6 +426,30 @@ help_lib(void)
         INDENT INDENT printf("forge lib\n");
 }
 
+static void
+help_clean(void) {
+        printf("help(%s):\n", FLAG_2HY_CLEAN);
+        INDENT printf("Remove all packages that are installed as dependencies\n");
+        INDENT printf("and are no longer needed.\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("See command `save-dep` if you want to keep\n");
+        INDENT INDENT printf("a dependency.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge clean\n");
+}
+
+static void
+help_save_dep(void) {
+        printf("help(%s <name>):\n", FLAG_2HY_SAVE_DEP);
+        INDENT printf("Save a package that was installed as a dependency to\n");
+        INDENT printf("to *not* get removed when calling the command `clean`.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge save-dep malloc-nbytes@earl\n");
+}
+
 void
 help(const char *flag)
 {
@@ -458,6 +482,8 @@ help(const char *flag)
                 help_repo_compile_template,
                 help_create_repo,
                 help_lib,
+                help_clean,
+                help_save_dep,
         };
 
         size_t n = strlen(flag);
@@ -548,6 +574,10 @@ help(const char *flag)
                 hs[26]();
         } else if (!strcmp(flag, FLAG_2HY_LIB)) {
                 hs[27]();
+        } else if (!strcmp(flag, FLAG_2HY_CLEAN)) {
+                hs[28]();
+        } else if (!strcmp(flag, FLAG_2HY_SAVE_DEP)) {
+                hs[29]();
         }
 
         else if (!strcmp(flag, "*")) {
@@ -602,6 +632,8 @@ usage(void)
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "       R "     RESET  "install packages\n", FLAG_2HY_INSTALL);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "     R "       RESET  "uninstall packages\n", FLAG_2HY_UNINSTALL);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "        R "    RESET  "update packages or leave empty to update all\n", FLAG_2HY_UPDATE);
+        printf(GREEN BOLD "    %s <name> " RESET YELLOW BOLD "        R "    RESET  "save a dependency package as explictly installed\n", FLAG_2HY_SAVE_DEP);
+        printf(GREEN BOLD "    %s" RESET YELLOW BOLD "                   R "    RESET  "remove unused dependency packages\n", FLAG_2HY_CLEAN);
         printf(GREEN BOLD "    %s <git-link> " RESET YELLOW BOLD "    R "    RESET  "add a github repository to forge\n", FLAG_2HY_ADD_REPO);
         printf(GREEN BOLD "    %s <name>     " RESET YELLOW BOLD "   R "    RESET  "drop a repository from forge\n", FLAG_2HY_DROP_REPO);
         printf(GREEN BOLD "    %s <n> <l>    " RESET YELLOW BOLD " R "    RESET  "create a new repository from your custom packages with the name `n` and git link `l`\n", FLAG_2HY_CREATE_REPO);
