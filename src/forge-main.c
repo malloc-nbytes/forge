@@ -98,6 +98,8 @@ static const char *common_install_dirs[] = {
         "/usr/local/lib",
         "/usr/local/sbin",
         "/usr/local/share",
+        "/usr/local/etc",
+        "/usr/local/src",
 };
 
 #define CD(path, block) if (!cd(path)) block;
@@ -152,12 +154,14 @@ struct {
 };
 
 str_array
-get_absolute_files_in_dir(const char *fp)
+get_absolute_files_in_dir(const char *fp, int err_on_noexist)
 {
         str_array res = dyn_array_empty(str_array);
         DIR *dir = opendir(fp);
         if (!dir) {
-                fprintf(stderr, "Failed to open directory %s: %s\n", fp, strerror(errno));
+                if (err_on_noexist) {
+                        fprintf(stderr, "Failed to open directory %s: %s\n", fp, strerror(errno));
+                }
                 return res;
         }
 
@@ -243,7 +247,7 @@ snapshot_files(void)
         for (size_t i = 0;
              i < sizeof(common_install_dirs)/sizeof(*common_install_dirs);
              ++i) {
-                str_array ar = get_absolute_files_in_dir(common_install_dirs[i]);
+                str_array ar = get_absolute_files_in_dir(common_install_dirs[i], 0);
                 for (size_t j = 0; j < ar.len; ++j) {
                         forge_smap_insert(&map, ar.data[j], &SNAPSHOT_FILES_TRUE);
                         free(ar.data[j]);
