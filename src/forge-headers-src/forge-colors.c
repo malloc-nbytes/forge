@@ -8,10 +8,6 @@ static void
 dyn_array_append_str(char_array *arr,
                      const char *str)
 {
-        if (!arr || !str) {
-                return; // Handle null inputs
-        }
-
         // Calculate length of the input string (excluding null terminator)
         size_t str_len = strlen(str);
 

@@ -2,9 +2,10 @@
 
 set -xe
 
-if command -v wget >/dev/null 2>&1; then
+if command -v curl >/dev/null 2>&1; then
     if [ ! -e "src/sqlite-autoconf-3500100" ]; then
-        wget https://sqlite.org/2025/sqlite-autoconf-3500100.tar.gz
+        # wget https://sqlite.org/2025/sqlite-autoconf-3500100.tar.gz
+        curl -O https://sqlite.org/2025/sqlite-autoconf-3500100.tar.gz
         mv sqlite-autoconf-3500100.tar.gz ./src
         cd src
         tar -vxzf ./sqlite-autoconf-3500100.tar.gz

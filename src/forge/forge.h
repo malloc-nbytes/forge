@@ -9,6 +9,7 @@
 #include "forge/smap.h"
 #include "forge/viewer.h"
 #include "forge/colors.h"
+#include "forge/mem.h"
 #include "forge/conf.h"
 
 /**
