@@ -182,6 +182,27 @@ forge_io_write_file(const char *fp,
 }
 
 int
+forge_io_write_lines(const char  *fp,
+                     const char **lines,
+                     size_t       lines_n)
+{
+        FILE *f = fopen(fp, "w");
+        if (!f) { return 0; }
+
+        for (size_t i = 0; i < lines_n; ++i) {
+                if (lines[i]) {
+                        if (fprintf(f, "%s\n", lines[i]) < 0) {
+                                fclose(f);
+                                return 0;
+                        }
+                }
+        }
+
+        fclose(f);
+        return 1;
+}
+
+int
 forge_io_is_dir(const char *path)
 {
         struct stat path_stat;

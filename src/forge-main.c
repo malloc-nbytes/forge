@@ -1260,7 +1260,7 @@ install_pkg(forge_context *ctx,
                 if (pkg_src_loc) {
                         pkgname = forge_io_basename(pkg_src_loc);
                 } else {
-                        printf(GREEN "(%s)->download()\n\n" RESET, name);
+                        printf(GREEN "\n(%s)->download()\n\n" RESET, name);
                         pkgname = pkg->download();
                 }
 
@@ -2328,9 +2328,7 @@ list_repos(void)
 void
 create_repo_compile_template(void)
 {
-        char *script = "#!/bin/bash\n"
-                "\n"
-                "set -e\n"
+        char *script = "set -e\n"
                 "\n"
                 "for file in *.c; do\n"
                 "    if [[ -f \"$file\" ]]; then\n"

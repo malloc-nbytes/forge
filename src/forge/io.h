@@ -48,6 +48,19 @@ char *forge_io_resolve_absolute_path(const char *fp);
 int forge_io_write_file(const char *fp, const char *content);
 
 /**
+ * Parameter: fp      -> the filepath
+ * Parameter: lines   -> the lines to write
+ * Parameter: lines_n -> how many lines to write
+ * Returns: 1 on success, 0 on failure
+ * Description: Write `lines_n` lines from `lines` to the filepath `fp`.
+ */
+int forge_io_write_lines(
+        const char *fp,
+        const char **lines,
+        size_t lines_n
+);
+
+/**
  * Parameter: path -> the filepath to check
  * Returns: 1 if it is a directory, and 0 if not
  * Description: Check if `path` is a directory.
