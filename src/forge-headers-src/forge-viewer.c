@@ -9,6 +9,7 @@
 #include "forge/viewer.h"
 #include "forge/ctrl.h"
 #include "forge/colors.h"
+
 #include "utils.h"
 
 // For signal handler (resizing window)
@@ -63,14 +64,9 @@ forge_viewer_alloc(char **data, size_t data_n)
         }
 
         // Set terminal to raw mode
-        /* tcgetattr(STDIN_FILENO, &m->old_termios); */
-        /* struct termios raw = m->old_termios; */
-        /* raw.c_lflag &= ~(ECHO | ICANON); */
-        /* raw.c_iflag &= ~IXON; */
-        /* tcsetattr(STDIN_FILENO, TCSANOW, &raw); */
         if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &m->old_termios)) {
                 fprintf(stderr, "Failed to set terminal to raw mode\n");
-                free(m); // Clean up allocated memory before returning
+                free(m);
                 return NULL;
         }
 
@@ -118,14 +114,6 @@ forge_viewer_alloc(char **data, size_t data_n)
         return m;
 }
 
-static void
-reset_scrn(void)
-{
-        printf("\033[2J");
-        printf("\033[H");
-        fflush(stdout);
-}
-
 static inline void
 controls(const forge_viewer *m)
 {
@@ -168,7 +156,7 @@ controls(const forge_viewer *m)
 void
 forge_viewer_dump(const forge_viewer *m)
 {
-        reset_scrn();
+        forge_ctrl_clear_terminal();
         if (m->rows == 0 || m->win_height <= 1) {
                 // If no rows or window too small, just show controls or nothing
                 if (m->win_height >= 1) {
@@ -410,7 +398,7 @@ forge_viewer_display(forge_viewer *m)
                         else if (ch == CTRL_U) { page_up(m); }
                         break;
                 case USER_INPUT_TYPE_ARROW:
-                        if      (ch == UP_ARROW) { up(m); }
+                        if      (ch == UP_ARROW)   { up(m); }
                         else if (ch == DOWN_ARROW) { down(m); }
                         break;
                 default:
@@ -424,5 +412,5 @@ forge_viewer_display(forge_viewer *m)
                 }
         }
  done:
-        reset_scrn();
+        forge_ctrl_clear_terminal();
 }

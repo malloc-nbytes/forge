@@ -105,3 +105,11 @@ forge_ctrl_disable_raw_terminal(int             fd,
 {
         return tcsetattr(fd, TCSANOW, old_termios) != -1;
 }
+
+void
+forge_ctrl_clear_terminal(void)
+{
+        printf("\033[2J");
+        printf("\033[H");
+        fflush(stdout);
+}

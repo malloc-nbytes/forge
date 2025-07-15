@@ -3,6 +3,7 @@
 
 #include <termios.h>
 
+// Different control keys
 #define CTRL_A 1
 #define CTRL_B 2
 #define CTRL_C 3
@@ -30,17 +31,48 @@
 #define CTRL_Y 25
 #define CTRL_Z 26
 
-#define UP_ARROW      'A'
-#define DOWN_ARROW    'B'
-#define RIGHT_ARROW   'C'
-#define LEFT_ARROW    'D'
+// Arrows
+#define UP_ARROW    'A'
+#define DOWN_ARROW  'B'
+#define RIGHT_ARROW 'C'
+#define LEFT_ARROW  'D'
 
+/**
+ * Parameter: ch -> the character to compare
+ * Returns: whether `ch` is a newline
+ * Description: Check if `ch` is a newline.
+ */
 #define ENTER(ch)     (ch) == '\n'
+
+/**
+ * Parameter: ch -> the character to compare
+ * Returns: whether `ch` is a backspace
+ * Description: Check if `ch` is a backspace.
+ */
 #define BACKSPACE(ch) (ch) == 8 || (ch) == 127
-#define ESCSEQ(ch)    (ch) == 27
-#define CSI(ch)       (ch) == '['
+
+/**
+ * Parameter: ch -> the character to compare
+ * Returns: whether `ch` is a tab
+ * Description: Check if `ch` is a tab.
+ */
 #define TAB(ch)       (ch) == '\t'
 
+/**
+ * Parameter: ch -> the character to compare
+ * Returns: whether `ch` is an escape sequence
+ * Description: Check if `ch` is an escape sequence.
+ */
+#define ESCSEQ(ch)    (ch) == 27
+
+/**
+ * Parameter: ch -> the character to compare
+ * Returns: whether `ch` is a control sequence
+ * Description: Check if `ch` is a control sequence.
+ */
+#define CSI(ch)       (ch) == '['
+
+// Different input types.
 typedef enum {
     USER_INPUT_TYPE_CTRL,
     USER_INPUT_TYPE_ALT,
@@ -50,8 +82,40 @@ typedef enum {
     USER_INPUT_TYPE_UNKNOWN,
 } forge_ctrl_input_type;
 
+/**
+ * Parameter: fd          -> the file descriptor
+ * Parameter: old_termios -> the termios to copy bits from
+ * Returns: 1 on success, 0 on failure
+ * Description: Enable the terminal raw mode. This disables the bits:
+ *                  ECHO
+ *                  ICANON
+ *                  IXON.
+ *              Note: If working with stdin, `fd` should be STDIN_FILENO.
+ */
 int forge_ctrl_enable_raw_terminal(int fd, struct termios *old_termios);
+
+/**
+ * Parameter: fd          -> the file descriptor
+ * Parameter: old_termios -> the termios to copy bits from
+ * Returns: 1 on success, 0 on failure
+ * Description: Disables the terminal raw mode. The old termios
+ *              should have the same memory address as the termios
+ *              passed to `forge_ctrl_enable_raw_terminal()`.
+ */
 int forge_ctrl_disable_raw_terminal(int fd, struct termios *old_termios);
+
+/**
+ * Parameter: c -> the character to store to
+ * Returns: the type of input the user entered
+ * Description: Will read input from the user. The type of that
+ *              input will be the return type (see enum forge_ctrl_input_type)
+ *              and the actual byte data will be inside of `c`.
+ */
 forge_ctrl_input_type forge_ctrl_get_input(char *c);
+
+/**
+ * Description: Clear the terminal.
+ */
+void forge_ctrl_clear_terminal(void);
 
 #endif // FORGE_CTRL_H_INCLUDED
