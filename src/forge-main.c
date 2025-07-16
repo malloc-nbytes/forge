@@ -1209,8 +1209,28 @@ install_pkg(forge_context *ctx,
                         continue; // Skip to next package
                 }
 
-                // Register package with is_explicit flag
-                register_pkg(ctx, pkg, is_dep ? 0 : 1);
+                // Check current is_explicit status
+                int is_explicit = is_dep ? 0 : 1; // Default: 0 for deps, 1 for explicit
+                if (pkg_id != -1) { // Package exists in database
+                        sqlite3_stmt *stmt;
+                        const char *sql = "SELECT is_explicit FROM Pkgs WHERE name = ?;";
+                        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+                        CHECK_SQLITE(rc, ctx->db);
+
+                        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+                        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                                int existing_is_explicit = sqlite3_column_int(stmt, 0);
+                                if (!is_dep) { // For explicit installations, preserve is_explicit = 1
+                                        is_explicit = existing_is_explicit || 1; // Keep 1 if already 1, else set to 1
+                                } else { // For dependencies, keep existing is_explicit
+                                        is_explicit = existing_is_explicit;
+                                }
+                        }
+                        sqlite3_finalize(stmt);
+                }
+
+                // Register package with the determined is_explicit value
+                register_pkg(ctx, pkg, is_explicit);
 
                 // Install deps
                 if (pkg->deps) {
@@ -2935,9 +2955,26 @@ main(int argc, char **argv)
                 construct_depgraph(&ctx);
                 indices = depgraph_gen_order(&ctx.dg);
 
-                // Register packages
+                // Register packages, preserving is_explicit status
                 for (size_t i = 0; i < indices.len; ++i) {
-                        register_pkg(&ctx, ctx.pkgs.data[indices.data[i]], 0);
+                        pkg *pkg = ctx.pkgs.data[indices.data[i]];
+                        const char *name = pkg->name();
+
+                        // Query the current is_explicit status
+                        int is_explicit = 0;
+                        sqlite3_stmt *stmt;
+                        const char *sql = "SELECT is_explicit FROM Pkgs WHERE name = ?;";
+                        int rc = sqlite3_prepare_v2(ctx.db, sql, -1, &stmt, NULL);
+                        CHECK_SQLITE(rc, ctx.db);
+
+                        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+                        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                                is_explicit = sqlite3_column_int(stmt, 0);
+                        }
+                        sqlite3_finalize(stmt);
+
+                        // Register package with the existing is_explicit value
+                        register_pkg(&ctx, pkg, is_explicit);
                 }
         }
 
