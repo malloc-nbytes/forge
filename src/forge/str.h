@@ -120,6 +120,12 @@ char *forge_str_builder(const char *first, ...);
  */
 char forge_str_pop(forge_str *fs);
 
+/**
+ * Parameter: fs  -> the forge_str
+ * Parameter: idx -> the index of the character to remove
+ * Returns: the deleted character
+ * Description: Remove the character at `idx` in `fs`.
+ */
 char forge_str_rm_at(forge_str *fs, size_t idx);
 
 #endif // FORGE_STR_H_INCLUDED
