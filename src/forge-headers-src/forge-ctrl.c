@@ -63,7 +63,7 @@ forge_ctrl_get_input(char *c)
                 /*          *c == CTRL_E || *c == CTRL_S || *c == CTRL_Q) { */
                 /*         return USER_INPUT_TYPE_CTRL; */
                 /* } */
-                else if (*c >= CTRL_A && *c <= CTRL_Z) {
+                else if (*c >= CTRL_A && *c <= CTRL_Z && *c != CTRL_J) {
                         return USER_INPUT_TYPE_CTRL;
                 }
                 else return USER_INPUT_TYPE_NORMAL;

@@ -223,7 +223,6 @@ forge_rdln(const char *prompt)
                         else if (ch == CTRL_E) { eol(&ctx); }
                         else if (ch == CTRL_A) { bol(&ctx); }
                         else if (ch == CTRL_K) { del_until_eol(&ctx); }
-                        else if (ENTER(ch))    { goto done; }
                         break;
                 case USER_INPUT_TYPE_ALT:
                         if      (ch == 'f') { jump_forward_word(&ctx); }
