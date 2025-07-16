@@ -84,24 +84,6 @@
         "        .get_changes = forge_pkg_git_pull,\n" \
         "};"
 
-static const char *common_install_dirs[] = {
-        "/usr/bin",
-        "/usr/include",
-        "/usr/lib",
-        "/usr/lib64",
-        "/etc",
-        "/opt",
-        "/usr/share",
-        "/usr/local/bin",
-        "/usr/local/include",
-        "/usr/local/lib64",
-        "/usr/local/lib",
-        "/usr/local/sbin",
-        "/usr/local/share",
-        "/usr/local/etc",
-        "/usr/local/src",
-};
-
 #define CD(path, block) if (!cd(path)) block;
 #define CMD(c, block)   if (!cmd(c))   block;
 
@@ -244,9 +226,26 @@ snapshot_files(void)
 {
         static int SNAPSHOT_FILES_TRUE = 1;
         forge_smap map = forge_smap_create();
+        const char *common_install_dirs[] = {
+                "/usr/bin",
+                "/usr/include",
+                "/usr/lib",
+                "/usr/lib64",
+                "/etc",
+                "/opt",
+                "/usr/share",
+                "/usr/local/bin",
+                "/usr/local/include",
+                "/usr/local/lib64",
+                "/usr/local/lib",
+                "/usr/local/sbin",
+                "/usr/local/share",
+                "/usr/local/etc",
+                "/usr/local/src",
+        };
+
         for (size_t i = 0;
-             i < sizeof(common_install_dirs)/sizeof(*common_install_dirs);
-             ++i) {
+             i < sizeof(common_install_dirs)/sizeof(*common_install_dirs); ++i) {
                 str_array ar = get_absolute_files_in_dir(common_install_dirs[i], 0);
                 for (size_t j = 0; j < ar.len; ++j) {
                         forge_smap_insert(&map, ar.data[j], &SNAPSHOT_FILES_TRUE);
@@ -552,6 +551,7 @@ drop_pkg(forge_context *ctx, const char *name)
         char *abspath = get_c_module_filepath_from_basic_name(name);
         forge_str pkg_filename = forge_str_from(abspath);
         free(abspath);
+
         forge_str pkg_new_filename = forge_str_from(forge_str_to_cstr(&pkg_filename));
         char hash[32] = {0};
         snprintf(hash, 32, "%ld", time(NULL));
@@ -1181,7 +1181,7 @@ install_pkg(forge_context *ctx,
         for (size_t i = 0; i < names->len; ++i) {
                 const char *name = names->data[i];
                 if (is_dep) {
-                        printf(GREEN BOLD "\n*** Installing dependency %s [%zu of %zu]\n\n" RESET,
+                        printf(GREEN BOLD "\n*** Installing dependency %s [%zu of %zu]\n" RESET,
                                name, i+1, names->len);
                 } else {
                         printf(GREEN BOLD "\n*** Installing package %s [%zu of %zu]\n" RESET,
@@ -1234,8 +1234,8 @@ install_pkg(forge_context *ctx,
 
                 // Install deps
                 if (pkg->deps) {
-                        good_major("installing dependencies", 1);
-                        printf(GREEN "\n(%s)->deps()\n\n" RESET, name);
+                        good_major("Installing Dependencies", 1);
+                        printf(GREEN "(%s)->deps()\n" RESET, name);
                         char **deps = pkg->deps();
                         str_array depnames = dyn_array_empty(str_array);
                         for (size_t j = 0; deps[j]; ++j) {
@@ -1377,6 +1377,7 @@ install_pkg(forge_context *ctx,
 
                 printf(PINK ITALIC BOLD "\n*** Installed:\n" RESET PINK ITALIC);
                 list_files(ctx, name, 1);
+                printf(RESET);
 
                 free(pkg_src_loc);
         }
@@ -2697,10 +2698,8 @@ main(int argc, char **argv)
                 return 0;
         }
 
-        sqlite3 *db = init_db(DB_FP);
-
         forge_context ctx = (forge_context) {
-                .db = db,
+                .db = init_db(DB_FP),
                 .dll = {
                         .handles = dyn_array_empty(handle_array),
                         .paths = dyn_array_empty(str_array),
