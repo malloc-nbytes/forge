@@ -10,6 +10,8 @@
 #include "forge/viewer.h"
 #include "forge/colors.h"
 #include "forge/mem.h"
+#include "forge/ctrl.h"
+#include "forge/rdln.h"
 #include "forge/conf.h"
 
 /**

@@ -45,6 +45,17 @@ forge_str_from(const char *s)
         return fs;
 }
 
+forge_str
+forge_str_take(char *s)
+{
+        forge_str fs = forge_str_create();
+        const size_t n = strlen(s);
+        fs.data = s;
+        fs.cap = n;
+        fs.len = n;
+        return fs;
+}
+
 void
 forge_str_clear(forge_str *fs)
 {
@@ -148,6 +159,25 @@ forge_str_contains_substr(const forge_str *fs,
         return NULL;
 }
 
+void
+forge_str_insert_at(forge_str *fs, char c, size_t idx)
+{
+        assert(fs != NULL);
+        assert(idx <= fs->len);
+
+        if (!fs->data || fs->len == 0) {
+                forge_str_append(fs, c);
+                return;
+        }
+
+        forge_str_append(fs, fs->data[fs->len-1]);
+
+        for (size_t i = fs->len-2; i > idx; --i) {
+                fs->data[i] = fs->data[i-1];
+        }
+        fs->data[idx] = c;
+}
+
 char *
 forge_str_builder(const char *first, ...)
 {
@@ -178,4 +208,29 @@ forge_str_builder(const char *first, ...)
 
         result[total_length] = '\0';
         return result;
+}
+
+char
+forge_str_pop(forge_str *fs)
+{
+        char c = fs->data[fs->len-1];
+        fs->data[--fs->len] = 0;
+        return c;
+}
+
+char
+forge_str_rm_at(forge_str *fs, size_t idx)
+{
+        assert(fs != NULL && fs->data != NULL);
+        assert(idx < fs->len);
+
+        char removed = fs->data[idx];
+
+        for (size_t i = idx; i < fs->len-1; ++i) {
+                fs->data[i] = fs->data[i+1];
+        }
+
+        fs->data[--fs->len] = 0;
+
+        return removed;
 }
