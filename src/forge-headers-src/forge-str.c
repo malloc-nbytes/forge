@@ -28,11 +28,12 @@
 forge_str
 forge_str_create(void)
 {
-        return (forge_str) {
+        forge_str fs = (forge_str) {
                 .data = NULL,
                 .cap = 0,
                 .len = 0,
         };
+        return fs;
 }
 
 forge_str
@@ -78,9 +79,10 @@ forge_str_append(forge_str *fs, char c)
         if (fs->len >= fs->cap) {
                 fs->cap = fs->cap ? fs->cap * 2 : 2;
                 fs->data = (char *)realloc(fs->data, fs->cap);
-                (void)memset(fs->data+fs->len, 0, fs->cap - fs->len);
+                memset(fs->data + fs->len, 0, fs->cap - fs->len);
         }
         fs->data[fs->len++] = c;
+        fs->data[fs->len] = '\0';
 }
 
 void
@@ -176,6 +178,7 @@ forge_str_insert_at(forge_str *fs, char c, size_t idx)
                 fs->data[i] = fs->data[i-1];
         }
         fs->data[idx] = c;
+        fs->data[fs->len] = '\0';
 }
 
 char *
@@ -225,12 +228,9 @@ forge_str_rm_at(forge_str *fs, size_t idx)
         assert(idx < fs->len);
 
         char removed = fs->data[idx];
-
         for (size_t i = idx; i < fs->len-1; ++i) {
                 fs->data[i] = fs->data[i+1];
         }
-
-        fs->data[--fs->len] = 0;
-
+        fs->data[--fs->len] = '\0';
         return removed;
 }

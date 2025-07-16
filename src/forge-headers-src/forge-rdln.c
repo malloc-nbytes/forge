@@ -200,6 +200,9 @@ forge_rdln(const char *prompt)
                 return NULL;
         }
 
+        forge_ctrl_clear_line();
+        fflush(stdout);
+
         while (1) {
                 drawln(&ctx);
 
@@ -245,7 +248,8 @@ forge_rdln(const char *prompt)
         }
 
  done:
+        forge_str_append(&ctx.str, '\0');
         printf("\n");
         forge_ctrl_disable_raw_terminal(STDIN_FILENO, &term);
-        return forge_str_to_cstr(&ctx.str);
+        return ctx.str.data;
 }
