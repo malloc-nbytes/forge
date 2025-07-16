@@ -2652,10 +2652,6 @@ list_deps(const forge_context *ctx)
 int
 main(int argc, char **argv)
 {
-        char *res = forge_rdln(">>> ");
-        printf("res: %s\n", res);
-        return 0;
-
         ++argv, --argc;
         clap_init(argc, argv);
         int exists = cio_file_exists(DB_FP);
