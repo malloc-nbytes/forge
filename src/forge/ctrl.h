@@ -42,35 +42,40 @@
  * Returns: whether `ch` is a newline
  * Description: Check if `ch` is a newline.
  */
-#define ENTER(ch)     (ch) == '\n'
+#define ENTER(ch)     ((ch) == '\n')
 
 /**
  * Parameter: ch -> the character to compare
  * Returns: whether `ch` is a backspace
  * Description: Check if `ch` is a backspace.
  */
-#define BACKSPACE(ch) (ch) == 8 || (ch) == 127
+#define BACKSPACE(ch) ((ch) == 8 || (ch) == 127)
 
 /**
  * Parameter: ch -> the character to compare
  * Returns: whether `ch` is a tab
  * Description: Check if `ch` is a tab.
  */
-#define TAB(ch)       (ch) == '\t'
+#define TAB(ch)       ((ch) == '\t')
 
 /**
  * Parameter: ch -> the character to compare
  * Returns: whether `ch` is an escape sequence
  * Description: Check if `ch` is an escape sequence.
  */
-#define ESCSEQ(ch)    (ch) == 27
+#define ESCSEQ(ch)    ((ch) == 27)
 
 /**
  * Parameter: ch -> the character to compare
  * Returns: whether `ch` is a control sequence
  * Description: Check if `ch` is a control sequence.
  */
-#define CSI(ch)       (ch) == '['
+#define CSI(ch)       ((ch) == '[')
+
+#define CURSOR_LEFT(n)  printf("\033[%dD", n);
+#define CURSOR_RIGHT(n) printf("\033[%dC", n);
+#define CURSOR_UP(n)    printf("\033[%dA", n);
+#define CURSOR_DOWN(n)  printf("\033[%dB", n);
 
 // Different input types.
 typedef enum {
@@ -117,5 +122,16 @@ forge_ctrl_input_type forge_ctrl_get_input(char *c);
  * Description: Clear the terminal.
  */
 void forge_ctrl_clear_terminal(void);
+
+/**
+ * Description: Clear the current line.
+ */
+void forge_ctrl_clear_line(void);
+
+/**
+ * Parameter: n -> the column number
+ * Description: Move the cursor to column `n`.
+ */
+void forge_ctrl_cursor_to_col(int n);
 
 #endif // FORGE_CTRL_H_INCLUDED

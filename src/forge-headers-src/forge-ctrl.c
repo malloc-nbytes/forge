@@ -56,11 +56,14 @@ forge_ctrl_get_input(char *c)
                                 return USER_INPUT_TYPE_ALT;
                         }
                 }
-                else if (*c == CTRL_N || *c == CTRL_P || *c == CTRL_G ||
-                         *c == CTRL_D || *c == CTRL_U || *c == CTRL_V ||
-                         *c == CTRL_W || *c == CTRL_O || *c == CTRL_L ||
-                         *c == CTRL_F || *c == CTRL_B || *c == CTRL_A ||
-                         *c == CTRL_E || *c == CTRL_S || *c == CTRL_Q) {
+                /* else if (*c == CTRL_N || *c == CTRL_P || *c == CTRL_G || */
+                /*          *c == CTRL_D || *c == CTRL_U || *c == CTRL_V || */
+                /*          *c == CTRL_W || *c == CTRL_O || *c == CTRL_L || */
+                /*          *c == CTRL_F || *c == CTRL_B || *c == CTRL_A || */
+                /*          *c == CTRL_E || *c == CTRL_S || *c == CTRL_Q) { */
+                /*         return USER_INPUT_TYPE_CTRL; */
+                /* } */
+                else if (*c >= CTRL_A && *c <= CTRL_Z) {
                         return USER_INPUT_TYPE_CTRL;
                 }
                 else return USER_INPUT_TYPE_NORMAL;
@@ -112,4 +115,26 @@ forge_ctrl_clear_terminal(void)
         printf("\033[2J");
         printf("\033[H");
         fflush(stdout);
+}
+
+void
+forge_ctrl_clear_line(void)
+{
+    // Clear the entire line
+    printf("\033[2K");
+
+    // Move cursor to the start of the line
+    printf("\033[0G");
+
+    fflush(stdout);
+}
+
+void
+forge_ctrl_cursor_to_col(int n)
+{
+    if (n < 1) n = 1;
+
+    // Move cursor to column n (1-based)
+    printf("\033[%dG", n);
+    fflush(stdout);
 }

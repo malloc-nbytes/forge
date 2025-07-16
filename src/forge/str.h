@@ -21,6 +21,16 @@ forge_str forge_str_create(void);
 forge_str forge_str_from(const char *s);
 
 /**
+ * Parameter: s -> the string to take from
+ * Returns: a new forge_str created from `s`.
+ * Description: Creates a new forge_str with the
+ *              content of `s`. It will take ownership
+ *              of the pointer so it will be destroyed
+ *              in `forge_str_destroy()`.
+ */
+forge_str forge_str_take(char *s);
+
+/**
  * Parameter: fs -> the forge_str
  * Description: Clear the string `fs`.
  */
@@ -85,6 +95,14 @@ char *forge_str_contains_substr(
 );
 
 /**
+ * Parameter: fs  -> the forge_str to insert into
+ * Parameter: c   -> the character to insert
+ * Parameter: idx -> the index to insert at
+ * Description: Insert character `c` into string `fs` at index `idx`.
+ */
+void forge_str_insert_at(forge_str *fs, char c, size_t idx);
+
+/**
  * Parameter: first -> the first string
  * VARIADIC         -> other strings
  * Returns: the concatination of all strings
@@ -92,5 +110,16 @@ char *forge_str_contains_substr(
  *              Note: Remember to put NULL as the last argument!
  */
 char *forge_str_builder(const char *first, ...);
+
+/**
+ * Parameter: fs -> the forge_string
+ * Returns: the character that was removed
+ * Description: Pop's the last character off of
+ *              the string `fs`. It is up to you
+ *              to make sure that `fs.len > 0`.
+ */
+char forge_str_pop(forge_str *fs);
+
+char forge_str_rm_at(forge_str *fs, size_t idx);
 
 #endif // FORGE_STR_H_INCLUDED
