@@ -2064,10 +2064,26 @@ apilist(void)
                 fprintf(stderr, "could not find FORGE_API_HEADER_DIR\n");
                 return;
         }
+
+        // Find the longest filename length (excluding .h)
+        size_t max_len = 0;
         for (size_t i = 0; files[i]; ++i) {
-                if (strcmp(files[i], ".")
-                    && strcmp(files[i], "..")
-                    && strcmp(files[i], "forge.h")) {
+                if (strcmp(files[i], ".") && strcmp(files[i], "..") && strcmp(files[i], "forge.h")) {
+                        size_t len = 0;
+                        for (size_t j = 0; files[i][j]; ++j) {
+                                if (files[i][j] == '.') {
+                                        len = j; // Length up to the period
+                                        break;
+                                }
+                        }
+                        if (len > max_len) {
+                                max_len = len;
+                        }
+                }
+        }
+
+        for (size_t i = 0; files[i]; ++i) {
+                if (strcmp(files[i], ".") && strcmp(files[i], "..") && strcmp(files[i], "forge.h")) {
                         forge_str include = forge_str_from("#include <forge/");
                         forge_str_concat(&include, files[i]);
                         forge_str_append(&include, '>');
@@ -2076,19 +2092,25 @@ apilist(void)
                         for (size_t j = 0; files[i][j]; ++j) {
                                 if (files[i][j] == '.') {
                                         per = j;
+                                        break;
                                 }
                         }
                         files[i][per] = 0;
 
-                        printf("Name: %s\n", files[i]);
+                        char format[32] = {0};
+                        snprintf(format, sizeof(format), "API %%-%zus: %%s\n", max_len);
 
-                        printf("  %s\n", forge_str_to_cstr(&include));
+                        printf(format, files[i], forge_str_to_cstr(&include));
+
                         forge_str_destroy(&include);
                 }
                 free(files[i]);
         }
-        printf("Name: forge\n");
-        printf("  #include <forge/forge.h> // includes all headers\n");
+
+        free(files);
+        char format[32] = {0};
+        snprintf(format, sizeof(format), "API %%-%zus: %%s\n", max_len);
+        printf(format, "forge", "#include <forge/forge.h> [includes all headers]");
 }
 
 void
