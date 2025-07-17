@@ -2692,6 +2692,26 @@ list_deps(const forge_context *ctx)
         dyn_array_free(dep_names);
 }
 
+void
+show_commands_for_bash_completion(void)
+{
+        const char *s[] = CLI_CMDS;
+        for (size_t i = 0; i < sizeof(s)/sizeof(*s); ++i) {
+                if (i != 0) putchar(' ');
+                printf("%s", s[i]);
+        }
+}
+
+void
+show_options_for_bash_completion(void)
+{
+        const char *s[] = CLI_OPTIONS;
+        for (size_t i = 0; i < sizeof(s)/sizeof(*s); ++i) {
+                if (i != 0) putchar(' ');
+                printf("%s", s[i]);
+        }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2737,64 +2757,64 @@ main(int argc, char **argv)
 
         Clap_Arg arg = {0};
         while (clap_next(&arg)) {
-                if (arg.hyphc == 1 && arg.start[0] == FLAG_1HY_HELP) {
+                if (arg.hyphc == 1 && arg.start[0] == FLAG_1HY_HELP[0]) {
                         if (arg.eq) { help(arg.eq); }
                         usage();
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_HELP)) {
                         if (arg.eq) { help(arg.eq); }
                         usage();
-                } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_FORCE)) {
+                } else if (arg.hyphc == 2 && !strcmp(arg.start, CMD_FORCE)) {
                         g_config.flags |= FT_FORCE;
                 }
 
-                else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIST)) {
+                else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_LIST)) {
                         list_registerd_pkgs(&ctx);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DEPS)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_DEPS)) {
                         if (!clap_next(&arg)) {
-                                err_wargs("flag `%s` requires an argument", FLAG_2HY_DEPS);
+                                err_wargs("flag `%s` requires an argument", CMD_DEPS);
                         }
                         deps(&ctx, arg.start);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_INSTALL)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_INSTALL)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
                                 dyn_array_append(names, strdup(arg.start));
                         }
-                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_INSTALL);
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", CMD_INSTALL);
                         assert_sudo();
                         install_pkg(&ctx, &names, 0);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_UNINSTALL)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_UNINSTALL)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
                                 dyn_array_append(names, strdup(arg.start));
                         }
-                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_UNINSTALL);
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", CMD_UNINSTALL);
                         assert_sudo();
                         uninstall_pkg(&ctx, &names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_REBUILD)) {
                         g_config.flags |= FT_REBUILD;
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_NEW)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_NEW)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
                                 dyn_array_append(names, strdup(arg.start));
                         }
-                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_NEW);
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", CMD_NEW);
                         assert_sudo();
                         new_pkg(&ctx, &names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_EDIT)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_EDIT)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
                                 dyn_array_append(names, strdup(arg.start));
                         }
-                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_EDIT);
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", CMD_EDIT);
                         assert_sudo();
                         edit_c_module(&names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_UPDATE)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_UPDATE)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
                                 dyn_array_append(names, strdup(arg.start));
@@ -2803,12 +2823,12 @@ main(int argc, char **argv)
                         update_pkgs(&ctx, &names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DUMP)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_DUMP)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
                                 dyn_array_append(names, strdup(arg.start));
                         }
-                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_DUMP);
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", CMD_DUMP);
                         for (size_t i = 0; i < names.len; ++i)
                                 api_dump(names.data[i], 0);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
@@ -2817,25 +2837,25 @@ main(int argc, char **argv)
                         g_config.flags |= FT_SYNC;
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_DROP_BROKEN_PKGS)) {
                         g_config.flags |= FT_DROP_BROKEN_PKGS;
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DROP)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_DROP)) {
                         assert_sudo();
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
                                 dyn_array_append(names, strdup(arg.start));
                         }
-                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_DROP);
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", CMD_DROP);
                         for (size_t i = 0; i < names.len; ++i)
                                 drop_pkg(&ctx, names.data[i]);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_FILES)) {
-                        if (!clap_next(&arg)) { err_wargs("flag `%s` requires an argument", FLAG_2HY_FILES); }
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_FILES)) {
+                        if (!clap_next(&arg)) { err_wargs("flag `%s` requires an argument", CMD_FILES); }
                         list_files(&ctx, arg.start, 0);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_COPYING)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_COPYING)) {
                         copying();
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DEPGRAPH)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_DEPGRAPH)) {
                         depgraph_dump(&ctx.dg);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_API)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_API)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
                                 dyn_array_append(names, strdup(arg.start));
@@ -2849,59 +2869,59 @@ main(int argc, char **argv)
                                         free(names.data[i]);
                         }
                         dyn_array_free(names);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_EDITCONF)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_EDITCONF)) {
                         assert_sudo();
                         editconf();
                         printf(YELLOW BOLD "=== NOTE ===\n" RESET YELLOW);
                         printf(YELLOW "For these changes to take effect, you need\n");
-                        printf(YELLOW "to rebuild forge. To do this, run `forge %s`\n", FLAG_2HY_UPDATEFORGE);
+                        printf(YELLOW "to rebuild forge. To do this, run `forge %s`\n", CMD_UPDATEFORGE);
                         printf(YELLOW "This action requires an internet connection.\n");
                         printf(YELLOW BOLD "============\n" RESET);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_UPDATEFORGE)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_UPDATEFORGE)) {
                         assert_sudo();
                         updateforge();
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_RESTORE)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_RESTORE)) {
                         if (!clap_next(&arg)) {
-                                err_wargs("flag `%s` requires an argument", FLAG_2HY_DEPS);
+                                err_wargs("flag `%s` requires an argument", CMD_DEPS);
                         }
                         assert_sudo();
                         restore_pkg(&ctx, arg.start);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_APILIST)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_APILIST)) {
                         apilist();
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_SEARCH)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_SEARCH)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
                                 dyn_array_append(names, strdup(arg.start));
                         }
-                        if (names.len == 0) err_wargs("flag `%s` requires an argument", FLAG_2HY_SEARCH);
+                        if (names.len == 0) err_wargs("flag `%s` requires an argument", CMD_SEARCH);
                         pkg_search(&names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_ADD_REPO)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_ADD_REPO)) {
                         if (!clap_next(&arg)) {
-                                err_wargs("flag `%s` requires a Github repo link", FLAG_2HY_ADD_REPO);
+                                err_wargs("flag `%s` requires a Github repo link", CMD_ADD_REPO);
                         }
                         assert_sudo();
                         g_config.flags |= FT_REBUILD;
                         add_repo(arg.start);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_DROP_REPO)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_DROP_REPO)) {
                         if (!clap_next(&arg)) {
-                                err_wargs("flag `%s` requires an argument", FLAG_2HY_DROP_REPO);
+                                err_wargs("flag `%s` requires an argument", CMD_DROP_REPO);
                         }
                         assert_sudo();
                         g_config.flags |= FT_REBUILD;
                         drop_repo(&ctx, arg.start);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIST_REPOS)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_LIST_REPOS)) {
                         list_repos();
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_REPO_COMPILE_TEMPLATE)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_REPO_COMPILE_TEMPLATE)) {
                         create_repo_compile_template();
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_CREATE_REPO)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_CREATE_REPO)) {
                         if (!clap_next(&arg)) {
-                                err_wargs("flag `%s` requires a repo name", FLAG_2HY_CREATE_REPO);
+                                err_wargs("flag `%s` requires a repo name", CMD_CREATE_REPO);
                         }
                         char *repo_name = strdup(arg.start);
                         if (!clap_next(&arg)) {
-                                err_wargs("flag `%s` requires a repo url", FLAG_2HY_CREATE_REPO);
+                                err_wargs("flag `%s` requires a repo url", CMD_CREATE_REPO);
                         }
                         char *repo_url = strdup(arg.start);
                         assert_sudo();
@@ -2909,29 +2929,31 @@ main(int argc, char **argv)
                         g_config.flags |= FT_REBUILD;
                         free(repo_name);
                         free(repo_url);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_CLEAN)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_CLEAN)) {
                         assert_sudo();
                         clean_pkgs(&ctx);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIB)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_LIB)) {
                         show_lib();
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_SAVE_DEP)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_SAVE_DEP)) {
                         if (!clap_next(&arg)) {
-                                err_wargs("flag `%s` requires a name", FLAG_2HY_SAVE_DEP);
+                                err_wargs("flag `%s` requires a name", CMD_SAVE_DEP);
                         }
                         assert_sudo();
                         savedep(&ctx, arg.start);
-                } else if (arg.hyphc == 0 && !strcmp(arg.start, FLAG_2HY_LIST_DEPS)) {
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_LIST_DEPS)) {
                         list_deps(&ctx);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_COMMANDS)) {
+                        show_commands_for_bash_completion();
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_OPTIONS)) {
+                        show_options_for_bash_completion();
                 }
 
                 else if (arg.hyphc == 1) { // one hyph options
                         for (size_t i = 0; arg.start[i]; ++i) {
                                 char c = arg.start[i];
-                                switch (c) {
-                                case FLAG_1HY_REBUILD: g_config.flags |= FT_REBUILD; break;
-                                case FLAG_1HY_SYNC: g_config.flags |= FT_SYNC; break;
-                                default: err_wargs("unknown option `%c`", c);
-                                }
+                                if      (c == FLAG_1HY_REBUILD[0]) g_config.flags |= FT_REBUILD;
+                                else if (c == FLAG_1HY_SYNC[0])    g_config.flags |= FT_SYNC;
+                                else                               err_wargs("unknown option `%c`", c);
                         }
                 }
                 else {

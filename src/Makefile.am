@@ -68,3 +68,12 @@ uninstall-hook:
 	rm -rf /usr/src/forge /usr/lib/forge /var/lib/forge /var/cache/forge
 	rm -rf $(DESTDIR)$(bindir)/forge $(DESTDIR)$(libdir)/libforge.*
 	rm -rf $(DESTDIR)$(includedir)/forge
+
+# Define the directory for Bash completion scripts
+bashcompletiondir = $(sysconfdir)/bash_completion.d
+
+# Specify the completion script to install
+bashcompletion_DATA = forge-autocomplete.sh
+
+# Ensure the script is included in the distribution
+EXTRA_DIST = forge-autocomplete.sh

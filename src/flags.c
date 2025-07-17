@@ -32,7 +32,7 @@
 static void
 help_help(void)
 {
-        printf("help(-%c, --%s):\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
+        printf("help(-%s, --%s):\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
         INDENT printf("View the help information or provide a command/option\n");
         INDENT printf("to view more information on it, or do '*' for all.\n\n");
 
@@ -47,7 +47,7 @@ help_help(void)
 static void
 help_rebuild(void)
 {
-        printf("help(-%c, --%s):\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
+        printf("help(-%s, --%s):\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
         INDENT printf("Rebuild the C modules in each repository.\n");
         INDENT printf("Doing this operation is required when adding\n");
         INDENT printf("and dropping repositories.\n");
@@ -64,7 +64,7 @@ help_rebuild(void)
 static void
 help_sync(void)
 {
-        printf("help(-%c, --%s):\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
+        printf("help(-%s, --%s):\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
         INDENT printf("Sync all repositories with remote.\n");
         INDENT printf("This option will go through each repository that\n");
         INDENT printf("is registered in forge and will perform `git pull` and\n");
@@ -93,7 +93,7 @@ help_drop_broken_packages(void)
 static void
 help_list(void)
 {
-        printf("help(%s):\n", FLAG_2HY_LIST);
+        printf("help(%s):\n", CMD_LIST);
         INDENT printf("List all available packages that can be installed.\n");
         INDENT printf("This shows the package meta-data\n");
         INDENT printf("(name, version, installed, and description)\n\n");
@@ -109,7 +109,7 @@ help_list(void)
 static void
 help_search(void)
 {
-        printf("help(%s <names...>):\n", FLAG_2HY_SEARCH);
+        printf("help(%s <names...>):\n", CMD_SEARCH);
         INDENT printf("List packages by a name using regex.\n");
         INDENT printf("This command will search through all packages\n");
         INDENT printf("and will only display the ones where the name\n");
@@ -123,7 +123,7 @@ help_search(void)
 static void
 help_install(void)
 {
-        printf("help(%s <pkg...>):\n", FLAG_2HY_INSTALL);
+        printf("help(%s <pkg...>):\n", CMD_INSTALL);
         INDENT printf("This command will install packages matching the names\n");
         INDENT printf("of the packages provided.\n\n");
 
@@ -135,7 +135,7 @@ help_install(void)
 static void
 help_uninstall(void)
 {
-        printf("help(%s <pkg...>):\n", FLAG_2HY_UNINSTALL);
+        printf("help(%s <pkg...>):\n", CMD_UNINSTALL);
         INDENT printf("This command will uninstall packages based\n");
         INDENT printf("off of the package names provided.\n\n");
 
@@ -147,7 +147,7 @@ help_uninstall(void)
 static void
 help_update(void)
 {
-        printf("help(%s [pkg...]):\n", FLAG_2HY_UPDATE);
+        printf("help(%s [pkg...]):\n", CMD_UPDATE);
         INDENT printf("This command will update packages based off of\n");
         INDENT printf("the package names provided:\n");
         INDENT INDENT printf("1. provide names to update those specific packages\n");
@@ -162,7 +162,7 @@ help_update(void)
 static void
 help_add_repo(void)
 {
-        printf("help(%s <git-link>):\n", FLAG_2HY_ADD_REPO);
+        printf("help(%s <git-link>):\n", CMD_ADD_REPO);
         INDENT printf("Add a new repository for forge to use.\n");
         INDENT printf("A repository is expected to contain C files\n");
         INDENT printf("with no entry point and they must fulfill everything\n");
@@ -178,7 +178,7 @@ help_add_repo(void)
 static void
 help_drop_repo(void)
 {
-        printf("help(%s <name>):\n", FLAG_2HY_DROP_REPO);
+        printf("help(%s <name>):\n", CMD_DROP_REPO);
         INDENT printf("Drop a repository that forge is using.\n");
         INDENT printf("This will completely remove all packages that\n");
         INDENT printf("the repository provides.\n\n");
@@ -193,7 +193,7 @@ help_drop_repo(void)
 static void
 help_list_repos(void)
 {
-        printf("help(%s):\n", FLAG_2HY_LIST_REPOS);
+        printf("help(%s):\n", CMD_LIST_REPOS);
         INDENT printf("List all repositories that are currently\n");
         INDENT printf("registered in forge.\n\n");
 
@@ -204,7 +204,7 @@ help_list_repos(void)
 static void
 help_deps(void)
 {
-        printf("help(%s <pkg>):\n", FLAG_2HY_DEPS);
+        printf("help(%s <pkg>):\n", CMD_DEPS);
         INDENT printf("List all dependencies of a package.\n\n");
 
         INDENT printf("Example:\n");
@@ -214,7 +214,7 @@ help_deps(void)
 static void
 help_new(void)
 {
-        printf("help(%s <name...>):\n", FLAG_2HY_NEW);
+        printf("help(%s <name...>):\n", CMD_NEW);
         INDENT printf("Create new packages based off of the names provided.\n");
         INDENT printf("Using this will open a template file for you to edit\n");
         INDENT printf("as much as you want. The editor is based off of whatever\n");
@@ -237,7 +237,7 @@ help_new(void)
 static void
 help_edit(void)
 {
-        printf("help(%s <pkg...>):\n", FLAG_2HY_EDIT);
+        printf("help(%s <pkg...>):\n", CMD_EDIT);
         INDENT printf("Edit the packages that are provided.\n");
         INDENT printf("The editor that it opens in is whatever the\n");
         INDENT printf("macro FORGE_EDITOR is set to (see command `editconf`).\n\n");
@@ -250,7 +250,7 @@ help_edit(void)
 static void
 help_dump(void)
 {
-        printf("help(%s <pkg...>):\n", FLAG_2HY_DUMP);
+        printf("help(%s <pkg...>):\n", CMD_DUMP);
         INDENT printf("Show the contents of the C module for the packages provided.\n");
         INDENT printf("It will print it similarly to `less`.\n\n");
 
@@ -262,7 +262,7 @@ help_dump(void)
 static void
 help_drop(void)
 {
-        printf("help(%s <pkg...>):\n", FLAG_2HY_DROP);
+        printf("help(%s <pkg...>):\n", CMD_DROP);
         INDENT printf("Drop packages based off of the packages provided.\n");
         INDENT printf("This will make it so these packages cannot be rebuilt,\n");
         INDENT printf("and the entries in the database will be deleted.\n");
@@ -280,7 +280,7 @@ help_drop(void)
 static void
 help_files(void)
 {
-        printf("help(%s <pkg>):\n", FLAG_2HY_FILES);
+        printf("help(%s <pkg>):\n", CMD_FILES);
         INDENT printf("View all files that <pkg> installed.\n\n");
 
         INDENT printf("Example:\n");
@@ -290,7 +290,7 @@ help_files(void)
 static void
 help_api(void)
 {
-        printf("help(%s [name...]):\n", FLAG_2HY_API);
+        printf("help(%s [name...]):\n", CMD_API);
         INDENT printf("View API files in a program similar to `less`.\n");
         INDENT printf("Either supply some API names to view those, or\n");
         INDENT printf("give it no names to view all APIs.\n\n");
@@ -307,7 +307,7 @@ help_api(void)
 static void
 help_restore(void)
 {
-        printf("help(%s <name>):\n", FLAG_2HY_RESTORE);
+        printf("help(%s <name>):\n", CMD_RESTORE);
         INDENT printf("Restore a recently dropped package.\n");
         INDENT printf("All dropped packages have a time signature associated\n");
         INDENT printf("with it, and calling this command will restore the most\n");
@@ -320,7 +320,7 @@ help_restore(void)
 static void
 help_copying(void)
 {
-        printf("help(%s):\n", FLAG_2HY_COPYING);
+        printf("help(%s):\n", CMD_COPYING);
         INDENT printf("View the copying information (aka legal jargon blah blah blah).\n\n");
 
         INDENT printf("Example:\n");
@@ -330,7 +330,7 @@ help_copying(void)
 static void
 help_depgraph(void)
 {
-        printf("help(%s):\n", FLAG_2HY_DEPGRAPH);
+        printf("help(%s):\n", CMD_DEPGRAPH);
         INDENT printf("View the dependency graph of all packages.\n\n");
 
         INDENT printf("Example:\n");
@@ -340,7 +340,7 @@ help_depgraph(void)
 static void
 help_apilist(void)
 {
-        printf("help(%s):\n", FLAG_2HY_APILIST);
+        printf("help(%s):\n", CMD_APILIST);
         INDENT printf("View all APIs that forge provides for you to\n");
         INDENT printf("use in your packages (or personal projects).\n\n");
 
@@ -355,7 +355,7 @@ help_apilist(void)
 static void
 help_editconf(void)
 {
-        printf("help(%s):\n", FLAG_2HY_EDITCONF);
+        printf("help(%s):\n", CMD_EDITCONF);
         INDENT printf("Edit the configuration file for forge.\n");
         INDENT printf("It will open in the editor that the\n");
         INDENT printf("macro FORGE_EDITOR is set to.\n\n");
@@ -371,7 +371,7 @@ help_editconf(void)
 static void
 help_updateforge(void)
 {
-        printf("help(%s):\n", FLAG_2HY_UPDATEFORGE);
+        printf("help(%s):\n", CMD_UPDATEFORGE);
         INDENT printf("This command will download the source code,\n");
         INDENT printf("save your configuration file (see command `editconf`),\n");
         INDENT printf("and recompile forge.\n\n");
@@ -386,7 +386,7 @@ help_updateforge(void)
 static void
 help_repo_compile_template(void)
 {
-        printf("help(%s):\n", FLAG_2HY_REPO_COMPILE_TEMPLATE);
+        printf("help(%s):\n", CMD_REPO_COMPILE_TEMPLATE);
         INDENT printf("Generate a script for compiling forge C modules\n");
         INDENT printf("for repository testing.\n\n");
 
@@ -401,7 +401,7 @@ help_repo_compile_template(void)
 static void
 help_create_repo(void)
 {
-        printf("help(%s <repo_name> <git_url>):\n", FLAG_2HY_CREATE_REPO);
+        printf("help(%s <repo_name> <git_url>):\n", CMD_CREATE_REPO);
         INDENT printf("Create a new Github repository by repo_name at git_url.\n");
         INDENT printf("This is good for if you have created a bunch of custom packages\n");
         INDENT printf("and want to version control them.\n\n");
@@ -419,7 +419,7 @@ help_create_repo(void)
 static void
 help_lib(void)
 {
-        printf("help(%s):\n", FLAG_2HY_LIB);
+        printf("help(%s):\n", CMD_LIB);
         INDENT printf("Print the library flag for linking forge with other programs.\n\n");
 
         INDENT printf("Example:\n");
@@ -428,7 +428,7 @@ help_lib(void)
 
 static void
 help_clean(void) {
-        printf("help(%s):\n", FLAG_2HY_CLEAN);
+        printf("help(%s):\n", CMD_CLEAN);
         INDENT printf("Remove all packages that are installed as dependencies\n");
         INDENT printf("and are no longer needed.\n\n");
 
@@ -442,7 +442,7 @@ help_clean(void) {
 
 static void
 help_save_dep(void) {
-        printf("help(%s <name>):\n", FLAG_2HY_SAVE_DEP);
+        printf("help(%s <name>):\n", CMD_SAVE_DEP);
         INDENT printf("Save a package that was installed as a dependency to\n");
         INDENT printf("to *not* get removed when calling the command `clean`.\n\n");
 
@@ -453,7 +453,7 @@ help_save_dep(void) {
 static void
 help_list_deps(void)
 {
-        printf("help(%s):\n", FLAG_2HY_LIST_DEPS);
+        printf("help(%s):\n", CMD_LIST_DEPS);
         INDENT printf("Show all dependency packages and what they are required by.\n\n");
 
         INDENT printf("Example:\n");
@@ -500,15 +500,15 @@ help(const char *flag)
         size_t n = strlen(flag);
 
         // options
-        if (n == 2 && flag[0] == '-' && flag[1] == FLAG_1HY_HELP) {
+        if (n == 2 && flag[0] == '-' && flag[1] == FLAG_1HY_HELP[0]) {
                 hs[0]();
         } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_HELP)) {
                 hs[0]();
-        } else if (n == 2 && flag[0] == '-' && flag[1] == FLAG_1HY_REBUILD) {
+        } else if (n == 2 && flag[0] == '-' && flag[1] == FLAG_1HY_REBUILD[0]) {
                 hs[1]();
         } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_REBUILD)) {
                 hs[1]();
-        } else if (n == 2 && flag[0] == '-' && flag[1] == FLAG_1HY_SYNC) {
+        } else if (n == 2 && flag[0] == '-' && flag[1] == FLAG_1HY_SYNC[0]) {
                 hs[2]();
         } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_SYNC)) {
                 hs[2]();
@@ -517,79 +517,79 @@ help(const char *flag)
         }
 
         // commands
-        else if (!strcmp(flag, FLAG_2HY_LIST)) {
+        else if (!strcmp(flag, CMD_LIST)) {
                 hs[4]();
         }
-        else if (!strcmp(flag, FLAG_2HY_SEARCH)) {
+        else if (!strcmp(flag, CMD_SEARCH)) {
                 hs[5]();
         }
-        else if (!strcmp(flag, FLAG_2HY_INSTALL)) {
+        else if (!strcmp(flag, CMD_INSTALL)) {
                 hs[6]();
         }
-        else if (!strcmp(flag, FLAG_2HY_UNINSTALL)) {
+        else if (!strcmp(flag, CMD_UNINSTALL)) {
                 hs[7]();
         }
-        else if (!strcmp(flag, FLAG_2HY_UPDATE)) {
+        else if (!strcmp(flag, CMD_UPDATE)) {
                 hs[8]();
         }
-        else if (!strcmp(flag, FLAG_2HY_ADD_REPO)) {
+        else if (!strcmp(flag, CMD_ADD_REPO)) {
                 hs[9]();
         }
-        else if (!strcmp(flag, FLAG_2HY_DROP_REPO)) {
+        else if (!strcmp(flag, CMD_DROP_REPO)) {
                 hs[10]();
         }
-        else if (!strcmp(flag, FLAG_2HY_LIST_REPOS)) {
+        else if (!strcmp(flag, CMD_LIST_REPOS)) {
                 hs[11]();
         }
-        else if (!strcmp(flag, FLAG_2HY_DEPS)) {
+        else if (!strcmp(flag, CMD_DEPS)) {
                 hs[12]();
         }
-        else if (!strcmp(flag, FLAG_2HY_NEW)) {
+        else if (!strcmp(flag, CMD_NEW)) {
                 hs[13]();
         }
-        else if (!strcmp(flag, FLAG_2HY_EDIT)) {
+        else if (!strcmp(flag, CMD_EDIT)) {
                 hs[14]();
         }
-        else if (!strcmp(flag, FLAG_2HY_DUMP)) {
+        else if (!strcmp(flag, CMD_DUMP)) {
                 hs[15]();
         }
-        else if (!strcmp(flag, FLAG_2HY_DROP)) {
+        else if (!strcmp(flag, CMD_DROP)) {
                 hs[16]();
         }
-        else if (!strcmp(flag, FLAG_2HY_FILES)) {
+        else if (!strcmp(flag, CMD_FILES)) {
                 hs[17]();
         }
-        else if (!strcmp(flag, FLAG_2HY_API)) {
+        else if (!strcmp(flag, CMD_API)) {
                 hs[18]();
         }
-        else if (!strcmp(flag, FLAG_2HY_RESTORE)) {
+        else if (!strcmp(flag, CMD_RESTORE)) {
                 hs[19]();
         }
-        else if (!strcmp(flag, FLAG_2HY_COPYING)) {
+        else if (!strcmp(flag, CMD_COPYING)) {
                 hs[20]();
         }
-        else if (!strcmp(flag, FLAG_2HY_DEPGRAPH)) {
+        else if (!strcmp(flag, CMD_DEPGRAPH)) {
                 hs[21]();
         }
-        else if (!strcmp(flag, FLAG_2HY_APILIST)) {
+        else if (!strcmp(flag, CMD_APILIST)) {
                 hs[22]();
         }
-        else if (!strcmp(flag, FLAG_2HY_EDITCONF)) {
+        else if (!strcmp(flag, CMD_EDITCONF)) {
                 hs[23]();
         }
-        else if (!strcmp(flag, FLAG_2HY_UPDATEFORGE)) {
+        else if (!strcmp(flag, CMD_UPDATEFORGE)) {
                 hs[24]();
-        } else if (!strcmp(flag, FLAG_2HY_REPO_COMPILE_TEMPLATE)) {
+        } else if (!strcmp(flag, CMD_REPO_COMPILE_TEMPLATE)) {
                 hs[25]();
-        } else if (!strcmp(flag, FLAG_2HY_CREATE_REPO)) {
+        } else if (!strcmp(flag, CMD_CREATE_REPO)) {
                 hs[26]();
-        } else if (!strcmp(flag, FLAG_2HY_LIB)) {
+        } else if (!strcmp(flag, CMD_LIB)) {
                 hs[27]();
-        } else if (!strcmp(flag, FLAG_2HY_CLEAN)) {
+        } else if (!strcmp(flag, CMD_CLEAN)) {
                 hs[28]();
-        } else if (!strcmp(flag, FLAG_2HY_SAVE_DEP)) {
+        } else if (!strcmp(flag, CMD_SAVE_DEP)) {
                 hs[29]();
-        } else if (!strcmp(flag, FLAG_2HY_LIST_DEPS)) {
+        } else if (!strcmp(flag, CMD_LIST_DEPS)) {
                 hs[30]();
         }
 
@@ -638,39 +638,39 @@ usage(void)
         printf("[(" BOLD YELLOW "N" RESET ") has an important note (see -h=<option|cmd>)]\n");
 
         printf("\nOptions:\n");
-        printf(YELLOW BOLD "    -%c, --%s[=<flag>|*]" RESET "      display this message or view help on a command or option\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
-        printf(YELLOW BOLD "    -%c, --%s           R"                         RESET  "  rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
-        printf(YELLOW BOLD "    -%c, --%s              R"                         RESET "  sync the C modules repository\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
-        printf(YELLOW BOLD "        --%s              "                         RESET "  force the action if it can\n", FLAG_2HY_FORCE);
+        printf(YELLOW BOLD "    -%s, --%s[=<flag>|*]" RESET "      display this message or view help on a command or option\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
+        printf(YELLOW BOLD "    -%s, --%s           R"                         RESET  "  rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
+        printf(YELLOW BOLD "    -%s, --%s              R"                         RESET "  sync the C modules repository\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
+        printf(YELLOW BOLD "        --%s              "                         RESET "  force the action if it can\n", CMD_FORCE);
         printf(YELLOW BOLD "        --%s  R"                         RESET "  remove all broken packages\n", FLAG_2HY_DROP_BROKEN_PKGS);
         printf("\nCommands:\n");
-        printf(GREEN BOLD "    %s          " RESET                                "             list available packages\n", FLAG_2HY_LIST);
-        printf(GREEN BOLD "    %s <pkg...> "                         RESET "           search for packages\n", FLAG_2HY_SEARCH);
-        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "       R "     RESET  " install packages\n", FLAG_2HY_INSTALL);
-        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "     R "       RESET  " uninstall packages\n", FLAG_2HY_UNINSTALL);
-        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "        R "    RESET  " update packages or leave empty to update all\n", FLAG_2HY_UPDATE);
-        printf(GREEN BOLD "    %s <name> " RESET YELLOW BOLD "        R "    RESET  " save a dependency package as explictly installed\n", FLAG_2HY_SAVE_DEP);
-        printf(GREEN BOLD "    %s" RESET YELLOW BOLD "                   RN"    RESET  " remove unused dependency packages\n", FLAG_2HY_CLEAN);
-        printf(GREEN BOLD "    %s <git-link> " RESET YELLOW BOLD "    RN"    RESET  " add a github repository to forge\n", FLAG_2HY_ADD_REPO);
-        printf(GREEN BOLD "    %s <name>     " RESET YELLOW BOLD "   R "    RESET  " drop a repository from forge\n", FLAG_2HY_DROP_REPO);
-        printf(GREEN BOLD "    %s <n> <l>    " RESET YELLOW BOLD " RN"    RESET  " create a new repository from your custom packages with the name `n` and git link `l`\n", FLAG_2HY_CREATE_REPO);
-        printf(GREEN BOLD "    %s" RESET                                "                 list all repositories that forge is using\n", FLAG_2HY_LIST_REPOS);
-        printf(GREEN BOLD "    %s <pkg>    " RESET                                "             list dependencies of `pkg`\n", FLAG_2HY_DEPS);
-        printf(GREEN BOLD "    %s     " RESET                                "             list all dependency packages\n", FLAG_2HY_LIST_DEPS);
-        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "        RN" RESET  " create a new package module\n", FLAG_2HY_NEW);
-        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "       R "  RESET  " edit an existing package module\n", FLAG_2HY_EDIT);
-        printf(GREEN BOLD "    %s <name...>" RESET                                "             dump a package module\n", FLAG_2HY_DUMP);
-        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "       RN"  RESET  " drop a package\n", FLAG_2HY_DROP);
-        printf(GREEN BOLD "    %s <name>" RESET                                   "               list all installed files for package <name>\n", FLAG_2HY_FILES);
-        printf(GREEN BOLD "    %s [name...]" RESET                                "              show the header files for the Forge API\n", FLAG_2HY_API);
-        printf(GREEN BOLD "    %s <name>" RESET                                   "             restore a recently dropped package\n", FLAG_2HY_RESTORE);
-        printf(GREEN BOLD "    %s" RESET                                          "                    view copying information\n", FLAG_2HY_COPYING);
-        printf(GREEN BOLD "    %s" RESET                                          "                   view the depgraph of all C modules\n", FLAG_2HY_DEPGRAPH);
-        printf(GREEN BOLD "    %s" RESET                                          "                   view API headers\n", FLAG_2HY_APILIST);
-        printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "   RN"  RESET  " edit the forge configuration header\n", FLAG_2HY_EDITCONF);
-        printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "R "  RESET  " update and recompile forge\n", FLAG_2HY_UPDATEFORGE);
-        printf(GREEN BOLD "    %s   " RESET YELLOW BOLD " N"  RESET  " generate a repo testing script\n", FLAG_2HY_REPO_COMPILE_TEMPLATE);
-        printf(GREEN BOLD "    %s" RESET                                          "                        view forge library linking flag\n", FLAG_2HY_LIB);
+        printf(GREEN BOLD "    %s          " RESET                                "             list available packages\n", CMD_LIST);
+        printf(GREEN BOLD "    %s <pkg...> "                         RESET "           search for packages\n", CMD_SEARCH);
+        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "       R "     RESET  " install packages\n", CMD_INSTALL);
+        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "     R "       RESET  " uninstall packages\n", CMD_UNINSTALL);
+        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "        R "    RESET  " update packages or leave empty to update all\n", CMD_UPDATE);
+        printf(GREEN BOLD "    %s <name> " RESET YELLOW BOLD "        R "    RESET  " save a dependency package as explictly installed\n", CMD_SAVE_DEP);
+        printf(GREEN BOLD "    %s" RESET YELLOW BOLD "                   RN"    RESET  " remove unused dependency packages\n", CMD_CLEAN);
+        printf(GREEN BOLD "    %s <git-link> " RESET YELLOW BOLD "    RN"    RESET  " add a github repository to forge\n", CMD_ADD_REPO);
+        printf(GREEN BOLD "    %s <name>     " RESET YELLOW BOLD "   R "    RESET  " drop a repository from forge\n", CMD_DROP_REPO);
+        printf(GREEN BOLD "    %s <n> <l>    " RESET YELLOW BOLD " RN"    RESET  " create a new repository from your custom packages with the name `n` and git link `l`\n", CMD_CREATE_REPO);
+        printf(GREEN BOLD "    %s" RESET                                "                 list all repositories that forge is using\n", CMD_LIST_REPOS);
+        printf(GREEN BOLD "    %s <pkg>    " RESET                                "             list dependencies of `pkg`\n", CMD_DEPS);
+        printf(GREEN BOLD "    %s     " RESET                                "             list all dependency packages\n", CMD_LIST_DEPS);
+        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "        RN" RESET  " create a new package module\n", CMD_NEW);
+        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "       R "  RESET  " edit an existing package module\n", CMD_EDIT);
+        printf(GREEN BOLD "    %s <name...>" RESET                                "             dump a package module\n", CMD_DUMP);
+        printf(GREEN BOLD "    %s <name...>   " RESET YELLOW BOLD "       RN"  RESET  " drop a package\n", CMD_DROP);
+        printf(GREEN BOLD "    %s <name>" RESET                                   "               list all installed files for package <name>\n", CMD_FILES);
+        printf(GREEN BOLD "    %s [name...]" RESET                                "              show the header files for the Forge API\n", CMD_API);
+        printf(GREEN BOLD "    %s <name>" RESET                                   "             restore a recently dropped package\n", CMD_RESTORE);
+        printf(GREEN BOLD "    %s" RESET                                          "                    view copying information\n", CMD_COPYING);
+        printf(GREEN BOLD "    %s" RESET                                          "                   view the depgraph of all C modules\n", CMD_DEPGRAPH);
+        printf(GREEN BOLD "    %s" RESET                                          "                   view API headers\n", CMD_APILIST);
+        printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "   RN"  RESET  " edit the forge configuration header\n", CMD_EDITCONF);
+        printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "R "  RESET  " update and recompile forge\n", CMD_UPDATEFORGE);
+        printf(GREEN BOLD "    %s   " RESET YELLOW BOLD " N"  RESET  " generate a repo testing script\n", CMD_REPO_COMPILE_TEMPLATE);
+        printf(GREEN BOLD "    %s" RESET                                          "                        view forge library linking flag\n", CMD_LIB);
         exit(0);
 }
 
