@@ -13,6 +13,7 @@
 #include "forge/ctrl.h"
 #include "forge/rdln.h"
 #include "forge/arg.h"
+#include "forge/lexer.h"
 #include "forge/conf.h"
 
 /**
