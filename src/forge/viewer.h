@@ -3,6 +3,10 @@
 
 #include <termios.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
         char **data;
         size_t rows;
@@ -52,5 +56,9 @@ void forge_viewer_free(forge_viewer *v);
  *              This opens a `less`-like viewer.
  */
 void forge_viewer_display(forge_viewer *v);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // FORGE_VIEWER_H_INCLUDED

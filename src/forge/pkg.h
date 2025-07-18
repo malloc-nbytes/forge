@@ -3,6 +3,10 @@
 
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Put this before `pkg package = { ... }` to
 // make it visible to forge.
 #define FORGE_GLOBAL __attribute__((visibility("default")))
@@ -47,5 +51,9 @@ void forge_pkg_git_pull(void);
  *              the source code to get the new changes.
  */
 #define forge_pkg_get_changes_redownload NULL
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // FORGE_PKG_H_INCLUDED

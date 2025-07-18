@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define FORGE_LEXER_C_KEYWORDS {                \
                 "alignas",                      \
                 "alignof",                      \
@@ -261,5 +265,9 @@ int forge_lexer_has_err(const forge_lexer *fl);
  *              needs to be free()'d.
  */
 char *forge_lexer_format_err(const forge_lexer *fl);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // FORGE_LEXER_H_INCLUDED

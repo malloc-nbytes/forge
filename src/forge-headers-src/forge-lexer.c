@@ -85,7 +85,7 @@ forge_token_alloc(char            *st,
         t->loc.r  = r;
         t->loc.c  = c;
         t->loc.fp = fp;
-        t->n = NULL;
+        t->n      = NULL;
 
         return t;
 }

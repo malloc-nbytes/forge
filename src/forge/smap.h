@@ -3,6 +3,10 @@
 
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define FORGE_SMAP_DEFAULT_TBL_CAPACITY 2048
 
 typedef struct __forge_smap_node {
@@ -72,5 +76,9 @@ char **forge_smap_iter(const forge_smap *map);
  * Description: Get the number of nodes stored inside of `map`.
  */
 size_t forge_smap_size(const forge_smap *map);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // FORGE_SMAP_H_INCLUDED

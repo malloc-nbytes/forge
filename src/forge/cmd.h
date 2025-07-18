@@ -1,6 +1,10 @@
 #ifndef FORGE_CMD_H_INCLUDED
 #define FORGE_CMD_H_INCLUDED
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Returns: the current working directory
  * Description: Gets the current working directory or NULL on failure.
@@ -128,5 +132,9 @@ char **ls(const char *dir);
  * Description: Check if `path` is a git directory.
  */
 int is_git_dir(const char *path);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // FORGE_CMD_H_INCLUDED

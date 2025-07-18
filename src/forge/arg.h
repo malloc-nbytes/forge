@@ -3,6 +3,10 @@
 
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct forge_arg {
         // Points to the start of the argument
         // after any hyphens (max 2).
@@ -43,5 +47,9 @@ forge_arg *forge_arg_alloc(
  *              take the head of a linked list.
  */
 void forge_arg_free(forge_arg *arg);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // FORGE_ARG_H_INCLUDED

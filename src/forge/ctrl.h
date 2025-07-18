@@ -3,6 +3,10 @@
 
 #include <termios.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Different control keys
 #define CTRL_A 1
 #define CTRL_B 2
@@ -133,5 +137,9 @@ void forge_ctrl_clear_line(void);
  * Description: Move the cursor to column `n`.
  */
 void forge_ctrl_cursor_to_col(int n);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // FORGE_CTRL_H_INCLUDED

@@ -1,6 +1,10 @@
 #ifndef FORGE_IO_H_INCLUDED
 #define FORGE_IO_H_INCLUDED
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Parameter: fp -> the filepath
  * Returns: 1 if exists, 0 if not exists
@@ -89,5 +93,9 @@ const char *forge_io_basename(const char *path);
  * Description: Remove the directory `path`.
  */
 int forge_io_rm_dir(const char *path);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // FORGE_IO_H_INCLUDED

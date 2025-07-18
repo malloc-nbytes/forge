@@ -1,6 +1,10 @@
 #ifndef FORGE_COLORS_H_INCLUDED
 #define FORGE_COLORS_H_INCLUDED
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // FORGROUNDS
 #define YELLOW               "\033[93m"
 #define GREEN                "\033[32m"
@@ -35,5 +39,9 @@
  *              version based off of keywords, comments, strings etc.
  */
 char *forge_colors_c_to_string(const char *s);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // FORGE_COLORS_H_INCLUDED

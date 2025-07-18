@@ -1,6 +1,10 @@
 #ifndef FORGE_STR_H_INCLUDED
 #define FORGE_STR_H_INCLUDED
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
         char *data;
         size_t len, cap;
@@ -127,5 +131,9 @@ char forge_str_pop(forge_str *fs);
  * Description: Remove the character at `idx` in `fs`.
  */
 char forge_str_rm_at(forge_str *fs, size_t idx);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // FORGE_STR_H_INCLUDED

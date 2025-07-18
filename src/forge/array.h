@@ -27,6 +27,10 @@
 /* This file is used for making stack alloc'd dynamic
  * arrays where we dont need to use the Array<T> DS. */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Creates a new dynamic array type globally.
  * Note: Use dyn_array_init() to initialize
@@ -178,5 +182,9 @@ DYN_ARRAY_TYPE(double,   double_array);
 DYN_ARRAY_TYPE(long,     long_array);
 DYN_ARRAY_TYPE(unsigned, unsigned_array);
 DYN_ARRAY_TYPE(void *,   void_ptr_array);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // FORGE_ARRAY_H_INCLUDED
