@@ -67,6 +67,44 @@
                 NULL,                           \
         }
 
+#define FORGE_LEXER_PY_KEYWORDS {               \
+                "False",                        \
+                "None",                         \
+                "True",                         \
+                "and",                          \
+                "as",                           \
+                "assert",                       \
+                "async",                        \
+                "await",                        \
+                "break",                        \
+                "class",                        \
+                "continue",                     \
+                "def",                          \
+                "del",                          \
+                "elif",                         \
+                "else",                         \
+                "except",                       \
+                "finally",                      \
+                "for",                          \
+                "from",                         \
+                "global",                       \
+                "if",                           \
+                "import",                       \
+                "in",                           \
+                "is",                           \
+                "lambda",                       \
+                "nonlocal",                     \
+                "not",                          \
+                "or",                           \
+                "pass",                         \
+                "raise",                        \
+                "return",                       \
+                "try",                          \
+                "while",                        \
+                "with",                         \
+                "yield",                        \
+        }
+
 typedef enum {
         FORGE_TOKEN_TYPE_EOF = 0,
         FORGE_TOKEN_TYPE_IDENTIFIER,

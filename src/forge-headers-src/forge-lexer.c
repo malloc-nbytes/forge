@@ -210,6 +210,12 @@ not_quote(int c)
         return (char)c != '"';
 }
 
+static int
+not_single_quote(int c)
+{
+        return (char)c != '\'';
+}
+
 forge_lexer
 forge_lexer_create(forge_lexer_config config)
 {
@@ -328,43 +334,61 @@ forge_lexer_create(forge_lexer_config config)
                 }
                 else if (ch == '\'') {
                         ++i, ++c;
-                        size_t len = 0;
-                        if (src[i] == '\\') {
-                                if (src[i + 1] == 'n' || src[i + 1] == 't' || src[i + 1] == '\'' ||
-                                    src[i + 1] == '\\' || src[i + 1] == 'r' || src[i + 1] == '0') {
-                                        len = 2;
-                                } else {
+                        if (config.bits & FORGE_LEXER_CHARS_AS_STRS) {
+                                // Treat as string literal: consume until closing quote, handling escapes
+                                size_t len = consume_while(src + i, not_single_quote);
+                                if (src[i + len] != '\'') {
                                         free(src);
                                         forge_smap_destroy(&ops);
-                                        fl.err.msg = "invalid escape sequence in character literal";
+                                        fl.err.msg = "unterminated string literal";
                                         fl.err.r = r;
                                         fl.err.c = c;
                                         return fl;
                                 }
-                        } else if (src[i] && src[i] != '\'') {
-                                len = 1;
+                                forge_token *t = forge_token_alloc(src + i, len,
+                                                                   FORGE_TOKEN_TYPE_STRING_LITERAL,
+                                                                   r, c, fl.fp);
+                                forge_lexer_append(&fl, t);
+                                i += len + 1, c += len + 1;
                         } else {
-                                free(src);
-                                forge_smap_destroy(&ops);
-                                fl.err.msg = "empty character literal";
-                                fl.err.r = r;
-                                fl.err.c = c;
-                                return fl;
+                                // Original character literal handling
+                                size_t len = 0;
+                                if (src[i] == '\\') {
+                                        if (src[i + 1] == 'n' || src[i + 1] == 't' || src[i + 1] == '\'' ||
+                                            src[i + 1] == '\\' || src[i + 1] == 'r' || src[i + 1] == '0') {
+                                                len = 2;
+                                        } else {
+                                                free(src);
+                                                forge_smap_destroy(&ops);
+                                                fl.err.msg = "invalid escape sequence in character literal";
+                                                fl.err.r = r;
+                                                fl.err.c = c;
+                                                return fl;
+                                        }
+                                } else if (src[i] && src[i] != '\'') {
+                                        len = 1;
+                                } else {
+                                        free(src);
+                                        forge_smap_destroy(&ops);
+                                        fl.err.msg = "empty character literal";
+                                        fl.err.r = r;
+                                        fl.err.c = c;
+                                        return fl;
+                                }
+                                if (src[i + len] != '\'') {
+                                        free(src);
+                                        forge_smap_destroy(&ops);
+                                        fl.err.msg = "unterminated character literal";
+                                        fl.err.r = r;
+                                        fl.err.c = c;
+                                        return fl;
+                                }
+                                forge_token *t = forge_token_alloc(src + i - 1, len + 2,
+                                                                   FORGE_TOKEN_TYPE_CHARACTER_LITERAL,
+                                                                   r, c, fl.fp);
+                                forge_lexer_append(&fl, t);
+                                i += len + 1, c += len + 1;
                         }
-                        if (src[i + len] != '\'') {
-                                free(src);
-                                forge_smap_destroy(&ops);
-                                fl.err.msg = "unterminated character literal";
-                                fl.err.r = r;
-                                fl.err.c = c;
-                                return fl;
-                        }
-                        forge_token_type ty = (config.bits & FORGE_LEXER_CHARS_AS_STRS)
-                                ? FORGE_TOKEN_TYPE_STRING_LITERAL
-                                : FORGE_TOKEN_TYPE_CHARACTER_LITERAL;
-                        forge_token *t = forge_token_alloc(src + i - 1, len + 2, ty, r, c, fl.fp);
-                        forge_lexer_append(&fl, t);
-                        i += len + 1, c += len + 1;
                 }
                 else if (ch == '_' || isalpha(ch)) {
                         size_t len = consume_while(src + i, isident);
