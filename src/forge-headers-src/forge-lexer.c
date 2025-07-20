@@ -245,7 +245,7 @@ forge_lexer_create(forge_lexer_config config)
         fl.fp = strdup(config.fp);
 
         forge_smap ops = init_ops();
-        char *src      = forge_io_read_file_to_cstr(config.fp);
+        char *src      = strdup(config.src);
         size_t r       = 1;
         size_t c       = 1;
         size_t i       = 0;

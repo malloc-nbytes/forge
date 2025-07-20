@@ -172,6 +172,7 @@ typedef struct forge_token {
 
 typedef struct {
         const char *fp;
+        const char *src;
         struct {
                 const char *single;
                 const char *multi_start;
@@ -203,9 +204,11 @@ typedef struct {
  *
  * === BEGIN SRC ===
  *      const char *kwds[] = FORGE_LEXER_C_KEYWORDS;
+ *      const char *src = forge_io_forge_io_read_file_to_cstr(\"my_file.c\");
  *
  *      forge_lexer lexer = forge_lexer_create((forge_lexer_config){
  *              .fp = "/path/to/the/file.c",
+ *              .src = src,
  *              .comment = {
  *                      .single      = "//",
  *                      .multi_start = "/\*",
@@ -220,6 +223,7 @@ typedef struct {
  *              forge_lexer_dump(&lexer);
  *      }
  *      forge_lexer_destroy(&lexer);
+ *      free(src);
  *
  * === END SRC ===
  *
