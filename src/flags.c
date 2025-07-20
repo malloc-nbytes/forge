@@ -413,7 +413,7 @@ help_create_repo(void)
         INDENT INDENT printf("inherit the environment for your Github credentials.\n\n");
 
         INDENT printf("Example:\n");
-        INDENT INDENT printf("sudo -E forge add-repo my-repo https://www.github.com/username/my-repo.git\n");
+        INDENT INDENT printf("sudo -E forge create-repo my-repo https://www.github.com/username/my-repo.git\n");
 }
 
 static void
