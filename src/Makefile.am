@@ -17,7 +17,8 @@ libforge_la_SOURCES = utils.c colors.c depgraph.c flags.c forge-main.c \
 	forge-headers-src/forge-smap.c forge-headers-src/forge-viewer.c \
 	forge-headers-src/forge-colors.c forge-headers-src/forge-mem.c \
 	forge-headers-src/forge-ctrl.c forge-headers-src/forge-rdln.c \
-	forge-headers-src/forge-arg.c forge-headers-src/forge-lexer.c
+	forge-headers-src/forge-arg.c forge-headers-src/forge-lexer.c \
+	forge-headers-src/forge-utils.c
 
 # Flags for libforge.so
 libforge_la_CFLAGS = $(AM_CFLAGS) -fPIC
@@ -33,7 +34,8 @@ forge_production_SOURCES = utils.c colors.c depgraph.c flags.c forge-main.c \
 	forge-headers-src/forge-smap.c forge-headers-src/forge-viewer.c \
 	forge-headers-src/forge-colors.c forge-headers-src/forge-mem.c \
 	forge-headers-src/forge-ctrl.c forge-headers-src/forge-rdln.c \
-	forge-headers-src/forge-arg.c forge-headers-src/forge-lexer.c
+	forge-headers-src/forge-arg.c forge-headers-src/forge-lexer.c \
+	forge-headers-src/forge-utils.c
 
 # Flags for forge executable
 forge_production_CFLAGS = $(AM_CFLAGS)
@@ -62,7 +64,8 @@ nobase_include_HEADERS = forge/array.h \
 	forge/ctrl.h \
 	forge/rdln.h \
 	forge/arg.h \
-	forge/lexer.h
+	forge/lexer.h \
+	forge/utils.h
 
 # Custom uninstall hook to remove additional directories
 uninstall-hook:
