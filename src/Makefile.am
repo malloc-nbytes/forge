@@ -24,7 +24,7 @@ libforge_la_SOURCES = utils.c colors.c depgraph.c flags.c forge-main.c \
 libforge_la_CFLAGS = $(AM_CFLAGS) -fPIC
 libforge_la_LDFLAGS = -L$(top_srcdir)/src/sqlite-autoconf-3500100 -lsqlite3 -pthread -ldl
 
-# Define the program to be built
+# Define programs to be built
 bin_PROGRAMS = forge_production
 
 # Sources for forge executable
@@ -70,7 +70,7 @@ nobase_include_HEADERS = forge/array.h \
 # Custom uninstall hook to remove additional directories
 uninstall-hook:
 	rm -rf /usr/src/forge /usr/lib/forge /var/lib/forge /var/cache/forge
-	rm -rf $(DESTDIR)$(bindir)/forge $(DESTDIR)$(libdir)/libforge.*
+	rm -rf $(DESTDIR)$(bindir)/forge $(DESTDIR)$(bindir)/fviewer $(DESTDIR)$(libdir)/libforge.*
 	rm -rf $(DESTDIR)$(includedir)/forge
 
 # Define the directory for Bash completion scripts

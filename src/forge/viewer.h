@@ -1,6 +1,7 @@
 #ifndef FORGE_VIEWER_H_INCLUDED
 #define FORGE_VIEWER_H_INCLUDED
 
+#include <stddef.h>
 #include <termios.h>
 
 #ifdef __cplusplus
