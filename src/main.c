@@ -30,7 +30,6 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <time.h>
-#include <regex.h>
 
 #include "sqlite3.h"
 
@@ -2141,7 +2140,7 @@ pkg_search(const str_array *names)
 
                 int found = 0;
                 for (size_t i = 0; i < names->len; ++i) {
-                        if (regex(names->data[i], name)) {
+                        if (forge_utils_regex(names->data[i], name)) {
                                 found = 1;
                                 break;
                         }

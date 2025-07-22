@@ -106,7 +106,30 @@ int
 forge_ctrl_disable_raw_terminal(int             fd,
                                 struct termios *old_termios)
 {
-        return tcsetattr(fd, TCSANOW, old_termios) != -1;
+        struct termios current;
+
+        // Get current terminal attributes
+        if (tcgetattr(fd, &current) == -1) {
+                perror("tcgetattr failed");
+                fprintf(stderr, "Could not get terminal attributes\n");
+                return 0;
+        }
+
+        // Check if terminal is already in non-raw mode (ECHO and ICANON are enabled)
+        if (current.c_lflag & ECHO && current.c_lflag & ICANON) {
+                // Terminal is already in non-raw mode, no need to restore
+                return 1;
+        }
+
+        // Restore original terminal settings
+        if (tcsetattr(fd, TCSANOW, old_termios) == -1) {
+                perror("tcsetattr failed");
+                fprintf(stderr, "Could not restore terminal settings\n");
+                return 0;
+        }
+
+        return 1;
+        //return tcsetattr(fd, TCSANOW, old_termios) != -1;
 }
 
 void
