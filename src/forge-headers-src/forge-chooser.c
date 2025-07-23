@@ -101,12 +101,17 @@ forge_chooser(const char **choices,
         };
         g_ctx = &ctx;
 
-        if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term,
-                                            NULL, &ctx.win_height,
-                                            &sa, sigwinch_handler,
-                                            SIGWINCH)) {
+        if (!forge_ctrl_get_terminal_xy(NULL, &ctx.win_height)) {
+                fprintf(stderr, "could not get terminal height\n");
+                return -1;
+        }
+        if (!forge_ctrl_sigaction(&sa, sigwinch_handler, SIGWINCH)) {
+                fprintf(stderr, "could not set up sigwinch, resizing will not work\n");
+                return -1;
+        }
+        if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term)) {
                 fprintf(stderr, "could not enable terminal to raw mode\n");
-                exit(1);
+                return -1;
         }
 
         while (1) {

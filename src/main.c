@@ -2735,7 +2735,7 @@ edit_install(forge_context *ctx)
         sqlite3_finalize(stmt);
 
         struct termios term;
-        forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term, NULL, NULL, NULL, NULL, 0);
+        forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term);
         forge_ctrl_clear_terminal();
         printf(YELLOW BOLD "Note:\n" RESET);
         printf(YELLOW "*" RESET " You are about to be put into a viewer mode.\n");

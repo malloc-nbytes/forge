@@ -57,13 +57,6 @@ forge_ctrl_get_input(char *c)
                                 return USER_INPUT_TYPE_ALT;
                         }
                 }
-                /* else if (*c == CTRL_N || *c == CTRL_P || *c == CTRL_G || */
-                /*          *c == CTRL_D || *c == CTRL_U || *c == CTRL_V || */
-                /*          *c == CTRL_W || *c == CTRL_O || *c == CTRL_L || */
-                /*          *c == CTRL_F || *c == CTRL_B || *c == CTRL_A || */
-                /*          *c == CTRL_E || *c == CTRL_S || *c == CTRL_Q) { */
-                /*         return USER_INPUT_TYPE_CTRL; */
-                /* } */
                 else if (*c >= CTRL_A && *c <= CTRL_Z && *c != CTRL_J) {
                         return USER_INPUT_TYPE_CTRL;
                 }
@@ -94,29 +87,24 @@ forge_ctrl_get_terminal_xy(size_t *win_width,
 }
 
 int
-forge_ctrl_enable_raw_terminal(int               fd,
-                               struct termios   *old_termios,
-                               size_t           *win_width,
-                               size_t           *win_height,
-                               struct sigaction *sa,
-                               void             (*sa_handler_fun)(int),
-                               int              signum)
+forge_ctrl_sigaction(struct sigaction *sa,
+                     void             (*sa_handler_fun)(int),
+                     int              signum)
 {
-        if (sa && sa_handler_fun) {
-                sa->sa_handler = sa_handler_fun;
-                sa->sa_flags = 0x0;
-                sigemptyset(&sa->sa_mask);
-                if (sigaction(signum, sa, NULL) == -1) {
-                        fprintf(stderr, "could not set up signal handler [%d]\n", signum);
-                        return 0;
-                }
+        sa->sa_handler = sa_handler_fun;
+        sa->sa_flags = 0;
+        sigemptyset(&sa->sa_mask);
+        if (sigaction(signum, sa, NULL) == -1) {
+                perror("sigaction");
+                return 0;
         }
+        return 1;
+}
 
-        if ((win_width || win_height)
-            && !forge_ctrl_get_terminal_xy(win_width, win_height)) {
-                perror("ioctl");
-        }
-
+int
+forge_ctrl_enable_raw_terminal(int               fd,
+                               struct termios   *old_termios)
+{
         struct termios raw;
 
         // Get current terminal attributes

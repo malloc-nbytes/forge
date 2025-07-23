@@ -64,7 +64,7 @@ forge_viewer_alloc(char **data, size_t data_n)
         }
 
         // Set terminal to raw mode
-        if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &m->old_termios, NULL, NULL, NULL, NULL, 0)) {
+        if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &m->old_termios)) {
                 fprintf(stderr, "Failed to set terminal to raw mode\n");
                 free(m);
                 return NULL;
