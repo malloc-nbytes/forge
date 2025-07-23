@@ -5,5 +5,5 @@ bin_PROGRAMS = fviewer
 fviewer_SOURCES = main.c context.c
 
 # Flags for fviewer executable
-fviewer_CFLAGS = $(AM_CFLAGS) -I$(top_srcdir)/src/fviewer/include
-fviewer_LDFLAGS = -lforge
+fviewer_CFLAGS = $(AM_CFLAGS) -I$(top_srcdir)/src/fviewer/include -I$(top_srcdir)/src/
+fviewer_LDFLAGS = -L$(top_srcdir)/src -lforge

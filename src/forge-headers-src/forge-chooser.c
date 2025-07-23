@@ -86,7 +86,8 @@ dump_choices(const forge_chooser_context *ctx)
 }
 
 int
-forge_chooser(const char **choices,
+forge_chooser(const char  *msg,
+              const char **choices,
               size_t       choices_n,
               size_t       cpos)
 {
@@ -123,6 +124,9 @@ forge_chooser(const char **choices,
                 }
 
                 forge_ctrl_clear_terminal();
+                if (msg) {
+                        printf("%s\n", msg);
+                }
                 dump_choices(&ctx);
 
                 char ch;
@@ -166,11 +170,12 @@ forge_chooser(const char **choices,
 }
 
 int
-forge_chooser_take(char       **choices,
+forge_chooser_take(const char  *msg,
+                   char       **choices,
                    size_t       choices_n,
                    size_t       cpos)
 {
-        int res = forge_chooser((const char **)choices, choices_n, cpos);
+        int res = forge_chooser(msg, (const char **)choices, choices_n, cpos);
         for (size_t i = 0; i < choices_n; ++i) {
                 free(choices[i]);
         }

@@ -14,7 +14,7 @@ extern "C" {
  *              When the user hits [enter], it will return that
  *              index, or -1 on failure/cancel.
  */
-int forge_chooser(const char **choices, size_t choices_n, size_t cpos);
+int forge_chooser(const char *msg, const char **choices, size_t choices_n, size_t cpos);
 
 /**
  * Parameter: choices   -> the choices to display
@@ -26,8 +26,7 @@ int forge_chooser(const char **choices, size_t choices_n, size_t cpos);
  *              choice was individually malloc()'d, and the
  *              base pointer itself was also malloc()'d.
  */
-int forge_chooser_take(char **choices, size_t choices_n, size_t cpos);
-
+int forge_chooser_take(const char *msg, char **choices, size_t choices_n, size_t cpos);
 
 #ifdef __cplusplus
 }

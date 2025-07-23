@@ -25,7 +25,8 @@ display_ctx(fviewer_context *ctx)
 
         int cpos = 0;
         while (1) {
-                int idx = forge_chooser((const char **)ctx->fps->data,
+                int idx = forge_chooser("Choose a file",
+                                        (const char **)ctx->fps->data,
                                         ctx->fps->len,
                                         cpos);
                 if (idx == -1) break;

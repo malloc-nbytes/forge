@@ -39,6 +39,7 @@ src/stamp-h1
 /src/.libs/
 /src/sqlite-autoconf*
 /src/fviewer/fviewer
+src/fviewer/.libs/fviewer
 
 # Object and dependency files
 *.o

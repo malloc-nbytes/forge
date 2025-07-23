@@ -1441,7 +1441,7 @@ void
 assert_sudo(void)
 {
         if (geteuid() != 0) {
-                err("This action requires sudo privileges");
+                err(BOLD YELLOW "* " RESET "This action requires " BOLD YELLOW "superuser privileges" RESET);
         }
 }
 
@@ -2759,7 +2759,7 @@ edit_install(forge_context *ctx)
 
         size_t cpos = 0;
         while (1) {
-                int idx = forge_chooser((const char **)pkgnames.data, pkgnames.len, cpos);
+                int idx = forge_chooser("Toggle `installed` flag", (const char **)pkgnames.data, pkgnames.len, cpos);
                 if (idx == -1) break;
                 if (installed.data[idx] & installed_flag) {
                         pkgnames.data[idx][1] = ' ';
@@ -2820,18 +2820,33 @@ main(int argc, char **argv)
                 printf("Superuser access is required the first time forge is ran.\n");
                 assert_sudo();
                 init_env();
-                printf("Done. You can now invoke forge regularly.\n");
-                printf("Note: You may want to edit your config, run:\n");
-                printf("          forge editconf\n");
-                printf("      After this, do:\n");
-                printf("          forge updateforge\n");
-                printf("Note: If you want to add the official repository, run:\n");
-                printf("          forge add-repo https://github.com/malloc-nbytes/forge-modules.git\n");
-                printf("      or don't if you just want to start from scratch.\n");
-                printf("      To get started, run:\n");
-                printf("          forge -r new author@pkgname\n");
-                printf("      to start forging your packages.\n");
-                printf("Do `forge -h` to view all help information.\n");
+
+                const char *ans[] = {"Yes", "No"};
+                int choice = forge_chooser("Would you like to install the offical forge repository?\n",
+                                           (const char **)ans, sizeof(ans)/sizeof(*ans), 0);
+
+                if (choice == -1) {
+                        printf("Something went wrong... :(\n");
+                } else if (choice == 0) {
+                        cmd("forge add-repo https://github.com/malloc-nbytes/forge-modules.git");
+                } else {
+                        printf(YELLOW BOLD "Remark:\n" RESET);
+                        printf(YELLOW BOLD "* " RESET "If you want to add the official repository, run:\n");
+                        printf(YELLOW BOLD "* " "  forge add-repo https://github.com/malloc-nbytes/forge-modules.git\n" RESET);
+                        printf(YELLOW BOLD "* " RESET "or don't if you just want to start from scratch.\n");
+                }
+
+                printf(YELLOW BOLD "Done!\n" RESET);
+                printf(YELLOW BOLD "* " RESET "You can now invoke forge regularly.\n");
+                printf(YELLOW BOLD "* " RESET "Note: You may want to edit your config, run:\n");
+                printf(YELLOW BOLD "* " "  forge editconf\n" RESET);
+                printf(YELLOW BOLD "* " RESET "After this, do:\n");
+                printf(YELLOW BOLD "* " "  forge updateforge\n" RESET);
+                printf(YELLOW BOLD "* " RESET "\n");
+                printf(YELLOW BOLD "* " RESET "To get started, run:\n");
+                printf(YELLOW BOLD "* " "  forge -r new author@pkgname\n" RESET);
+                printf(YELLOW BOLD "* " RESET "to start forging your packages.\n");
+                printf(YELLOW BOLD "* " RESET "Do " YELLOW BOLD "`forge -h`" RESET " to view all help information.\n");
                 return 0;
         }
 
