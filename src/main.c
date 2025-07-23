@@ -1990,8 +1990,9 @@ api_dump(const char *name, int api)
         }
 
         char **colored_lines = (char**)malloc(sizeof(char*)*line_count);
+        const char *kwds[] = FORGE_LEXER_C_KEYWORDS;
         for (size_t i = 0; i < line_count; ++i) {
-                colored_lines[i] = forge_colors_c_to_string(lines[i]);
+                colored_lines[i] = forge_colors_code_to_string(lines[i], kwds);
                 free(lines[i]);
         }
         free(lines);
@@ -2500,6 +2501,7 @@ browse_api(void)
 {
         char **apis = ls(FORGE_API_HEADER_DIR);
         str_array combined = dyn_array_empty(str_array);
+        const char *kwds[] = FORGE_LEXER_C_KEYWORDS;
 
         for (size_t i = 0; apis[i]; ++i) {
                 if (!strcmp(apis[i], "..") || !strcmp(apis[i], ".")) {
@@ -2510,7 +2512,7 @@ browse_api(void)
                 char **lines = forge_io_read_file_to_lines(path);
 
                 for (size_t j = 0; lines[j]; ++j) {
-                        dyn_array_append(combined, forge_colors_c_to_string(lines[j]));
+                        dyn_array_append(combined, forge_colors_code_to_string(lines[j], kwds));
                         free(lines[j]);
                 }
 

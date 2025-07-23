@@ -33,12 +33,13 @@ extern "C" {
 #define RESET                "\033[0m"
 
 /**
- * Parameter: s -> the string to colorize
+ * Parameter: s    -> the string to colorize
+ * Parameter: kwds -> the keywords to highlight (must be NULL terminated)
  * Returns: the colorized string
  * Description: Converts the (C code) `s` to a colorized
  *              version based off of keywords, comments, strings etc.
  */
-char *forge_colors_c_to_string(const char *s);
+char *forge_colors_code_to_string(const char *s, const char **kwds);
 
 #ifdef __cplusplus
 }

@@ -4,11 +4,15 @@
 #include <forge/ctrl.h>
 #include <forge/io.h>
 #include <forge/str.h>
+#include <forge/lexer.h>
 
 #include <assert.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
+
+const char *g_c_kwds[] = FORGE_LEXER_C_KEYWORDS;
+const char *g_py_kwds[] = FORGE_LEXER_PY_KEYWORDS;
 
 static inline void
 down(fviewer_context *ctx)
@@ -110,8 +114,11 @@ fviewer_context_create(const str_array *filepaths)
                         char *src = forge_io_read_file_to_cstr(path);
 
                         // Color C file only (for now)
-                        if (!strcmp(ext, "c")) {
-                                actual = forge_colors_c_to_string(src);
+                        if (ext && !strcmp(ext, "c")) {
+                                actual = forge_colors_code_to_string(src, g_c_kwds);
+                                free(src);
+                        } else if (ext && !strcmp(ext, "py")) {
+                                actual = forge_colors_code_to_string(src, g_py_kwds);
                                 free(src);
                         } else {
                                 actual = src;
