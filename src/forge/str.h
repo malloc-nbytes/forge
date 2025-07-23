@@ -132,6 +132,26 @@ char forge_str_pop(forge_str *fs);
  */
 char forge_str_rm_at(forge_str *fs, size_t idx);
 
+/**
+ * Parameter: s     -> the string
+ * Parameter: out_n -> the number of lines produced
+ * Returns: the lines
+ * Description: Take the string `s` and convert it to lines.
+ *              The number of lines that it makes will
+ *              be written to `out_n`.
+ */
+char **forge_str_to_lines(const char *s, size_t *out_n);
+
+/**
+ * Parameter: s     -> the string
+ * Parameter: out_n -> the number of lines produced
+ * Returns: the lines
+ * Description: Take the string `s` and convert it to lines.
+ *              The number of lines that it makes will
+ *              be written to `out_n`. Will free() `s`.
+ */
+char **forge_str_take_to_lines(char *s, size_t *out_n);
+
 #ifdef __cplusplus
 }
 #endif
