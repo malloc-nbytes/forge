@@ -9,7 +9,7 @@
 DYN_ARRAY_TYPE(forge_viewer *, viewer_array);
 
 typedef struct {
-        const str_array *fps;
+        str_array fps;
         viewer_array viewers;
 } fviewer_context;
 

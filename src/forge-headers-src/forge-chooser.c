@@ -152,6 +152,12 @@ forge_chooser(const char  *msg,
                 .win_height = FALLBACK_WIN_WIDTH,
                 .scroll_offset = 0,
         };
+
+        // Adjust scroll_offset based on initial cpos
+        if (cpos >= ctx.win_height - 2 && ctx.choices_n > ctx.win_height - 2) {
+                ctx.scroll_offset = cpos - (ctx.win_height - 2) + 1;
+        }
+
         g_ctx = &ctx;
 
         if (!forge_ctrl_get_terminal_xy(NULL, &ctx.win_height)) {
@@ -165,6 +171,11 @@ forge_chooser(const char  *msg,
         if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term)) {
                 fprintf(stderr, "could not enable terminal to raw mode\n");
                 return -1;
+        }
+
+        // Re-adjust scroll_offset after getting actual window height
+        if (ctx.sel >= ctx.win_height - 2 && ctx.choices_n > ctx.win_height - 2) {
+                ctx.scroll_offset = ctx.sel - (ctx.win_height - 2) + 1;
         }
 
         while (1) {
