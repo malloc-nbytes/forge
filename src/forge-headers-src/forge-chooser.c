@@ -50,10 +50,14 @@ update_window_size(forge_chooser_context *ctx)
         }
 
         // Adjust scroll_offset if selection is out of view
-        if (ctx->sel < ctx->scroll_offset) {
-                ctx->scroll_offset = ctx->sel;
-        } else if (ctx->sel >= ctx->scroll_offset + ctx->win_height - 2) { // Account for msg and controls
-                ctx->scroll_offset = ctx->sel - (ctx->win_height - 2) + 1;
+        if (ctx->choices_n > ctx->win_height - 2) {
+                if (ctx->sel < ctx->scroll_offset) {
+                        ctx->scroll_offset = ctx->sel;
+                } else if (ctx->sel >= ctx->scroll_offset + ctx->win_height - 2) {
+                        ctx->scroll_offset = ctx->sel - (ctx->win_height - 2) + 1;
+                }
+        } else {
+                ctx->scroll_offset = 0; // No scrolling needed if all choices fit
         }
 }
 
@@ -62,7 +66,8 @@ down(forge_chooser_context *ctx)
 {
         if (ctx->sel < ctx->choices_n - 1) {
                 ctx->sel++;
-                if (ctx->sel >= ctx->scroll_offset + ctx->win_height - 2) { // Account for msg and controls
+                if (ctx->choices_n > ctx->win_height - 2 &&
+                    ctx->sel >= ctx->scroll_offset + ctx->win_height - 2) {
                         ctx->scroll_offset++;
                 }
         }
@@ -90,7 +95,7 @@ static void
 bottom(forge_chooser_context *ctx)
 {
         ctx->sel = ctx->choices_n - 1;
-        if (ctx->choices_n > ctx->win_height - 2) { // Account for msg and controls
+        if (ctx->choices_n > ctx->win_height - 2) {
                 ctx->scroll_offset = ctx->choices_n - (ctx->win_height - 2);
         } else {
                 ctx->scroll_offset = 0; // No scrolling needed if all choices fit
@@ -154,7 +159,8 @@ next_match(forge_chooser_context *ctx)
         }
         if (ctx->search.current + 1 < ctx->search.matches.len) {
                 ctx->sel = ctx->search.matches.data[++ctx->search.current];
-                if (ctx->sel >= ctx->scroll_offset + ctx->win_height - 2) {
+                if (ctx->choices_n > ctx->win_height - 2 &&
+                    ctx->sel >= ctx->scroll_offset + ctx->win_height - 2) {
                         ctx->scroll_offset = ctx->sel - (ctx->win_height - 2) + 1;
                 }
         }
@@ -211,10 +217,12 @@ search(forge_chooser_context *ctx)
                                 // Jump to first match if it exists
                                 if (ctx->search.matches.len > 0) {
                                         ctx->sel = ctx->search.matches.data[0];
-                                        if (ctx->sel >= ctx->scroll_offset + ctx->win_height - 2) {
-                                                ctx->scroll_offset = ctx->sel - (ctx->win_height - 2) + 1;
-                                        } else if (ctx->sel < ctx->scroll_offset) {
-                                                ctx->scroll_offset = ctx->sel;
+                                        if (ctx->choices_n > ctx->win_height - 2) {
+                                                if (ctx->sel >= ctx->scroll_offset + ctx->win_height - 2) {
+                                                        ctx->scroll_offset = ctx->sel - (ctx->win_height - 2) + 1;
+                                                } else if (ctx->sel < ctx->scroll_offset) {
+                                                        ctx->scroll_offset = ctx->sel;
+                                                }
                                         }
                                 }
                                 ctx->search.mode = 0;
@@ -297,11 +305,6 @@ forge_chooser(const char  *msg,
 
         dyn_array_init_type(ctx.search.matches);
 
-        // Adjust scroll_offset based on initial cpos
-        if (cpos >= ctx.win_height - 2 && ctx.choices_n > ctx.win_height - 2) {
-                ctx.scroll_offset = cpos - (ctx.win_height - 2) + 1;
-        }
-
         g_ctx = &ctx;
 
         if (!forge_ctrl_get_terminal_xy(NULL, &ctx.win_height)) {
@@ -317,8 +320,9 @@ forge_chooser(const char  *msg,
                 goto cleanup;
         }
 
-        // Re-adjust scroll_offset after getting actual window height
-        if (ctx.sel >= ctx.win_height - 2 && ctx.choices_n > ctx.win_height - 2) {
+        // Adjust scroll_offset based on initial cpos only if necessary
+        if (ctx.choices_n > ctx.win_height - 2 &&
+            ctx.sel >= ctx.win_height - 2) {
                 ctx.scroll_offset = ctx.sel - (ctx.win_height - 2) + 1;
         }
 
@@ -383,14 +387,14 @@ forge_chooser(const char  *msg,
                 }
         }
 
-done:
+ done:
         forge_ctrl_clear_terminal();
         if (!forge_ctrl_disable_raw_terminal(STDIN_FILENO, &term)) {
                 fprintf(stderr, "could not disable terminal to raw mode\n");
                 exit(1);
         }
 
-cleanup:
+ cleanup:
         forge_str_destroy(&ctx.search.buffer);
         forge_str_destroy(&ctx.search.last);
         dyn_array_free(ctx.search.matches);
