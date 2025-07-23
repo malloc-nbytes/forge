@@ -1,10 +1,10 @@
 #include "context.h"
 
-#include <forge/colors.h>
-#include <forge/ctrl.h>
-#include <forge/io.h>
-#include <forge/str.h>
-#include <forge/lexer.h>
+#include "forge/colors.h"
+#include "forge/ctrl.h"
+#include "forge/io.h"
+#include "forge/str.h"
+#include "forge/lexer.h"
 
 #include <assert.h>
 #include <stdio.h>
