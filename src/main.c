@@ -2713,9 +2713,62 @@ show_options_for_bash_completion(void)
         }
 }
 
+void
+edit_install(forge_context *ctx)
+{
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT name, installed FROM Pkgs ORDER BY name;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        const_str_array pkgnames = dyn_array_empty(const_str_array);
+        int_array installed = dyn_array_empty(int_array);
+
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                int is_installed = sqlite3_column_int(stmt, 1);
+                dyn_array_append(pkgnames, name);
+                dyn_array_append(installed, is_installed);
+                //printf("%s %s\n", installed ? "<*>" : "< >", name);
+        }
+
+        sqlite3_finalize(stmt);
+
+        struct termios term;
+        forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term, NULL, NULL);
+        forge_ctrl_clear_terminal();
+        printf(YELLOW BOLD "Note:\n" RESET);
+        printf(YELLOW "*" RESET " You are about to be put into a viewer mode.\n");
+        printf(YELLOW "*" RESET " You can go through it to manually check/uncheck which\n");
+        printf(YELLOW "*" RESET " packages are marked as installed. Make sure you know\n");
+        printf(YELLOW "*" RESET " what you are doing!\n\n");
+        printf(YELLOW "*" RESET " In viewer mode, you can browse the packages and their\n");
+        printf(YELLOW "*" RESET " installed status. If you would like to flip one, type:\n");
+        printf(YELLOW "*" RESET "     /<number>\n");
+        printf(YELLOW "*" RESET " and it will invert it's installed status\n\n");
+        printf("Press any key to continue...\n");
+        char ch;
+        (void)forge_ctrl_get_input(&ch);
+        forge_ctrl_disable_raw_terminal(STDIN_FILENO, &term);
+
+        dyn_array_free(pkgnames);
+        dyn_array_free(installed);
+}
+
 int
 main(int argc, char **argv)
 {
+        char *entries[] = {
+                "Item 1",
+                "Item 2",
+                "Item 3",
+                "Item 4",
+                "Item 5",
+        };
+        printf("%d\n", forge_chooser((const char **)entries, sizeof(entries)/sizeof(*entries)));
+
+        return 0;
+
         ++argv, --argc;
         clap_init(argc, argv);
         int exists = cio_file_exists(DB_FP);
@@ -2947,6 +3000,8 @@ main(int argc, char **argv)
                         show_commands_for_bash_completion();
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_OPTIONS)) {
                         show_options_for_bash_completion();
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_EDIT_INSTALL)) {
+                        edit_install(&ctx);
                 }
 
                 else if (arg.hyphc == 1) { // one hyph options

@@ -15,6 +15,7 @@
 #include "forge/arg.h"
 #include "forge/lexer.h"
 #include "forge/utils.h"
+#include "forge/chooser.h"
 #include "forge/conf.h"
 
 /**

@@ -1,8 +1,11 @@
 #include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 
 #include "forge/ctrl.h"
+
+volatile sig_atomic_t forge_ctrl_resize_flag = 0;
 
 static char
 get_char(void)
@@ -74,9 +77,25 @@ forge_ctrl_get_input(char *c)
 
 int
 forge_ctrl_enable_raw_terminal(int             fd,
-                               struct termios *old_termios)
+                               struct termios *old_termios,
+                               size_t         *win_width,
+                               size_t         *win_height)
 {
+        if (win_width)  *win_width = 0;
+        if (win_height) *win_height = 0;
+
         struct termios raw;
+
+        if (win_width || win_height) {
+                struct winsize w;
+                if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
+                        if (win_width)  *win_width = w.ws_col-1;
+                        if (win_height) *win_height = w.ws_row-1;
+                } else {
+                        perror("ioctl failed");
+                        fprintf(stderr, "Warning: Could not get size of terminal. Undefined behavior may occur.");
+                }
+        }
 
         // Get current terminal attributes
         if (tcgetattr(fd, old_termios) == -1) {

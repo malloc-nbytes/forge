@@ -15,6 +15,8 @@ Every package that you want to install must have an associated C file that conta
 and functions on how to build, install, uninstall, etc. To help with this, a suite of functions
 and data structures are supplied as the forge API.
 
+Along with `forge`, it will also compile and install a tool called `fviewer`. It works similarly to `less`.
+
 ## Compiling
 Forge requires sqlite3. You must either download and untar it yourself, or just run `bootstrap.sh`.
 _Note_: `bootstrap.sh` generates `configure` with `--prefix=/usr` and `--libdir=/usr/lib64`.
@@ -45,6 +47,7 @@ Forge installs files to these locations:
 - `/var/cache/forge/sources/` (package sources)
 - `/usr/src/forge/modules/` (C package modules)
 - `/usr/lib/forge/modules` (compiled C package modules)
+- `<prefix>/bin/fviewer` (the fviewer tool binary)
 
 ## Getting Started
 The first time you run `forge` must be as root. This sets up the database. All subsequent calls do not need it

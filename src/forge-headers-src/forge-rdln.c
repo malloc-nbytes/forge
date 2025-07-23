@@ -195,7 +195,7 @@ forge_rdln(const char *prompt)
                 },
         };
 
-        if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term)) {
+        if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term, NULL, NULL)) {
                 fprintf(stderr, "Failed to set terminal to raw mode\n");
                 return NULL;
         }

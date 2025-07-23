@@ -67,6 +67,7 @@
 #define CMD_CLEAN "clean"
 #define CMD_SAVE_DEP "save-dep"
 #define CMD_LIST_DEPS "list-deps"
+#define CMD_EDIT_INSTALL "edit-install"
 
 #define CLI_CMDS {                              \
                 CMD_LIST,                       \

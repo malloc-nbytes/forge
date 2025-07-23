@@ -182,6 +182,7 @@ DYN_ARRAY_TYPE(double,   double_array);
 DYN_ARRAY_TYPE(long,     long_array);
 DYN_ARRAY_TYPE(unsigned, unsigned_array);
 DYN_ARRAY_TYPE(void *,   void_ptr_array);
+DYN_ARRAY_TYPE(const char *, const_str_array);
 
 #ifdef __cplusplus
 }
