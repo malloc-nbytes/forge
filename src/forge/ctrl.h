@@ -8,8 +8,6 @@
 extern "C" {
 #endif
 
-extern volatile sig_atomic_t forge_ctrl_resize_flag;
-
 // Different control keys
 #define CTRL_A 1
 #define CTRL_B 2
@@ -94,25 +92,37 @@ typedef enum {
     USER_INPUT_TYPE_UNKNOWN,
 } forge_ctrl_input_type;
 
+int forge_ctrl_get_terminal_xy(size_t *win_width, size_t *win_height);
+
 /**
  * Parameter: fd          -> the file descriptor
  * Parameter: old_termios -> the termios to copy bits from
- * Parameter: win_width   -> the result of getting the window width
- * Parameter: win_height  -> the result of getting the window height
+ * Parameter: win_width?  -> the result of getting the window width
+ * Parameter: win_height? -> the result of getting the window height
+ * Parameter: sa?         -> the sigaction structure
+ * Parameter: sa_handler? -> the sigaction function
+ * Parameter: signum      -> the sig number (does not matter if !sa || !sa_handler)
  * Returns: 1 on success, 0 on failure
  * Description: Enable the terminal raw mode. This disables the bits:
  *                  ECHO
  *                  ICANON
  *                  IXON.
  *              Note: If working with stdin, `fd` should be STDIN_FILENO.
+ *
  *              Set win_width = NULL and win_height = NULL if you do
  *              not desire this information.
+ *
+ *              Set sa = NULL and sa_handler = NULL if you do not
+ *              want sigaction.
  */
 int forge_ctrl_enable_raw_terminal(
-        int             fd,
-        struct termios *old_termios,
-        size_t         *win_width,
-        size_t         *win_height
+        int               fd,
+        struct termios   *old_termios,
+        size_t           *win_width,
+        size_t           *win_height,
+        struct sigaction *sa,
+        void             (*sa_handler_fun)(int),
+        int              signum
 );
 
 /**

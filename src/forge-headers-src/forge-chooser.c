@@ -18,6 +18,31 @@ typedef struct {
         size_t scroll_offset;
 } forge_chooser_context;
 
+static volatile sig_atomic_t g_resize_flag = 0;
+static forge_chooser_context *g_ctx = NULL;
+
+static void
+sigwinch_handler(int sig)
+{
+        (void)sig;
+        g_resize_flag = 1;
+}
+
+static void
+update_window_size(forge_chooser_context *ctx)
+{
+        if (!forge_ctrl_get_terminal_xy(NULL, &ctx->win_height)) {
+                ctx->win_height = FALLBACK_WIN_WIDTH;
+        }
+
+        // Adjust scroll_offset if selection is out of view
+        if (ctx->sel < ctx->scroll_offset) {
+                ctx->scroll_offset = ctx->sel;
+        } else if (ctx->sel >= ctx->scroll_offset + ctx->win_height) {
+                ctx->scroll_offset = ctx->sel - ctx->win_height + 1;
+        }
+}
+
 static void
 down(forge_chooser_context *ctx)
 {
@@ -65,6 +90,7 @@ forge_chooser(const char **choices,
               size_t       choices_n)
 {
         struct termios term;
+        struct sigaction sa;
 
         forge_chooser_context ctx = (forge_chooser_context) {
                 .choices = choices,
@@ -73,13 +99,23 @@ forge_chooser(const char **choices,
                 .win_height = FALLBACK_WIN_WIDTH,
                 .scroll_offset = 0,
         };
+        g_ctx = &ctx;
 
-        if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term, NULL, &ctx.win_height)) {
+        if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term,
+                                            NULL, &ctx.win_height,
+                                            &sa, sigwinch_handler,
+                                            SIGWINCH)) {
                 fprintf(stderr, "could not enable terminal to raw mode\n");
                 exit(1);
         }
 
         while (1) {
+                if (g_resize_flag) {
+                        update_window_size(&ctx);
+                        g_resize_flag = 0;
+                        forge_ctrl_clear_terminal();
+                }
+
                 forge_ctrl_clear_terminal();
                 dump_choices(&ctx);
 

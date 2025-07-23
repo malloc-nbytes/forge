@@ -5,8 +5,6 @@
 
 #include "forge/ctrl.h"
 
-volatile sig_atomic_t forge_ctrl_resize_flag = 0;
-
 static char
 get_char(void)
 {
@@ -76,26 +74,50 @@ forge_ctrl_get_input(char *c)
 
 
 int
-forge_ctrl_enable_raw_terminal(int             fd,
-                               struct termios *old_termios,
-                               size_t         *win_width,
-                               size_t         *win_height)
+forge_ctrl_get_terminal_xy(size_t *win_width,
+                           size_t *win_height)
 {
+        if (!win_width && !win_height) return 0;
+
         if (win_width)  *win_width = 0;
         if (win_height) *win_height = 0;
 
-        struct termios raw;
+        struct winsize w;
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
+                if (win_width)  *win_width = w.ws_col-1;
+                if (win_height) *win_height = w.ws_row-1;
+        } else {
+                return 0;
+        }
 
-        if (win_width || win_height) {
-                struct winsize w;
-                if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
-                        if (win_width)  *win_width = w.ws_col-1;
-                        if (win_height) *win_height = w.ws_row-1;
-                } else {
-                        perror("ioctl failed");
-                        fprintf(stderr, "Warning: Could not get size of terminal. Undefined behavior may occur.");
+        return 1;
+}
+
+int
+forge_ctrl_enable_raw_terminal(int               fd,
+                               struct termios   *old_termios,
+                               size_t           *win_width,
+                               size_t           *win_height,
+                               struct sigaction *sa,
+                               void             (*sa_handler_fun)(int),
+                               int              signum)
+{
+        if (sa && sa_handler_fun) {
+                sa->sa_handler = sa_handler_fun;
+                sa->sa_flags = 0x0;
+                sigemptyset(&sa->sa_mask);
+                if (sigaction(signum, sa, NULL) == -1) {
+                        fprintf(stderr, "could not set up signal handler [%d]\n", signum);
+                        return 0;
                 }
         }
+
+        if ((win_width || win_height)
+            && !forge_ctrl_get_terminal_xy(win_width, win_height)) {
+                perror("ioctl");
+        }
+
+        struct termios raw;
 
         // Get current terminal attributes
         if (tcgetattr(fd, old_termios) == -1) {

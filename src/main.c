@@ -2735,7 +2735,7 @@ edit_install(forge_context *ctx)
         sqlite3_finalize(stmt);
 
         struct termios term;
-        forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term, NULL, NULL);
+        forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term, NULL, NULL, NULL, NULL, 0);
         forge_ctrl_clear_terminal();
         printf(YELLOW BOLD "Note:\n" RESET);
         printf(YELLOW "*" RESET " You are about to be put into a viewer mode.\n");
@@ -2758,17 +2758,6 @@ edit_install(forge_context *ctx)
 int
 main(int argc, char **argv)
 {
-        char *entries[] = {
-                "Item 1",
-                "Item 2",
-                "Item 3",
-                "Item 4",
-                "Item 5",
-        };
-        printf("%d\n", forge_chooser((const char **)entries, sizeof(entries)/sizeof(*entries)));
-
-        return 0;
-
         ++argv, --argc;
         clap_init(argc, argv);
         int exists = cio_file_exists(DB_FP);
