@@ -122,7 +122,12 @@ fviewer_context_create(const str_array *filepaths)
                         continue;
                 }
 
-                if (ext && !strcmp(ext, "c")) {
+                if (ext
+                    && (!strcmp(ext, "c")
+                        || !strcmp(ext, "h")
+                        || !strcmp(ext, "hpp")
+                        || !strcmp(ext, "cpp")
+                        || !strcmp(ext, "cxx"))) {
                         actual = forge_colors_code_to_string(src, g_c_kwds);
                         free(src);
                 } else if (ext && !strcmp(ext, "py")) {
