@@ -38,6 +38,7 @@ src/stamp-h1
 /src/libforge.so*
 /src/.libs/
 /src/sqlite-autoconf*
+/src/fviewer/fviewer
 
 # Object and dependency files
 *.o

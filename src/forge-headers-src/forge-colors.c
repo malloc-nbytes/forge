@@ -30,42 +30,10 @@ dyn_array_append_str(char_array *arr,
 }
 
 int
-iskw(char *s)
+iskw(char        *s,
+     const char **kwds)
 {
-        const char *kwds[] = {
-                "void",
-                "int",
-                "const",
-                "char",
-                "float",
-                "double",
-                "size_t",
-                "unsigned",
-                "long",
-                "typedef",
-                "struct",
-                "enum",
-                "#define",
-                "#ifndef",
-                "#endif",
-                "#if",
-                "#else",
-                "#endif",
-                "#include",
-                "__attribute__",
-                "return",
-                "break",
-                "continue",
-                "goto",
-                "if",
-                "else",
-                "while",
-                "for",
-                "sizeof",
-                "typeof",
-        };
-
-        for (size_t i = 0; i < sizeof(kwds)/sizeof(*kwds); ++i) {
+        for (size_t i = 0; kwds[i]; ++i) {
                 if (!strcmp(s, kwds[i])) {
                         return 1;
                 }
@@ -74,7 +42,8 @@ iskw(char *s)
 }
 
 char *
-forge_colors_c_to_string(const char *s)
+forge_colors_code_to_string(const char *s,
+                            const char **kwds)
 {
         char_array buf = dyn_array_empty(char_array);
         char_array result = dyn_array_empty(char_array);
@@ -178,7 +147,7 @@ forge_colors_c_to_string(const char *s)
                                    s[i] == ' ' || s[i] == '(' || s[i] == ')' || s[i] == ',') {
                                 // Handle delimiters
                                 dyn_array_append(buf, 0);
-                                if (buf.len > 0 && iskw(buf.data)) {
+                                if (buf.len > 0 && iskw(buf.data, kwds)) {
                                         dyn_array_append_str(&result, YELLOW BOLD);
                                         dyn_array_append_str(&result, buf.data);
                                         dyn_array_append_str(&result, RESET);
@@ -199,7 +168,7 @@ forge_colors_c_to_string(const char *s)
                         dyn_array_append_str(&result, PINK BOLD);
                 } else if (in_string || in_char) {
                         dyn_array_append_str(&result, GREEN BOLD);
-                } else if (iskw(buf.data)) {
+                } else if (iskw(buf.data, kwds)) {
                         dyn_array_append_str(&result, YELLOW BOLD);
                 }
                 dyn_array_append_str(&result, buf.data);

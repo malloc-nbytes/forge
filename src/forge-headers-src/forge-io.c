@@ -306,3 +306,29 @@ forge_io_rm_dir(const char *path)
 
         return 1;
 }
+
+const char *
+forge_io_file_ext(const char *path)
+{
+        if (!path) return NULL;
+
+        static char buf[256] = {0};
+        memset(buf, 0, sizeof(buf));
+
+        int per = -1;
+        for (size_t i = 0; path[i]; ++i) {
+                if (path[i] == '.') {
+                        per = (int)i;
+                }
+        }
+
+        if (per == -1) return NULL;
+
+        ++per; // skip '.'
+
+        for (size_t i = 0; path[i+per]; ++i) {
+                buf[i] = path[per+i];
+        }
+
+        return buf;
+}

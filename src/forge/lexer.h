@@ -9,6 +9,13 @@ extern "C" {
 #endif
 
 #define FORGE_LEXER_C_KEYWORDS {                \
+                "#define",                      \
+                "#ifndef",                      \
+                "#ifdef",                       \
+                "#endif",                       \
+                "#if",                          \
+                "#else",                        \
+                "#include",                     \
                 "alignas",                      \
                 "alignof",                      \
                 "auto",                         \

@@ -30,7 +30,6 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <time.h>
-#include <regex.h>
 
 #include "sqlite3.h"
 
@@ -1991,8 +1990,9 @@ api_dump(const char *name, int api)
         }
 
         char **colored_lines = (char**)malloc(sizeof(char*)*line_count);
+        const char *kwds[] = FORGE_LEXER_C_KEYWORDS;
         for (size_t i = 0; i < line_count; ++i) {
-                colored_lines[i] = forge_colors_c_to_string(lines[i]);
+                colored_lines[i] = forge_colors_code_to_string(lines[i], kwds);
                 free(lines[i]);
         }
         free(lines);
@@ -2141,7 +2141,7 @@ pkg_search(const str_array *names)
 
                 int found = 0;
                 for (size_t i = 0; i < names->len; ++i) {
-                        if (regex(names->data[i], name)) {
+                        if (forge_utils_regex(names->data[i], name)) {
                                 found = 1;
                                 break;
                         }
@@ -2501,6 +2501,7 @@ browse_api(void)
 {
         char **apis = ls(FORGE_API_HEADER_DIR);
         str_array combined = dyn_array_empty(str_array);
+        const char *kwds[] = FORGE_LEXER_C_KEYWORDS;
 
         for (size_t i = 0; apis[i]; ++i) {
                 if (!strcmp(apis[i], "..") || !strcmp(apis[i], ".")) {
@@ -2511,7 +2512,7 @@ browse_api(void)
                 char **lines = forge_io_read_file_to_lines(path);
 
                 for (size_t j = 0; lines[j]; ++j) {
-                        dyn_array_append(combined, forge_colors_c_to_string(lines[j]));
+                        dyn_array_append(combined, forge_colors_code_to_string(lines[j], kwds));
                         free(lines[j]);
                 }
 

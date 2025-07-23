@@ -22,13 +22,13 @@ AC_DEFINE_UNQUOTED([COMPILER_NAME], ["$CC"], [Name of the C compiler])
 AC_DEFINE_UNQUOTED([COMPILER_VERSION], ["`$CC --version | head -n1`"], [Version of the C compiler])
 AC_DEFINE_UNQUOTED([COMPILER_PATH], ["`which $CC`"], [Full path to the C compiler])
 
-# Add include directory
-AC_SUBST([AM_CFLAGS], ["-I./include -I./forge -I./sqlite-autoconf-3500100 -march=native -pedantic -Wextra -Wall -Wno-maybe-uninitialized"])
+# Add include directories for forge and fviewer
+AC_SUBST([AM_CFLAGS], ["-I$top_srcdir/src/include -I$top_srcdir/src/forge -I$top_srcdir/src/fviewer/include -I$top_srcdir/src/sqlite-autoconf-3500100 -march=native -pedantic -Wextra -Wall -Wno-maybe-uninitialized"])
 
 AC_DEFINE_UNQUOTED([COMPILER_FLAGS], ["$AM_CFLAGS"], [Compiler flags used])
 AC_DEFINE_UNQUOTED([PREFIX], ["$prefix"], [Installation prefix directory])
 AC_DEFINE_UNQUOTED([LIBDIR], ["$libdir"], [Library installation directory])
 
 # Define output files
-AC_CONFIG_FILES([Makefile src/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile src/fviewer/Makefile])
 AC_OUTPUT

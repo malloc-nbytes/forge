@@ -192,7 +192,6 @@ forge_viewer_free(forge_viewer *m)
         free(m->search.buffer);
         free(m->search.last);
         free(m->match.matches);
-        //tcsetattr(STDIN_FILENO, TCSANOW, &m->old_termios);
         forge_ctrl_disable_raw_terminal(STDIN_FILENO, &m->old_termios);
         free(m);
         current_viewer = NULL;

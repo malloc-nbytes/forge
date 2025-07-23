@@ -1,13 +1,20 @@
 #ifndef FORGE_UTILS_H_INCLUDED
 #define FORGE_UTILS_H_INCLUDED
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
- * Parameter: st  -> the start
- * Parameter: end -> the end
- * Returns: an integer in the range [st, end]
- * Description: Generates a random integer from [st, end].
- *              If end > st, then it will swap(st, end).
+ * Parameter: pattern -> the regex pattern
+ * Parameter: s       -> the string to test
+ * Returns: 1 if match, 0 if no match
+ * Description: Check if `s` regex matches `pattern`.
  */
-int forge_utils_rand_in_range(int st, int end);
+int forge_utils_regex(const char *pattern, const char *s);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // FORGE_UTILS_H_INCLUDED

@@ -94,6 +94,16 @@ const char *forge_io_basename(const char *path);
  */
 int forge_io_rm_dir(const char *path);
 
+/**
+ * Parameter: path -> the filepath
+ * Returns: the extension or NULL if none
+ * Description: Return the extension of the filepath
+ *              `path`. If something goes wrong, or there
+ *               is no extension, NULL is returned. The result
+ *               is a static buffer, so do not `free()` it.
+ */
+const char *forge_io_file_ext(const char *path);
+
 #ifdef __cplusplus
 }
 #endif

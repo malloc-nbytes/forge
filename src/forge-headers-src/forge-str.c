@@ -24,6 +24,7 @@
 #include <stdarg.h>
 
 #include "forge/str.h"
+#include "forge/array.h"
 
 forge_str
 forge_str_create(void)
@@ -233,4 +234,37 @@ forge_str_rm_at(forge_str *fs, size_t idx)
         }
         fs->data[--fs->len] = '\0';
         return removed;
+}
+
+char **
+forge_str_to_lines(const char *s, size_t *out_n)
+{
+        *out_n = 0;
+        str_array lines = dyn_array_empty(str_array);
+        forge_str buf = forge_str_create();
+
+        for (size_t i = 0; s[i]; ++i) {
+                if (s[i] == '\n') {
+                        dyn_array_append(lines, strdup(buf.data));
+                        forge_str_clear(&buf);
+                } else {
+                        forge_str_append(&buf, s[i]);
+                }
+        }
+
+        if (buf.len > 0) {
+                dyn_array_append(lines, strdup(buf.data));
+        }
+        forge_str_destroy(&buf);
+
+        *out_n = lines.len;
+        return lines.data;
+}
+
+char **
+forge_str_take_to_lines(char *s, size_t *out_n)
+{
+        char **lines = forge_str_to_lines(s, out_n);
+        free(s);
+        return lines;
 }
