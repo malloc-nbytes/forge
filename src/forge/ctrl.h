@@ -92,8 +92,26 @@ typedef enum {
     USER_INPUT_TYPE_UNKNOWN,
 } forge_ctrl_input_type;
 
+/**
+ * Parameter: win_width?  -> the output for width
+ * Parameter: win_height? -> the output for heigth
+ * Returns: 1 on success, and 0 on failure
+ * Description: Get the terminal width and height and assigned
+ *              it to `win_width` and `win_height` respectively.
+ *              If you do not desire one of the dimensions, you can
+ *              leave it as NULL. If !*win_width && !*win_heigth
+ *              then the return result will be -1.
+ */
 int forge_ctrl_get_terminal_xy(size_t *win_width, size_t *win_height);
 
+/**
+ * Parameter: sa             -> the sigaction object
+ * Parameter: sa_handler_fun -> the function that gets called on signal
+ * Parameter: signum         -> the signal number to watch
+ * Returns: 1 on success, and 0 on failure
+ * Description: Create a signal action based off of `signum` that will
+ *              call `sa_handler_fun`.
+ */
 int forge_ctrl_sigaction(struct sigaction *sa, void (*sa_handler_fun)(int), int signum);
 
 /**
@@ -106,10 +124,7 @@ int forge_ctrl_sigaction(struct sigaction *sa, void (*sa_handler_fun)(int), int 
  *                  IXON.
  *              Note: If working with stdin, `fd` should be STDIN_FILENO.
  */
-int forge_ctrl_enable_raw_terminal(
-        int               fd,
-        struct termios   *old_termios
-);
+int forge_ctrl_enable_raw_terminal(int fd, struct termios *old_termios);
 
 /**
  * Parameter: fd          -> the file descriptor

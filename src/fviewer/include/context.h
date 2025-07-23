@@ -11,7 +11,6 @@ DYN_ARRAY_TYPE(forge_viewer *, viewer_array);
 typedef struct {
         const str_array *fps;
         viewer_array viewers;
-        size_t viewer_sel_idx;
 } fviewer_context;
 
 fviewer_context fviewer_context_create(const str_array *filepaths);
