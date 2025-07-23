@@ -28,6 +28,7 @@
 #define FLAG_2HY_REBUILD "rebuild"
 #define FLAG_2HY_SYNC "sync"
 #define FLAG_2HY_DROP_BROKEN_PKGS "drop-broken-pkgs"
+#define FLAG_2HY_FORCE "force"
 
 #define CLI_OPTIONS {                           \
                 "-" FLAG_1HY_HELP,              \
@@ -37,6 +38,7 @@
                 "--" FLAG_2HY_REBUILD,          \
                 "--" FLAG_2HY_SYNC,             \
                 "--" FLAG_2HY_DROP_BROKEN_PKGS, \
+                "--" FLAG_2HY_FORCE,            \
         }
 
 #define CMD_LIST "list"
@@ -62,12 +64,12 @@
 #define CMD_LIST_REPOS "list-repos"
 #define CMD_REPO_COMPILE_TEMPLATE "repo-compile-template"
 #define CMD_CREATE_REPO "create-repo"
-#define CMD_FORCE "force"
 #define CMD_LIB "lib"
 #define CMD_CLEAN "clean"
 #define CMD_SAVE_DEP "save-dep"
 #define CMD_LIST_DEPS "list-deps"
 #define CMD_EDIT_INSTALL "edit-install"
+#define CMD_INT "int"
 
 #define CLI_CMDS {                              \
                 CMD_LIST,                       \
@@ -93,12 +95,12 @@
                 CMD_LIST_REPOS,                 \
                 CMD_REPO_COMPILE_TEMPLATE,      \
                 CMD_CREATE_REPO,                \
-                CMD_FORCE,                      \
                 CMD_LIB,                        \
                 CMD_CLEAN,                      \
                 CMD_SAVE_DEP,                   \
                 CMD_LIST_DEPS,                  \
                 CMD_EDIT_INSTALL,               \
+                CMD_INT,                        \
         }
 
 #define CMD_COMMANDS "COMMANDS" // not included in CLI_COMMANDS (hidden)

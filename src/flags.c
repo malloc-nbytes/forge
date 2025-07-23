@@ -476,6 +476,17 @@ help_edit_install(void)
         INDENT INDENT printf("forge edit-install\n");
 }
 
+static void
+help_int(void)
+{
+        printf("help(%s):\n", CMD_INT);
+        INDENT printf("Interactively install/uninstall packages by using your\n");
+        INDENT printf("keyboard to scroll through packages.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge int\n");
+}
+
 void
 help(const char *flag)
 {
@@ -512,6 +523,7 @@ help(const char *flag)
                 help_save_dep,
                 help_list_deps,
                 help_edit_install,
+                help_int,
         };
 
         size_t n = strlen(flag);
@@ -610,6 +622,8 @@ help(const char *flag)
                 hs[30]();
         } else if (!strcmp(flag, CMD_EDIT_INSTALL)) {
                 hs[31]();
+        } else if (!strcmp(flag, CMD_INT)) {
+                hs[32]();
         }
 
         else if (!strcmp(flag, "*")) {
@@ -660,11 +674,12 @@ usage(void)
         printf(YELLOW BOLD "    -%s, --%s[=<flag>|*]" RESET "      display this message or view help on a command or option\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
         printf(YELLOW BOLD "    -%s, --%s           R"                         RESET  "  rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
         printf(YELLOW BOLD "    -%s, --%s              R"                         RESET "  sync the C modules repository\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
-        printf(YELLOW BOLD "        --%s              "                         RESET "  force the action if it can\n", CMD_FORCE);
+        printf(YELLOW BOLD "        --%s              "                         RESET "  force the action if it can\n", FLAG_2HY_FORCE);
         printf(YELLOW BOLD "        --%s  R"                         RESET "  remove all broken packages\n", FLAG_2HY_DROP_BROKEN_PKGS);
         printf("\nCommands:\n");
         printf(GREEN BOLD "    %s          " RESET                                "             list available packages\n", CMD_LIST);
         printf(GREEN BOLD "    %s <pkg...> "                         RESET "           search for packages\n", CMD_SEARCH);
+        printf(GREEN BOLD "    %s          " RESET YELLOW BOLD   "           R  " RESET "interactively install/uninstall packages\n", CMD_INT);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "       R "     RESET  " install packages\n", CMD_INSTALL);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "     R "       RESET  " uninstall packages\n", CMD_UNINSTALL);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "        R "    RESET  " update packages or leave empty to update all\n", CMD_UPDATE);

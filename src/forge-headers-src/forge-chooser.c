@@ -151,6 +151,8 @@ forge_chooser(const char  *msg,
                         else if (ch == 'q' || ch == CTRL('q')) {
                                 ctx.sel = -1;
                                 goto done;
+                        } else if (ch == ' ') {
+                                goto done;
                         }
                 } break;
                 case USER_INPUT_TYPE_UNKNOWN: break;

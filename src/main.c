@@ -2723,7 +2723,7 @@ edit_install(forge_context *ctx)
                 printf(YELLOW BOLD "Note:\n" RESET);
                 printf(YELLOW BOLD "*" RESET " You are about to enter a choice mode.\n");
                 printf(YELLOW BOLD "*" RESET " Use the up/down arrow keys to choose different\n");
-                printf(YELLOW BOLD "*" RESET " packages and use [enter] to select that package.\n");
+                printf(YELLOW BOLD "*" RESET " packages and use [enter] or [space] to select that package.\n");
                 printf(YELLOW BOLD "*" RESET " Packages prefixed with `<*>` are marked as installed\n");
                 printf(YELLOW BOLD "*" RESET " and ones that are marked with `< >` are uninstalled.\n");
                 printf(YELLOW BOLD "*" RESET " Use `q` to end or C-c to cancel\n\n");
@@ -2756,6 +2756,13 @@ edit_install(forge_context *ctx)
         sqlite3_finalize(stmt);
 
         assert(pkgnames.len == installed.len);
+
+        if (pkgnames.len == 0) {
+                info_major("No packages are registered", 1);
+                dyn_array_free(pkgnames);
+                dyn_array_free(installed);
+                return;
+        }
 
         size_t cpos = 0;
         while (1) {
@@ -2807,11 +2814,147 @@ edit_install(forge_context *ctx)
         dyn_array_free(installed);
 }
 
-int
-main(int argc, char **argv)
+void
+interactive(forge_context *ctx)
 {
-        ++argv, --argc;
-        clap_init(argc, argv);
+        struct termios term;
+        forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term);
+        forge_ctrl_clear_terminal();
+        printf(YELLOW BOLD "Note:\n" RESET);
+        printf(YELLOW BOLD "*" RESET " You are about to enter interactive mode.\n");
+        printf(YELLOW BOLD "*" RESET " Use up/down arrow keys to select packages.\n");
+        printf(YELLOW BOLD "*" RESET " Press [enter] or [space] to toggle install/uninstall.\n");
+        printf(YELLOW BOLD "*" RESET " Packages prefixed with `<*>` are installed, `< >` are not.\n");
+        printf(YELLOW BOLD "*" RESET " Press `q` to confirm selections or C-c to cancel.\n\n");
+        printf("Press any key to continue...\n");
+        char ch;
+        (void)forge_ctrl_get_input(&ch);
+        forge_ctrl_clear_terminal();
+
+        // Query all packages
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT name, version, description, installed FROM Pkgs ORDER BY name;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        const uint32_t installed_flag = 1 << 0;
+        const uint32_t modified_flag = 1 << 1;
+
+        str_array display_entries = dyn_array_empty(str_array);
+        str_array pkg_names = dyn_array_empty(str_array);
+        int_array status = dyn_array_empty(int_array);
+        str_array names = dyn_array_empty(str_array);
+        str_array versions = dyn_array_empty(str_array);
+        str_array descriptions = dyn_array_empty(str_array);
+        int_array installed = dyn_array_empty(int_array);
+        size_t max_name_len = strlen("Name");
+        size_t max_version_len = strlen("Version");
+        size_t max_desc_len = strlen("Description");
+
+        // Collect package data and calculate max widths
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                const char *version = (const char *)sqlite3_column_text(stmt, 1);
+                const char *description = (const char *)sqlite3_column_text(stmt, 2);
+                int is_installed = sqlite3_column_int(stmt, 3);
+
+                // Update max lengths
+                max_name_len = MAX(max_name_len, strlen(name));
+                max_version_len = MAX(max_version_len, version ? strlen(version) : 0);
+                max_desc_len = MAX(max_desc_len, description ? strlen(description) : strlen("(none)"));
+
+                // Store data for later entry creation
+                dyn_array_append(names, strdup(name));
+                dyn_array_append(versions, version ? strdup(version) : strdup(""));
+                dyn_array_append(descriptions, description ? strdup(description) : strdup("(none)"));
+                dyn_array_append(installed, is_installed);
+                dyn_array_append(pkg_names, strdup(name));
+                dyn_array_append(status, is_installed ? installed_flag : 0);
+        }
+        sqlite3_finalize(stmt);
+
+        if (pkg_names.len == 0) {
+                info_major("No packages are registered", 1);
+                goto dyn_clean;
+        }
+
+        // Create display entries after calculating max lengths
+        for (size_t i = 0; i < names.len; ++i) {
+                char *entry = (char *)malloc(max_name_len + max_version_len + max_desc_len + 20);
+                snprintf(entry, max_name_len + max_version_len + max_desc_len + 20,
+                         "%s %-*s  %-*s  %-*s",
+                         installed.data[i] ? "<*>" : "< >",
+                         (int)max_name_len, names.data[i],
+                         (int)max_version_len, versions.data[i],
+                         (int)max_desc_len, descriptions.data[i]);
+                dyn_array_append(display_entries, entry);
+        }
+
+        size_t cpos = 0;
+        while (1) {
+                int idx = forge_chooser("Select packages to install/uninstall", (const char **)display_entries.data, display_entries.len, cpos);
+                if (idx == -1) break;
+                status.data[idx] ^= installed_flag; // Toggle installed flag
+                status.data[idx] |= modified_flag;  // Mark as modified
+                // Update display entry
+                display_entries.data[idx][1] = (status.data[idx] & installed_flag) ? '*' : ' ';
+                cpos = (size_t)idx;
+        }
+
+        forge_ctrl_disable_raw_terminal(STDIN_FILENO, &term);
+
+        // Collect packages to install/uninstall
+        str_array to_install = dyn_array_empty(str_array);
+        str_array to_uninstall = dyn_array_empty(str_array);
+
+        for (size_t i = 0; i < status.len; ++i) {
+                if (status.data[i] & modified_flag) {
+                        int is_installed = pkg_is_installed(ctx, pkg_names.data[i]);
+                        int target_state = (status.data[i] & installed_flag) ? 1 : 0;
+                        if (is_installed != target_state) {
+                                if (target_state) {
+                                        dyn_array_append(to_install, strdup(pkg_names.data[i]));
+                                } else {
+                                        dyn_array_append(to_uninstall, strdup(pkg_names.data[i]));
+                                }
+                        }
+                }
+        }
+
+        // Perform uninstallations
+        if (to_uninstall.len > 0) {
+                printf(GREEN BOLD "*** Processing Uninstallations\n" RESET);
+                uninstall_pkg(ctx, &to_uninstall);
+        }
+
+        // Perform installations
+        if (to_install.len > 0) {
+                printf(GREEN BOLD "*** Processing Installations\n" RESET);
+                install_pkg(ctx, &to_install, 0);
+        }
+
+        for (size_t i = 0; i < display_entries.len; ++i) free(display_entries.data[i]);
+        for (size_t i = 0; i < pkg_names.len; ++i) free(pkg_names.data[i]);
+        for (size_t i = 0; i < names.len; ++i) free(names.data[i]);
+        for (size_t i = 0; i < versions.len; ++i) free(versions.data[i]);
+        for (size_t i = 0; i < descriptions.len; ++i) free(descriptions.data[i]);
+        for (size_t i = 0; i < to_install.len; ++i) free(to_install.data[i]);
+        for (size_t i = 0; i < to_uninstall.len; ++i) free(to_uninstall.data[i]);
+
+        dyn_array_free(to_install);
+        dyn_array_free(to_uninstall);
+ dyn_clean:
+        dyn_array_free(display_entries);
+        dyn_array_free(pkg_names);
+        dyn_array_free(names);
+        dyn_array_free(versions);
+        dyn_array_free(descriptions);
+        dyn_array_free(status);
+}
+
+int
+try_first_time_startup(int argc)
+{
         int exists = cio_file_exists(DB_FP);
 
         if (exists && argc == 0) {
@@ -2819,11 +2962,12 @@ main(int argc, char **argv)
         } else if (!exists) {
                 printf("Superuser access is required the first time forge is ran.\n");
                 assert_sudo();
-                init_env();
 
-                const char *ans[] = {"Yes", "No"};
-                int choice = forge_chooser("Would you like to install the offical forge repository?\n",
+                const char *ans[] = {"Yes, I want some premade packages", "No, I want to start from scratch"};
+                int choice = forge_chooser("Would you like to install the offical forge repository?",
                                            (const char **)ans, sizeof(ans)/sizeof(*ans), 0);
+
+                init_env();
 
                 if (choice == -1) {
                         printf("Something went wrong... :(\n");
@@ -2847,6 +2991,19 @@ main(int argc, char **argv)
                 printf(YELLOW BOLD "* " "  forge -r new author@pkgname\n" RESET);
                 printf(YELLOW BOLD "* " RESET "to start forging your packages.\n");
                 printf(YELLOW BOLD "* " RESET "Do " YELLOW BOLD "`forge -h`" RESET " to view all help information.\n");
+                return 1;
+        }
+
+        return 0;
+}
+
+int
+main(int argc, char **argv)
+{
+        ++argv, --argc;
+        clap_init(argc, argv);
+
+        if (try_first_time_startup(argc)) {
                 return 0;
         }
 
@@ -2873,7 +3030,7 @@ main(int argc, char **argv)
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_HELP)) {
                         if (arg.eq) { help(arg.eq); }
                         usage();
-                } else if (arg.hyphc == 2 && !strcmp(arg.start, CMD_FORCE)) {
+                } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_FORCE)) {
                         g_config.flags |= FT_FORCE;
                 }
 
@@ -3059,6 +3216,9 @@ main(int argc, char **argv)
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_EDIT_INSTALL)) {
                         assert_sudo();
                         edit_install(&ctx);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_INT)) {
+                        assert_sudo();
+                        interactive(&ctx);
                 }
 
                 else if (arg.hyphc == 1) { // one hyph options
