@@ -3,10 +3,14 @@
 #include <stddef.h>
 #include <unistd.h>
 #include <termios.h>
+#include <string.h>
 
 #include "forge/chooser.h"
 #include "forge/ctrl.h"
 #include "forge/colors.h"
+#include "forge/str.h"
+#include "forge/array.h"
+#include "forge/utils.h"
 
 #define FALLBACK_WIN_WIDTH 10
 #define DEFAULT_MSG "Select an option:"
@@ -17,10 +21,19 @@ typedef struct {
         size_t sel;
         size_t win_height;
         size_t scroll_offset;
+        struct {
+                int mode;          // 1 if in search mode, 0 otherwise
+                forge_str buffer;  // Search query buffer
+                forge_str last;    // Last search query
+                size_t_array matches; // Array of matching choice indices
+                size_t current;    // Current match index
+        } search;
 } forge_chooser_context;
 
 static volatile sig_atomic_t g_resize_flag = 0;
 static forge_chooser_context *g_ctx = NULL;
+
+static void dump_choices(const forge_chooser_context *ctx);
 
 static void
 sigwinch_handler(int sig)
@@ -67,8 +80,29 @@ up(forge_chooser_context *ctx)
 }
 
 static void
+top(forge_chooser_context *ctx)
+{
+        ctx->sel = 0;
+        ctx->scroll_offset = 0; // Reset scroll to top
+}
+
+static void
+bottom(forge_chooser_context *ctx)
+{
+        ctx->sel = ctx->choices_n - 1;
+        if (ctx->choices_n > ctx->win_height - 2) { // Account for msg and controls
+                ctx->scroll_offset = ctx->choices_n - (ctx->win_height - 2);
+        } else {
+                ctx->scroll_offset = 0; // No scrolling needed if all choices fit
+        }
+}
+
+static void
 controls(const forge_chooser_context *ctx)
 {
+        if (ctx->search.mode) {
+                return;
+        }
         printf("\033[%zu;1H", ctx->win_height); // Move to last row
         printf(BOLD RED INVERT "q:quit" RESET
                " "
@@ -86,10 +120,129 @@ controls(const forge_chooser_context *ctx)
                " "
                BOLD GREEN INVERT "C-p:up" RESET
                " "
+               BOLD GREEN INVERT "g:top" RESET
+               " "
+               BOLD GREEN INVERT "G:bottom" RESET
+               " "
+               BOLD GREEN INVERT "/:search" RESET
+               " "
+               BOLD GREEN INVERT "n:next" RESET
+               " "
+               BOLD GREEN INVERT "N:prev" RESET
+               " "
                BOLD GREEN INVERT "Enter:select" RESET
                " "
                BOLD GREEN INVERT "Space:select" RESET);
         fflush(stdout);
+}
+
+static void
+search_prompt(const forge_chooser_context *ctx)
+{
+        printf("\033[%zu;1H", ctx->win_height); // Move to last row
+        printf("\033[K");                       // Clear the line
+        const char *query = forge_str_to_cstr(&ctx->search.buffer);
+        printf(BOLD YELLOW "/" RESET "%s", query ? query : "");
+        fflush(stdout);
+}
+
+static void
+next_match(forge_chooser_context *ctx)
+{
+        if (ctx->search.matches.len == 0 || ctx->search.last.len == 0) {
+                return; // No matches or no search performed
+        }
+        if (ctx->search.current + 1 < ctx->search.matches.len) {
+                ctx->sel = ctx->search.matches.data[++ctx->search.current];
+                if (ctx->sel >= ctx->scroll_offset + ctx->win_height - 2) {
+                        ctx->scroll_offset = ctx->sel - (ctx->win_height - 2) + 1;
+                }
+        }
+}
+
+static void
+prev_match(forge_chooser_context *ctx)
+{
+        if (ctx->search.matches.len == 0 || ctx->search.last.len == 0) {
+                return; // No matches or no search performed
+        }
+        if (ctx->search.current > 0) {
+                ctx->sel = ctx->search.matches.data[--ctx->search.current];
+                if (ctx->sel < ctx->scroll_offset) {
+                        ctx->scroll_offset = ctx->sel;
+                }
+        }
+}
+
+static void
+search(forge_chooser_context *ctx)
+{
+        ctx->search.mode = 1;
+        forge_str_clear(&ctx->search.buffer);
+
+        while (1) {
+                dump_choices(ctx);
+                search_prompt(ctx);
+
+                char ch;
+                forge_ctrl_input_type ty = forge_ctrl_get_input(&ch);
+
+                if (ty == USER_INPUT_TYPE_NORMAL) {
+                        if (ch == '\n') {
+                                // Clear previous matches
+                                dyn_array_clear(ctx->search.matches);
+                                ctx->search.current = 0;
+
+                                // Save the current search query
+                                forge_str_destroy(&ctx->search.last);
+                                ctx->search.last = ctx->search.buffer;
+                                ctx->search.buffer = forge_str_create();
+
+                                // Search for the query in the choices
+                                const char *pattern = forge_str_to_cstr(&ctx->search.last);
+                                if (pattern && pattern[0] != '\0') {
+                                        for (size_t i = 0; i < ctx->choices_n; ++i) {
+                                                if (forge_utils_regex(pattern, ctx->choices[i])) {
+                                                        dyn_array_append(ctx->search.matches, i);
+                                                }
+                                        }
+                                }
+
+                                // Jump to first match if it exists
+                                if (ctx->search.matches.len > 0) {
+                                        ctx->sel = ctx->search.matches.data[0];
+                                        if (ctx->sel >= ctx->scroll_offset + ctx->win_height - 2) {
+                                                ctx->scroll_offset = ctx->sel - (ctx->win_height - 2) + 1;
+                                        } else if (ctx->sel < ctx->scroll_offset) {
+                                                ctx->scroll_offset = ctx->sel;
+                                        }
+                                }
+                                ctx->search.mode = 0;
+                                return;
+                        } else if (BACKSPACE(ch)) {
+                                forge_str_pop(&ctx->search.buffer);
+                        } else if (ch >= 32 && ch <= 126) {
+                                forge_str_append(&ctx->search.buffer, ch);
+                        }
+                } else if (ty == USER_INPUT_TYPE_CTRL && ch == CTRL_G) {
+                        ctx->search.mode = 0;
+                        return;
+                } else if (ty == USER_INPUT_TYPE_NORMAL && ESCSEQ(ch)) {
+                        ctx->search.mode = 0;
+                        return;
+                }
+
+                // Handle resize during search
+                if (g_resize_flag) {
+                        update_window_size(ctx);
+                        g_resize_flag = 0;
+                        forge_ctrl_clear_terminal();
+                        forge_ctrl_cursor_to_first_line();
+                        printf("%s\n", DEFAULT_MSG);
+                        dump_choices(ctx);
+                        search_prompt(ctx);
+                }
+        }
 }
 
 static void
@@ -118,24 +271,6 @@ dump_choices(const forge_chooser_context *ctx)
         }
 }
 
-static void
-top(forge_chooser_context *ctx)
-{
-        ctx->sel = 0;
-        ctx->scroll_offset = 0; // Reset scroll to top
-}
-
-static void
-bottom(forge_chooser_context *ctx)
-{
-        ctx->sel = ctx->choices_n - 1;
-        if (ctx->choices_n > ctx->win_height - 2) { // Account for msg and controls
-                ctx->scroll_offset = ctx->choices_n - (ctx->win_height - 2);
-        } else {
-                ctx->scroll_offset = 0; // No scrolling needed if all choices fit
-        }
-}
-
 int
 forge_chooser(const char  *msg,
               const char **choices,
@@ -151,7 +286,16 @@ forge_chooser(const char  *msg,
                 .sel = cpos,
                 .win_height = FALLBACK_WIN_WIDTH,
                 .scroll_offset = 0,
+                .search = {
+                        .mode = 0,
+                        .buffer = forge_str_create(),
+                        .last = forge_str_create(),
+                        .matches = dyn_array_empty(size_t_array),
+                        .current = 0
+                }
         };
+
+        dyn_array_init_type(ctx.search.matches);
 
         // Adjust scroll_offset based on initial cpos
         if (cpos >= ctx.win_height - 2 && ctx.choices_n > ctx.win_height - 2) {
@@ -162,15 +306,15 @@ forge_chooser(const char  *msg,
 
         if (!forge_ctrl_get_terminal_xy(NULL, &ctx.win_height)) {
                 fprintf(stderr, "could not get terminal height\n");
-                return -1;
+                goto cleanup;
         }
         if (!forge_ctrl_sigaction(&sa, sigwinch_handler, SIGWINCH)) {
                 fprintf(stderr, "could not set up sigwinch, resizing will not work\n");
-                return -1;
+                goto cleanup;
         }
         if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term)) {
                 fprintf(stderr, "could not enable terminal to raw mode\n");
-                return -1;
+                goto cleanup;
         }
 
         // Re-adjust scroll_offset after getting actual window height
@@ -192,10 +336,18 @@ forge_chooser(const char  *msg,
                 printf("%s\n", msg ? msg : DEFAULT_MSG);
 
                 dump_choices(&ctx);
-                controls(&ctx);
+                if (!ctx.search.mode) {
+                        controls(&ctx);
+                }
 
                 char ch;
                 forge_ctrl_input_type ty = forge_ctrl_get_input(&ch);
+                if (ctx.search.mode) {
+                        // Input handled by search() when in search mode
+                        search(&ctx);
+                        continue;
+                }
+
                 switch (ty) {
                 case USER_INPUT_TYPE_CTRL: {
                         if      (ch == CTRL('n')) down(&ctx);
@@ -218,25 +370,30 @@ forge_chooser(const char  *msg,
                                 goto done;
                         } else if (ch == ' ') {
                                 goto done;
-                        }
-                        else if (ch == 'k') up(&ctx);
+                        } else if (ch == 'k') up(&ctx);
                         else if (ch == 'j') down(&ctx);
                         else if (ch == 'g') top(&ctx);
                         else if (ch == 'G') bottom(&ctx);
+                        else if (ch == '/') search(&ctx);
+                        else if (ch == 'n') next_match(&ctx);
+                        else if (ch == 'N') prev_match(&ctx);
                 } break;
                 case USER_INPUT_TYPE_UNKNOWN: break;
                 default: break;
                 }
         }
 
- done:
+done:
         forge_ctrl_clear_terminal();
-
         if (!forge_ctrl_disable_raw_terminal(STDIN_FILENO, &term)) {
                 fprintf(stderr, "could not disable terminal to raw mode\n");
                 exit(1);
         }
 
+cleanup:
+        forge_str_destroy(&ctx.search.buffer);
+        forge_str_destroy(&ctx.search.last);
+        dyn_array_free(ctx.search.matches);
         return (int)ctx.sel;
 }
 

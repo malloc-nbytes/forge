@@ -113,8 +113,8 @@ typedef enum {
         FT_FORCE = 1 << 3,
 } flag_type;
 
-void usage(void);
-void copying(void);
-void help(const char *flag);
+void forge_flags_usage(void);
+void forge_flags_copying(void);
+void forge_flags_help(const char *flag);
 
 #endif // FLAGS_H_INCLUDED

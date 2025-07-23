@@ -488,7 +488,7 @@ help_int(void)
 }
 
 void
-help(const char *flag)
+forge_flags_help(const char *flag)
 {
         void (*hs[])(void) = {
                 help_help,
@@ -641,7 +641,7 @@ help(const char *flag)
 }
 
 void
-usage(void)
+forge_flags_usage(void)
 {
         printf(UNDERLINE BOLD "Forge your System\n\n" RESET);
 
@@ -710,7 +710,7 @@ usage(void)
 }
 
 void
-copying(void)
+forge_flags_copying(void)
 {
         printf(COPYING1);
         printf(COPYING2);

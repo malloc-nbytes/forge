@@ -11,6 +11,6 @@ typedef enum {
         FVIEWER_FT_LINES = 1 << 0,
 } fviewer_flag_type;
 
-void usage(void);
+void fviewer_flags_usage(void);
 
 #endif // FVIEWER_FLAGS_H_INCLUDED

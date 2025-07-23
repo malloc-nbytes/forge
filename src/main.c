@@ -2958,7 +2958,7 @@ try_first_time_startup(int argc)
         int exists = cio_file_exists(DB_FP);
 
         if (exists && argc == 0) {
-                usage();
+                forge_flags_usage();
         } else if (!exists) {
                 printf("Superuser access is required the first time forge is ran.\n");
                 assert_sudo();
@@ -3025,11 +3025,11 @@ main(int argc, char **argv)
         Clap_Arg arg = {0};
         while (clap_next(&arg)) {
                 if (arg.hyphc == 1 && arg.start[0] == FLAG_1HY_HELP[0]) {
-                        if (arg.eq) { help(arg.eq); }
-                        usage();
+                        if (arg.eq) { forge_flags_help(arg.eq); }
+                        forge_flags_usage();
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_HELP)) {
-                        if (arg.eq) { help(arg.eq); }
-                        usage();
+                        if (arg.eq) { forge_flags_help(arg.eq); }
+                        forge_flags_usage();
                 } else if (arg.hyphc == 2 && !strcmp(arg.start, FLAG_2HY_FORCE)) {
                         g_config.flags |= FT_FORCE;
                 }
@@ -3119,7 +3119,7 @@ main(int argc, char **argv)
                         if (!clap_next(&arg)) { err_wargs("flag `%s` requires an argument", CMD_FILES); }
                         list_files(&ctx, arg.start, 0);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_COPYING)) {
-                        copying();
+                        forge_flags_copying();
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_DEPGRAPH)) {
                         depgraph_dump(&ctx.dg);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_API)) {

@@ -33,7 +33,7 @@ handle_args(forge_arg *arghd)
                         for (size_t i = 0; arg->s[i]; ++i) {
                                 switch (arg->s[i]) {
                                 case FVIEWER_FLAG_1HY_HELP: {
-                                        usage();
+                                        fviewer_flags_usage();
                                 } break;
                                 case FVIEWER_FLAG_1HY_LINES: {
                                         g_config.flags |= FVIEWER_FT_LINES;
@@ -46,7 +46,7 @@ handle_args(forge_arg *arghd)
                         }
                 } else { // --
                         if (!strcmp(arg->s, FVIEWER_FLAG_2HY_HELP)) {
-                                usage();
+                                fviewer_flags_usage();
                         } else if (!strcmp(arg->s, FVIEWER_FLAG_2HY_LINES)) {
                                 g_config.flags |= FVIEWER_FT_LINES;
                         }
@@ -69,7 +69,7 @@ int
 main(int argc, char **argv)
 {
         if (argc <= 1) {
-                usage();
+                fviewer_flags_usage();
         }
 
         forge_arg *arghd = forge_arg_alloc(argc, argv, 1);

@@ -76,13 +76,13 @@ collect_files(const char *path, str_array *files)
                         }
 
                         // Construct full path
-                        size_t path_len = strlen(path) + strlen(entry->d_name) + 2; // +1 for null terminator
+                        size_t path_len = strlen(path) + strlen(entry->d_name) + 2; // +1 for '/' and null terminator
                         char *full_path = malloc(path_len);
                         if (!full_path) {
                                 fprintf(stderr, "Memory allocation failed for path %s/%s\n", path, entry->d_name);
                                 continue;
                         }
-                        snprintf(full_path, path_len, "%s%s", path, entry->d_name);
+                        snprintf(full_path, path_len, "%s/%s", path, entry->d_name);
 
                         // Recurse
                         collect_files(full_path, files);
