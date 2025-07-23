@@ -460,6 +460,22 @@ help_list_deps(void)
         INDENT INDENT printf("forge list-deps\n");
 }
 
+static void
+help_edit_install(void)
+{
+        printf("help(%s):\n", CMD_EDIT_INSTALL);
+        INDENT printf("Manually edit the `installed` flag on individual packages\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("All this will do is mark it as `installed`\n");
+        INDENT INDENT printf("it will not download or build anything.\n");
+        INDENT INDENT printf("However, this adds them to `pkg->update()`\n");
+        INDENT INDENT printf("so be careful!\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge edit-install\n");
+}
+
 void
 help(const char *flag)
 {
@@ -495,6 +511,7 @@ help(const char *flag)
                 help_clean,
                 help_save_dep,
                 help_list_deps,
+                help_edit_install,
         };
 
         size_t n = strlen(flag);
@@ -591,6 +608,8 @@ help(const char *flag)
                 hs[29]();
         } else if (!strcmp(flag, CMD_LIST_DEPS)) {
                 hs[30]();
+        } else if (!strcmp(flag, CMD_EDIT_INSTALL)) {
+                hs[31]();
         }
 
         else if (!strcmp(flag, "*")) {
@@ -669,6 +688,7 @@ usage(void)
         printf(GREEN BOLD "    %s" RESET                                          "                   view API headers\n", CMD_APILIST);
         printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "   RN"  RESET  " edit the forge configuration header\n", CMD_EDITCONF);
         printf(GREEN BOLD "    %s             " RESET YELLOW BOLD "R "  RESET  " update and recompile forge\n", CMD_UPDATEFORGE);
+        printf(GREEN BOLD "    %s            " RESET YELLOW BOLD "RN"  RESET  " manually edit package `installed` flags\n", CMD_EDIT_INSTALL);
         printf(GREEN BOLD "    %s   " RESET YELLOW BOLD " N"  RESET  " generate a repo testing script\n", CMD_REPO_COMPILE_TEMPLATE);
         printf(GREEN BOLD "    %s" RESET                                          "                        view forge library linking flag\n", CMD_LIB);
         exit(0);

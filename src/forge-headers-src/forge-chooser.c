@@ -87,7 +87,8 @@ dump_choices(const forge_chooser_context *ctx)
 
 int
 forge_chooser(const char **choices,
-              size_t       choices_n)
+              size_t       choices_n,
+              size_t       cpos)
 {
         struct termios term;
         struct sigaction sa;
@@ -95,7 +96,7 @@ forge_chooser(const char **choices,
         forge_chooser_context ctx = (forge_chooser_context) {
                 .choices = choices,
                 .choices_n = choices_n,
-                .sel = 0,
+                .sel = cpos,
                 .win_height = FALLBACK_WIN_WIDTH,
                 .scroll_offset = 0,
         };
@@ -143,6 +144,10 @@ forge_chooser(const char **choices,
                 case USER_INPUT_TYPE_SHIFT_ARROW: break;
                 case USER_INPUT_TYPE_NORMAL: {
                         if (ENTER(ch)) goto done;
+                        else if (ch == 'q' || ch == CTRL('q')) {
+                                ctx.sel = -1;
+                                goto done;
+                        }
                 } break;
                 case USER_INPUT_TYPE_UNKNOWN: break;
                 default: break;
@@ -162,9 +167,10 @@ forge_chooser(const char **choices,
 
 int
 forge_chooser_take(char       **choices,
-                   size_t       choices_n)
+                   size_t       choices_n,
+                   size_t       cpos)
 {
-        int res = forge_chooser((const char **)choices, choices_n);
+        int res = forge_chooser((const char **)choices, choices_n, cpos);
         for (size_t i = 0; i < choices_n; ++i) {
                 free(choices[i]);
         }

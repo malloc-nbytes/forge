@@ -98,6 +98,7 @@
                 CMD_CLEAN,                      \
                 CMD_SAVE_DEP,                   \
                 CMD_LIST_DEPS,                  \
+                CMD_EDIT_INSTALL,               \
         }
 
 #define CMD_COMMANDS "COMMANDS" // not included in CLI_COMMANDS (hidden)

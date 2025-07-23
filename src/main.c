@@ -2716,40 +2716,92 @@ show_options_for_bash_completion(void)
 void
 edit_install(forge_context *ctx)
 {
+        {
+                struct termios term;
+                forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term);
+                forge_ctrl_clear_terminal();
+                printf(YELLOW BOLD "Note:\n" RESET);
+                printf(YELLOW BOLD "*" RESET " You are about to enter a choice mode.\n");
+                printf(YELLOW BOLD "*" RESET " Use the up/down arrow keys to choose different\n");
+                printf(YELLOW BOLD "*" RESET " packages and use [enter] to select that package.\n");
+                printf(YELLOW BOLD "*" RESET " Packages prefixed with `<*>` are marked as installed\n");
+                printf(YELLOW BOLD "*" RESET " and ones that are marked with `< >` are uninstalled.\n");
+                printf(YELLOW BOLD "*" RESET " Use `q` to end or C-c to cancel\n\n");
+                printf("Press any key to continue...\n");
+                char ch;
+                (void)forge_ctrl_get_input(&ch);
+                forge_ctrl_clear_terminal();
+                forge_ctrl_disable_raw_terminal(STDIN_FILENO, &term);
+        }
+
         sqlite3_stmt *stmt;
         const char *sql = "SELECT name, installed FROM Pkgs ORDER BY name;";
         int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
         CHECK_SQLITE(rc, ctx->db);
 
-        const_str_array pkgnames = dyn_array_empty(const_str_array);
+        const int installed_flag = 1 << 0;
+        const int modified_flag = 1 << 1;
+
+        str_array pkgnames = dyn_array_empty(str_array);
         int_array installed = dyn_array_empty(int_array);
 
         while (sqlite3_step(stmt) == SQLITE_ROW) {
                 const char *name = (const char *)sqlite3_column_text(stmt, 0);
                 int is_installed = sqlite3_column_int(stmt, 1);
-                dyn_array_append(pkgnames, name);
-                dyn_array_append(installed, is_installed);
-                //printf("%s %s\n", installed ? "<*>" : "< >", name);
+                char *entry = forge_str_builder(is_installed ? "<*> " : "< > ", name, NULL);
+                dyn_array_append(pkgnames, entry);
+                dyn_array_append(installed, is_installed ? installed_flag : 0);
         }
 
         sqlite3_finalize(stmt);
 
-        struct termios term;
-        forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term);
-        forge_ctrl_clear_terminal();
-        printf(YELLOW BOLD "Note:\n" RESET);
-        printf(YELLOW "*" RESET " You are about to be put into a viewer mode.\n");
-        printf(YELLOW "*" RESET " You can go through it to manually check/uncheck which\n");
-        printf(YELLOW "*" RESET " packages are marked as installed. Make sure you know\n");
-        printf(YELLOW "*" RESET " what you are doing!\n\n");
-        printf(YELLOW "*" RESET " In viewer mode, you can browse the packages and their\n");
-        printf(YELLOW "*" RESET " installed status. If you would like to flip one, type:\n");
-        printf(YELLOW "*" RESET "     /<number>\n");
-        printf(YELLOW "*" RESET " and it will invert it's installed status\n\n");
-        printf("Press any key to continue...\n");
-        char ch;
-        (void)forge_ctrl_get_input(&ch);
-        forge_ctrl_disable_raw_terminal(STDIN_FILENO, &term);
+        assert(pkgnames.len == installed.len);
+
+        size_t cpos = 0;
+        while (1) {
+                int idx = forge_chooser((const char **)pkgnames.data, pkgnames.len, cpos);
+                if (idx == -1) break;
+                if (installed.data[idx] & installed_flag) {
+                        pkgnames.data[idx][1] = ' ';
+                        installed.data[idx] &= ~installed_flag;
+                        installed.data[idx] |= modified_flag;
+                } else {
+                        pkgnames.data[idx][1] = '*';
+                        installed.data[idx] |= installed_flag;
+                        installed.data[idx] |= modified_flag;
+                }
+                cpos = (size_t)idx;
+        }
+
+        good_major("Updating installed status...", 1);
+
+        // Update database for modified entries
+        const char *sql_update = "UPDATE Pkgs SET installed = ? WHERE name = ?;";
+        rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        for (size_t i = 0; i < installed.len; ++i) {
+                if (installed.data[i] & modified_flag) {
+                        // Extract package name (skip the "<*> " or "< > " prefix)
+                        const char *name = pkgnames.data[i] + 4;
+                        int is_installed = (installed.data[i] & installed_flag) ? 1 : 0;
+
+                        sqlite3_bind_int(stmt, 1, is_installed);
+                        sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
+
+                        rc = sqlite3_step(stmt);
+                        if (rc != SQLITE_DONE) {
+                                fprintf(stderr, "Failed to update installed status for %s: %s\n",
+                                        name, sqlite3_errmsg(ctx->db));
+                        }
+                        sqlite3_reset(stmt);
+
+                        printf(GREEN "Updated %s: %s\n" RESET, name,
+                               is_installed ? "Installed" : "Uninstalled");
+                }
+        }
+
+        sqlite3_finalize(stmt);
 
         dyn_array_free(pkgnames);
         dyn_array_free(installed);
@@ -2990,6 +3042,7 @@ main(int argc, char **argv)
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_OPTIONS)) {
                         show_options_for_bash_completion();
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_EDIT_INSTALL)) {
+                        assert_sudo();
                         edit_install(&ctx);
                 }
 
