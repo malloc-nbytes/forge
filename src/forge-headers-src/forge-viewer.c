@@ -240,11 +240,10 @@ page_down(forge_viewer *m)
                 m->height_offset = 0; // No scrolling if viewer fits or window too small
                 return;
         }
-        if (m->height_offset + (m->win_height - 1) >= m->rows) {
-                m->height_offset = m->rows - (m->win_height - 1);
-                return;
-        }
         m->height_offset += m->win_height - 1;
+        if (m->height_offset > m->rows - (m->win_height - 1)) {
+                m->height_offset = m->rows - (m->win_height - 1);
+        }
 }
 
 static inline void

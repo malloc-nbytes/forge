@@ -9,6 +9,7 @@
 #include "forge/colors.h"
 
 #define FALLBACK_WIN_WIDTH 10
+#define DEFAULT_MSG "Select an option:"
 
 typedef struct {
         const char **choices;
@@ -38,8 +39,8 @@ update_window_size(forge_chooser_context *ctx)
         // Adjust scroll_offset if selection is out of view
         if (ctx->sel < ctx->scroll_offset) {
                 ctx->scroll_offset = ctx->sel;
-        } else if (ctx->sel >= ctx->scroll_offset + ctx->win_height) {
-                ctx->scroll_offset = ctx->sel - ctx->win_height + 1;
+        } else if (ctx->sel >= ctx->scroll_offset + ctx->win_height - 2) { // Account for msg and controls
+                ctx->scroll_offset = ctx->sel - (ctx->win_height - 2) + 1;
         }
 }
 
@@ -48,7 +49,7 @@ down(forge_chooser_context *ctx)
 {
         if (ctx->sel < ctx->choices_n - 1) {
                 ctx->sel++;
-                if (ctx->sel >= ctx->scroll_offset + ctx->win_height) {
+                if (ctx->sel >= ctx->scroll_offset + ctx->win_height - 2) { // Account for msg and controls
                         ctx->scroll_offset++;
                 }
         }
@@ -66,11 +67,40 @@ up(forge_chooser_context *ctx)
 }
 
 static void
+controls(const forge_chooser_context *ctx)
+{
+        printf("\033[%zu;1H", ctx->win_height); // Move to last row
+        printf(BOLD RED INVERT "q:quit" RESET
+               " "
+               BOLD RED INVERT "C-c:quit" RESET
+               " "
+               BOLD GREEN INVERT "j:down" RESET
+               " "
+               BOLD GREEN INVERT "k:up" RESET
+               " "
+               BOLD GREEN INVERT "↑:up" RESET
+               " "
+               BOLD GREEN INVERT "↓:down" RESET
+               " "
+               BOLD GREEN INVERT "C-n:down" RESET
+               " "
+               BOLD GREEN INVERT "C-p:up" RESET
+               " "
+               BOLD GREEN INVERT "Enter:select" RESET
+               " "
+               BOLD GREEN INVERT "Space:select" RESET);
+        fflush(stdout);
+}
+
+static void
 dump_choices(const forge_chooser_context *ctx)
 {
+        // Move to second line for choices (first line reserved for msg)
+        printf("\033[2;1H");
+
         size_t display_count = ctx->choices_n - ctx->scroll_offset;
-        if (display_count > ctx->win_height) {
-                display_count = ctx->win_height;
+        if (display_count > ctx->win_height - 2) { // Account for msg and controls
+                display_count = ctx->win_height - 2;
         }
 
         for (size_t i = 0; i < display_count; i++) {
@@ -82,7 +112,28 @@ dump_choices(const forge_chooser_context *ctx)
                 }
         }
 
-        fflush(stdout);
+        // Clear any remaining lines up to controls
+        for (size_t i = display_count; i < ctx->win_height - 2; i++) {
+                printf("\033[K\n"); // Clear line and move to next
+        }
+}
+
+static void
+top(forge_chooser_context *ctx)
+{
+        ctx->sel = 0;
+        ctx->scroll_offset = 0; // Reset scroll to top
+}
+
+static void
+bottom(forge_chooser_context *ctx)
+{
+        ctx->sel = ctx->choices_n - 1;
+        if (ctx->choices_n > ctx->win_height - 2) { // Account for msg and controls
+                ctx->scroll_offset = ctx->choices_n - (ctx->win_height - 2);
+        } else {
+                ctx->scroll_offset = 0; // No scrolling needed if all choices fit
+        }
 }
 
 int
@@ -124,10 +175,13 @@ forge_chooser(const char  *msg,
                 }
 
                 forge_ctrl_clear_terminal();
-                if (msg) {
-                        printf("%s\n", msg);
-                }
+
+                // Print message on first line
+                forge_ctrl_cursor_to_first_line();
+                printf("%s\n", msg ? msg : DEFAULT_MSG);
+
                 dump_choices(&ctx);
+                controls(&ctx);
 
                 char ch;
                 forge_ctrl_input_type ty = forge_ctrl_get_input(&ch);
@@ -154,6 +208,10 @@ forge_chooser(const char  *msg,
                         } else if (ch == ' ') {
                                 goto done;
                         }
+                        else if (ch == 'k') up(&ctx);
+                        else if (ch == 'j') down(&ctx);
+                        else if (ch == 'g') top(&ctx);
+                        else if (ch == 'G') bottom(&ctx);
                 } break;
                 case USER_INPUT_TYPE_UNKNOWN: break;
                 default: break;

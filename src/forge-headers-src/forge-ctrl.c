@@ -190,3 +190,10 @@ forge_ctrl_cursor_to_col(int n)
     printf("\033[%dG", n);
     fflush(stdout);
 }
+
+void
+forge_ctrl_cursor_to_first_line(void)
+{
+        printf("\033[1;1H");
+        fflush(stdout);
+}

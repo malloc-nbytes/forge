@@ -161,6 +161,12 @@ void forge_ctrl_clear_line(void);
  */
 void forge_ctrl_cursor_to_col(int n);
 
+/**
+ * Description: Move the cursor to the first
+ *              line in the terminal.
+ */
+void forge_ctrl_cursor_to_first_line(void);
+
 #ifdef __cplusplus
 }
 #endif
