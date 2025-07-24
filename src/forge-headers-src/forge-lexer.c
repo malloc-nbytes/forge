@@ -445,6 +445,17 @@ forge_lexer_dump(const forge_lexer *fl)
         }
 }
 
+forge_token *
+forge_lexer_expect(forge_lexer      *fl,
+                   forge_token_type  ty)
+{
+        forge_token *t = fl->hd;
+
+        if (!t) return NULL;
+        if (t->ty != ty) return NULL;
+        return t;
+}
+
 void
 forge_lexer_destroy(forge_lexer *fl)
 {

@@ -277,6 +277,15 @@ int forge_lexer_has_err(const forge_lexer *fl);
  */
 char *forge_lexer_format_err(const forge_lexer *fl);
 
+/**
+ * Parameter: fl -> the lexer
+ * Parameter: ty -> the token type to expect
+ * Returns: the token if the next token matches ty, and NULL if not
+ * Description: Checks to see if the next token in the lexer
+ *              matches `ty`.
+ */
+forge_token *forge_lexer_expect(forge_lexer *fl, forge_token_type ty);
+
 #ifdef __cplusplus
 }
 #endif
