@@ -9,7 +9,7 @@
 #include "forge/smap.h"
 #include "forge/str.h"
 
-static const char *
+const char *
 forge_token_type_to_cstr(forge_token_type ty)
 {
         switch (ty) {
@@ -492,4 +492,13 @@ forge_lexer_format_err(const forge_lexer *fl)
         sprintf(col, "%zu", fl->err.c);
 
         return forge_str_builder(fl->fp, ":", row, ":", col, ":", fl->err.msg, NULL);
+}
+
+forge_token *
+forge_lexer_peek(const forge_lexer *fl,
+                 size_t             dist)
+{
+        forge_token *it = fl->hd;
+        while (it && dist-- != 0) it = it->n;
+        return it;
 }

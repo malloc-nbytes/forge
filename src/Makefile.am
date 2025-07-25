@@ -66,7 +66,8 @@ nobase_include_HEADERS = forge/array.h \
 	forge/arg.h \
 	forge/lexer.h \
 	forge/utils.h \
-	forge/chooser.h
+	forge/chooser.h \
+	forge/err.h
 
 # Custom uninstall hook to remove additional directories
 uninstall-hook:

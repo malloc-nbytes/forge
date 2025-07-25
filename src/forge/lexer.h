@@ -286,6 +286,22 @@ char *forge_lexer_format_err(const forge_lexer *fl);
  */
 forge_token *forge_lexer_expect(forge_lexer *fl, forge_token_type ty);
 
+/**
+ * Parameter: fl   -> the lexer
+ * Parameter: dist -> the distance to peek ahead
+ * Returns: The token that was found or NULL if out of tokens
+ * Description: Peek ahead in the lexer by `dist`.
+ */
+forge_token *forge_lexer_peek(const forge_lexer *fl, size_t dist);
+
+/**
+ * Parameter: ty -> the type
+ * Returns: A string literal of the type
+ * Description: Given the type `ty`, get the
+ *              cstr representation of it.
+ */
+const char *forge_token_type_to_cstr(forge_token_type ty);
+
 #ifdef __cplusplus
 }
 #endif
