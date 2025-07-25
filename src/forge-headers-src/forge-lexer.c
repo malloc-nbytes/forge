@@ -54,6 +54,7 @@ forge_token_type_to_cstr(forge_token_type ty)
         case FORGE_TOKEN_TYPE_PERIOD:            return "FORGE_TOKEN_TYPE_PERIOD";
         case FORGE_TOKEN_TYPE_QUESTION:          return "FORGE_TOKEN_TYPE_QUESTION";
         case FORGE_TOKEN_TYPE_SEMICOLON:         return "FORGE_TOKEN_TYPE_SEMICOLON";
+        case FORGE_TOKEN_TYPE_COLON:             return "FORGE_TOKEN_TYPE_COLON";
         default: {
                 fprintf(stderr, "invalid token: %d\n", (int)ty);
                 exit(1);
@@ -136,6 +137,7 @@ init_ops(void)
         static const int init_ops_period            = FORGE_TOKEN_TYPE_PERIOD;
         static const int init_ops_question          = FORGE_TOKEN_TYPE_QUESTION;
         static const int init_ops_semicolon         = FORGE_TOKEN_TYPE_SEMICOLON;
+        static const int init_ops_colon             = FORGE_TOKEN_TYPE_COLON;
 
         forge_smap_insert(&m, "(",  (void *)&init_ops_left_parenthesis);
         forge_smap_insert(&m, ")",  (void *)&init_ops_right_parenthesis);
@@ -165,6 +167,7 @@ init_ops(void)
         forge_smap_insert(&m, ".",  (void *)&init_ops_period);
         forge_smap_insert(&m, "?",  (void *)&init_ops_question);
         forge_smap_insert(&m, ";",  (void *)&init_ops_semicolon);
+        forge_smap_insert(&m, ":",  (void *)&init_ops_colon);
 
         return m;
 }
@@ -453,6 +456,9 @@ forge_lexer_expect(forge_lexer      *fl,
 
         if (!t) return NULL;
         if (t->ty != ty) return NULL;
+
+        fl->hd = fl->hd->n;
+
         return t;
 }
 
@@ -502,3 +508,29 @@ forge_lexer_peek(const forge_lexer *fl,
         while (it && dist-- != 0) it = it->n;
         return it;
 }
+
+char *
+forge_token_format_loc_as_err(const forge_token *t)
+{
+        char lineno[256] = {0};
+        sprintf(lineno, ":%zu:%zu:", t->loc.r, t->loc.c);
+        return forge_str_builder(t->loc.fp, lineno, NULL);
+}
+
+forge_token *
+forge_lexer_next(forge_lexer *fl)
+{
+        forge_token *t = fl->hd;
+        if (!t) return NULL;
+        fl->hd = fl->hd->n;
+        return t;
+}
+
+void
+forge_lexer_discard(forge_lexer *fl)
+{
+        if (fl->hd) {
+                fl->hd = fl->hd->n;
+        }
+}
+

@@ -158,6 +158,7 @@ typedef enum {
         FORGE_TOKEN_TYPE_PERIOD,
         FORGE_TOKEN_TYPE_QUESTION,
         FORGE_TOKEN_TYPE_SEMICOLON,
+        FORGE_TOKEN_TYPE_COLON,
 } forge_token_type;
 
 typedef struct forge_token {
@@ -279,10 +280,27 @@ char *forge_lexer_format_err(const forge_lexer *fl);
 
 /**
  * Parameter: fl -> the lexer
+ * Returns: The next token in the lexer or NULL
+ * Description: Get the head token of the lexer
+ *              and advance the head. If there are
+ *              no tokens left, NULL is returned.
+ */
+forge_token *forge_lexer_next(forge_lexer *fl);
+
+/**
+ * Parameter: fl -> the lexer
+ * Description: Advances the lexer's head token.
+ *              Does nothing if there are no tokens left.
+ */
+void forge_lexer_discard(forge_lexer *fl);
+
+/**
+ * Parameter: fl -> the lexer
  * Parameter: ty -> the token type to expect
  * Returns: the token if the next token matches ty, and NULL if not
  * Description: Checks to see if the next token in the lexer
- *              matches `ty`.
+ *              matches `ty`. If it matches, it will return that token
+ *              and advance lexer->hd = lexer->hd->n.
  */
 forge_token *forge_lexer_expect(forge_lexer *fl, forge_token_type ty);
 
@@ -301,6 +319,16 @@ forge_token *forge_lexer_peek(const forge_lexer *fl, size_t dist);
  *              cstr representation of it.
  */
 const char *forge_token_type_to_cstr(forge_token_type ty);
+
+/**
+ * Parameter: t -> the token to format
+ * Returns: the token represented as an error
+ * Description: Given token `t`, will format an
+ *              error message with its associated
+ *              information. This result needs
+ *              to be free()'d.
+ */
+char *forge_token_format_loc_as_err(const forge_token *t);
 
 #ifdef __cplusplus
 }
