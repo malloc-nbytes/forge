@@ -2989,7 +2989,7 @@ main(int argc, char **argv)
         clap_init(argc, argv);
 
         int first_time_setup = -1;
-        if ((first_time_setup = try_first_time_startup(argc))) {
+        if ((first_time_setup = try_first_time_startup(argc)) != -1) {
                 // first_time_setup will be > -1 if it is first time
                 g_config.flags |= FT_REBUILD;
         }
