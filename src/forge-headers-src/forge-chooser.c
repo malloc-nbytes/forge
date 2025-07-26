@@ -433,11 +433,11 @@ display_yesno(const forge_chooser_context *ctx)
         putchar('\t');
         for (size_t i = 0; i < ctx->choices_n; ++i) {
                 if (i == ctx->sel) {
-                        printf(YELLOW BOLD "*");
+                        printf(YELLOW BOLD " ");
                 }
                 printf("%s", ctx->choices[i]);
                 if (i == ctx->sel) {
-                        printf("*" RESET);
+                        printf(" " RESET);
                 }
                 putchar('\t');
         }
