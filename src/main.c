@@ -678,7 +678,7 @@ register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
                 sqlite3_finalize(stmt);
         } else {
                 // New package
-                printf(GREEN BOLD "*** Registered package: %s\n" RESET, name);
+                printf(YELLOW BOLD "* " RESET "Registered package: " YELLOW BOLD "%s\n" RESET, name);
 
                 const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed, is_explicit) VALUES (?, ?, ?, 0, ?);";
                 rc = sqlite3_prepare_v2(ctx->db, sql_insert, -1, &stmt, NULL);
@@ -698,7 +698,7 @@ register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
                 if (pkg->deps) {
                         char **deps = pkg->deps();
                         for (size_t i = 0; deps[i]; ++i) {
-                                printf(GREEN BOLD "*** Adding dependency %s for %s\n" RESET, deps[i], name);
+                                //printf(GREEN BOLD "*** Adding dependency %s for %s\n" RESET, deps[i], name);
                                 add_dep_to_db(ctx, get_pkg_id(ctx, name), get_pkg_id(ctx, deps[i]));
                         }
                 }
@@ -2963,38 +2963,23 @@ try_first_time_startup(int argc)
                 printf("Superuser access is required the first time forge is ran.\n");
                 assert_sudo();
 
-                const char *ans[] = {"Yes, I want some premade packages", "No, I want to start from scratch"};
-                int choice = forge_chooser("Would you like to install the offical forge repository?",
-                                           (const char **)ans, sizeof(ans)/sizeof(*ans), 0);
+                /* const char *ans[] = {"Yes, I want some premade packages", "No, I want to start from scratch"}; */
+                /* int choice = forge_chooser("Would you like to install the offical forge repository?", */
+                /*                            (const char **)ans, sizeof(ans)/sizeof(*ans), 0); */
+                int choice = forge_chooser_yesno("Would you like to install the offical forge repository?", NULL, 1);
 
                 init_env();
 
                 if (choice == -1) {
                         printf("Something went wrong... :(\n");
-                } else if (choice == 0) {
-                        cmd("forge add-repo https://github.com/malloc-nbytes/forge-modules.git");
-                } else {
-                        printf(YELLOW BOLD "Remark:\n" RESET);
-                        printf(YELLOW BOLD "* " RESET "If you want to add the official repository, run:\n");
-                        printf(YELLOW BOLD "* " "  forge add-repo https://github.com/malloc-nbytes/forge-modules.git\n" RESET);
-                        printf(YELLOW BOLD "* " RESET "or don't if you just want to start from scratch.\n");
+                } else if (choice == 1) {
+                        add_repo("https://github.com/malloc-nbytes/forge-modules.git");
                 }
 
-                printf(YELLOW BOLD "Done!\n" RESET);
-                printf(YELLOW BOLD "* " RESET "You can now invoke forge regularly.\n");
-                printf(YELLOW BOLD "* " RESET "Note: You may want to edit your config, run:\n");
-                printf(YELLOW BOLD "* " "  forge editconf\n" RESET);
-                printf(YELLOW BOLD "* " RESET "After this, do:\n");
-                printf(YELLOW BOLD "* " "  forge updateforge\n" RESET);
-                printf(YELLOW BOLD "* " RESET "\n");
-                printf(YELLOW BOLD "* " RESET "To get started, run:\n");
-                printf(YELLOW BOLD "* " "  forge -r new author@pkgname\n" RESET);
-                printf(YELLOW BOLD "* " RESET "to start forging your packages.\n");
-                printf(YELLOW BOLD "* " RESET "Do " YELLOW BOLD "`forge -h`" RESET " to view all help information.\n");
-                return 1;
+                return choice;
         }
 
-        return 0;
+        return -1;
 }
 
 int
@@ -3003,8 +2988,10 @@ main(int argc, char **argv)
         ++argv, --argc;
         clap_init(argc, argv);
 
-        if (try_first_time_startup(argc)) {
-                return 0;
+        int first_time_setup = -1;
+        if ((first_time_setup = try_first_time_startup(argc))) {
+                // first_time_setup will be > -1 if it is first time
+                g_config.flags |= FT_REBUILD;
         }
 
         forge_context ctx = (forge_context) {
@@ -3292,6 +3279,26 @@ main(int argc, char **argv)
                         // Register package with the existing is_explicit value
                         register_pkg(&ctx, pkg, is_explicit);
                 }
+        }
+
+        if (first_time_setup == 0) { // first time and chose not to sync
+                printf(YELLOW BOLD "Remark:\n" RESET);
+                printf(YELLOW BOLD "* " RESET "If you want to add the official repository, run:\n");
+                printf(YELLOW BOLD "* " "  forge add-repo https://github.com/malloc-nbytes/forge-modules.git\n" RESET);
+                printf(YELLOW BOLD "* " RESET "or don't if you just want to start from scratch.\n");
+        }
+        if (first_time_setup > -1) { // first time and chose to sync
+                printf(YELLOW BOLD "Done!\n" RESET);
+                printf(YELLOW BOLD "* " RESET "You can now invoke forge regularly.\n");
+                printf(YELLOW BOLD "* " RESET "Note: You may want to edit your config, run:\n");
+                printf(YELLOW BOLD "* " "  forge editconf\n" RESET);
+                printf(YELLOW BOLD "* " RESET "After this, do:\n");
+                printf(YELLOW BOLD "* " "  forge updateforge\n" RESET);
+                printf(YELLOW BOLD "* " RESET "\n");
+                printf(YELLOW BOLD "* " RESET "To get started, run:\n");
+                printf(YELLOW BOLD "* " "  forge -r new author@pkgname\n" RESET);
+                printf(YELLOW BOLD "* " RESET "to start forging your packages.\n");
+                printf(YELLOW BOLD "* " RESET "Do " YELLOW BOLD "forge -h" RESET " to view all help information.\n");
         }
 
         dyn_array_free(indices);

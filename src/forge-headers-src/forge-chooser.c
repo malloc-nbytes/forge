@@ -279,16 +279,12 @@ dump_choices(const forge_chooser_context *ctx)
         }
 }
 
-int
-forge_chooser(const char  *msg,
-              const char **choices,
-              size_t       choices_n,
-              size_t       cpos)
+static forge_chooser_context
+context_create(const char **choices,
+               size_t       choices_n,
+               size_t       cpos)
 {
-        struct termios term;
-        struct sigaction sa;
-
-        forge_chooser_context ctx = (forge_chooser_context) {
+        return (forge_chooser_context) {
                 .choices = choices,
                 .choices_n = choices_n,
                 .sel = cpos,
@@ -302,6 +298,18 @@ forge_chooser(const char  *msg,
                         .current = 0
                 }
         };
+}
+
+int
+forge_chooser(const char  *msg,
+              const char **choices,
+              size_t       choices_n,
+              size_t       cpos)
+{
+        struct termios term;
+        struct sigaction sa;
+
+        forge_chooser_context ctx = context_create(choices, choices_n, cpos);
 
         dyn_array_init_type(ctx.search.matches);
 
@@ -412,5 +420,109 @@ forge_chooser_take(const char  *msg,
                 free(choices[i]);
         }
         free(choices);
+        return res;
+}
+
+static void
+display_yesno(const forge_chooser_context *ctx)
+{
+        forge_ctrl_cursor_to_col(1);
+        forge_ctrl_clear_line();
+        forge_ctrl_cursor_to_col(1);
+
+        putchar('\t');
+        for (size_t i = 0; i < ctx->choices_n; ++i) {
+                if (i == ctx->sel) {
+                        printf(YELLOW BOLD "*");
+                }
+                printf("%s", ctx->choices[i]);
+                if (i == ctx->sel) {
+                        printf("*" RESET);
+                }
+                putchar('\t');
+        }
+
+        fflush(stdout);
+}
+
+int
+forge_chooser_yesno(const char *msg,
+                    const char *custom,
+                    int cpos)
+{
+        struct termios term;
+        struct sigaction sa;
+
+        const char *choices[] = {
+                "No",
+                "Yes",
+                custom ? custom : NULL,
+        };
+        size_t choices_n = custom ? 3 : 2;
+
+        forge_chooser_context ctx = context_create(choices, choices_n, cpos);
+        g_ctx = &ctx;
+
+        int res = -1;
+
+        if (!forge_ctrl_get_terminal_xy(NULL, &ctx.win_height)) {
+                fprintf(stderr, "could not get terminal height\n");
+                goto cleanup;
+        }
+        if (!forge_ctrl_sigaction(&sa, sigwinch_handler, SIGWINCH)) {
+                fprintf(stderr, "could not set up sigwinch, resizing will not work\n");
+                goto cleanup;
+        }
+        if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term)) {
+                fprintf(stderr, "could not enable terminal to raw mode\n");
+                goto cleanup;
+        }
+
+        res = cpos;
+
+        printf("%s\n", msg ? msg : DEFAULT_MSG);
+        while (1) {
+                ctx.sel = (size_t)res;
+
+                if (g_resize_flag) {
+                        update_window_size(&ctx);
+                        g_resize_flag = 0;
+                        forge_ctrl_clear_terminal();
+                }
+
+                display_yesno(&ctx);
+
+                char ch;
+                forge_ctrl_input_type ty = forge_ctrl_get_input(&ch);
+
+                switch (ty) {
+                case USER_INPUT_TYPE_ARROW: {
+                        if (ch == LEFT_ARROW) {
+                                if (res > 0) --res;
+                        }
+                        else if (ch == RIGHT_ARROW) {
+                                if (res < (int)ctx.choices_n-1) ++res;
+                        }
+                } break;
+                case USER_INPUT_TYPE_NORMAL: {
+                        if (ENTER(ch)) {
+                                goto cleanup;
+                        } else if (ch == ' ') {
+                                goto cleanup;
+                        }
+                } break;
+                default: break;
+                }
+        }
+
+ cleanup:
+        if (!forge_ctrl_disable_raw_terminal(STDIN_FILENO, &term)) {
+                fprintf(stderr, "could not disable terminal to raw mode\n");
+                exit(1);
+        }
+
+        dyn_array_free(ctx.search.matches);
+        putchar('\n');
+
         return res;
 }

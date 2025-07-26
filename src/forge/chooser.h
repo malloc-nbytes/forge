@@ -17,6 +17,7 @@ extern "C" {
 int forge_chooser(const char *msg, const char **choices, size_t choices_n, size_t cpos);
 
 /**
+ * Parameter: msg?      -> the message to display
  * Parameter: choices   -> the choices to display
  * Parameter: choices_n -> the number of choices
  * Parameter: cpos      -> the starting row of the cursor
@@ -27,6 +28,15 @@ int forge_chooser(const char *msg, const char **choices, size_t choices_n, size_
  *              base pointer itself was also malloc()'d.
  */
 int forge_chooser_take(const char *msg, char **choices, size_t choices_n, size_t cpos);
+
+/**
+ * Parameter: msg?    -> the message to display
+ * Parameter: custom? -> the custom third option to choose
+ * Returns: 1 on yes, 0 on no, 2 on custom (if available), and -1 on fail.
+ * Description: Prompts the user for a yes/no option. If `custom`
+ *              is not NULL, it will be presented as the third option.
+ */
+int forge_chooser_yesno(const char *msg, const char *custom, int cpos);
 
 #ifdef __cplusplus
 }
