@@ -3,7 +3,9 @@
 Forge your system.
 
 ## Disclaimer
-THIS PROJECT IS A WIP. USE AT YOUR OWN RISK!
+**THIS PROJECT IS A WIP. USE AT YOUR OWN RISK!**
+
+**This project has only been tested on Gentoo Linux x86_64 with the `gcc` compiler (gcc (Gentoo 14.3.0 p8) 14.3.0) with `--prefix=/usr --libdir=/usr/lib64`**
 
 ## License
 `Forge` is licensed under the GNU General Public License v2 or later. See [COPYING](COPYING) for details.
