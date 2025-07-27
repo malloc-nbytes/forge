@@ -2985,30 +2985,6 @@ try_first_time_startup(int argc)
 int
 main(int argc, char **argv)
 {
-        const char *kwds[] = FORGE_LEXER_C_KEYWORDS;
-        char *src = forge_io_read_file_to_cstr("./src/main.c");
-
-        forge_lexer lexer = forge_lexer_create((forge_lexer_config){
-                .fp = "./src/main.c",
-                .src = src,
-                .comment = {
-                        .single      = "//",
-                        .multi_start = "/*",
-                        .multi_end   = "*/",
-                },
-                .kwds = (const char **)kwds,
-                .bits = FORGE_LEXER_C_OPERATORS,
-        });
-        if (forge_lexer_has_err(&lexer)) {
-                printf("%s:%zu:%zu: %s\n", lexer.fp, lexer.err.r, lexer.err.c, lexer.err.msg);
-        } else {
-                forge_lexer_dump(&lexer);
-        }
-        forge_lexer_destroy(&lexer);
-        free(src);
-
-        return 0;
-
         ++argv, --argc;
         clap_init(argc, argv);
 
