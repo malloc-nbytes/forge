@@ -159,6 +159,20 @@ typedef enum {
         FORGE_TOKEN_TYPE_QUESTION,
         FORGE_TOKEN_TYPE_SEMICOLON,
         FORGE_TOKEN_TYPE_COLON,
+
+        // Optional multi-character opterators
+        FORGE_TOKEN_TYPE_PLUS_EQUALS,
+        FORGE_TOKEN_TYPE_MINUS_EQUALS,
+        FORGE_TOKEN_TYPE_ASTERISK_EQUALS,
+        FORGE_TOKEN_TYPE_FORWARDSLASH_EQUALS,
+        FORGE_TOKEN_TYPE_PERCENT_EQUALS,
+        FORGE_TOKEN_TYPE_AMPERSAND_EQUALS,
+        FORGE_TOKEN_TYPE_PIPE_EQUALS,
+
+        FORGE_TOKEN_TYPE_DOUBLE_EQUALS,
+        FORGE_TOKEN_TYPE_GREATERTHAN_EQUALS,
+        FORGE_TOKEN_TYPE_LESSTHAN_EQUALS,
+        FORGE_TOKEN_TYPE_BANG_EQUALS,
 } forge_token_type;
 
 typedef struct forge_token {
@@ -172,11 +186,27 @@ typedef struct forge_token {
         struct forge_token *n;
 } forge_token;
 
+// Passed to the forge_lexer_config.bits to make it default.
 #define FORGE_LEXER_NO_BITS        (0)
+
+// Passed to the forge_lexer_config.bits to tokenize newlines.
 #define FORGE_LEXER_TRACK_NEWLINES (1 << 0)
+
+// Passed to the forge_lexer_config.bits to tokenize tabs.
 #define FORGE_LEXER_TRACK_TABS     (1 << 1)
+
+// Passed to the forge_lexer_config.bits to tokenize spaces.
 #define FORGE_LEXER_TRACK_SPACES   (1 << 2)
+
+// Passed to the forge_lexer_config.bits to treat
+// character literals as strings
 #define FORGE_LEXER_CHARS_AS_STRS  (1 << 3)
+
+// Passed to the forge_lexer_config.bits to parse
+// C operators (>=, ==, +=, -=, etc) instead of each
+// one of these operators being their own token. This
+// can be used to ease parsing if you have C-style operators.
+#define FORGE_LEXER_C_OPERATORS    (1 << 4)
 
 typedef struct {
         const char *fp;
@@ -212,7 +242,7 @@ typedef struct {
  *
  * === BEGIN SRC ===
  *      const char *kwds[] = FORGE_LEXER_C_KEYWORDS;
- *      const char *src = forge_io_forge_io_read_file_to_cstr(\"my_file.c\");
+ *      char *src = forge_io_read_file_to_cstr(\"my_file.c\");
  *
  *      forge_lexer lexer = forge_lexer_create((forge_lexer_config){
  *              .fp = "/path/to/the/file.c",

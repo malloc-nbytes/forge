@@ -55,6 +55,20 @@ forge_token_type_to_cstr(forge_token_type ty)
         case FORGE_TOKEN_TYPE_QUESTION:          return "FORGE_TOKEN_TYPE_QUESTION";
         case FORGE_TOKEN_TYPE_SEMICOLON:         return "FORGE_TOKEN_TYPE_SEMICOLON";
         case FORGE_TOKEN_TYPE_COLON:             return "FORGE_TOKEN_TYPE_COLON";
+
+        case FORGE_TOKEN_TYPE_PLUS_EQUALS: return "FORGE_TOKEN_TYPE_PLUS_EQUALS";
+        case FORGE_TOKEN_TYPE_MINUS_EQUALS: return "FORGE_TOKEN_TYPE_MINUS_EQUALS";
+        case FORGE_TOKEN_TYPE_ASTERISK_EQUALS: return "FORGE_TOKEN_TYPE_ASTERISK_EQUALS";
+        case FORGE_TOKEN_TYPE_FORWARDSLASH_EQUALS: return "FORGE_TOKEN_TYPE_FORWARDSLASH_EQUALS";
+        case FORGE_TOKEN_TYPE_PERCENT_EQUALS: return "FORGE_TOKEN_TYPE_PERCENT_EQUALS";
+        case FORGE_TOKEN_TYPE_AMPERSAND_EQUALS: return "FORGE_TOKEN_TYPE_AMPERSAND_EQUALS";
+        case FORGE_TOKEN_TYPE_PIPE_EQUALS: return "FORGE_TOKEN_TYPE_PIPE_EQUALS";
+
+        case FORGE_TOKEN_TYPE_DOUBLE_EQUALS: return "FORGE_TOKEN_TYPE_DOUBLE_EQUALS";
+        case FORGE_TOKEN_TYPE_GREATERTHAN_EQUALS: return "FORGE_TOKEN_TYPE_GREATERTHAN_EQUALS";
+        case FORGE_TOKEN_TYPE_LESSTHAN_EQUALS: return "FORGE_TOKEN_TYPE_LESSTHAN_EQUALS";
+        case FORGE_TOKEN_TYPE_BANG_EQUALS: return "FORGE_TOKEN_TYPE_BANG_EQUALS";
+
         default: {
                 fprintf(stderr, "invalid token: %d\n", (int)ty);
                 exit(1);
@@ -105,7 +119,7 @@ forge_lexer_append(forge_lexer *fl,
 }
 
 static forge_smap
-init_ops(void)
+init_ops(uint32_t bits)
 {
         forge_smap m = forge_smap_create();
 
@@ -139,6 +153,19 @@ init_ops(void)
         static const int init_ops_semicolon         = FORGE_TOKEN_TYPE_SEMICOLON;
         static const int init_ops_colon             = FORGE_TOKEN_TYPE_COLON;
 
+        static const int init_ops_plus_equals         = FORGE_TOKEN_TYPE_PLUS_EQUALS;
+        static const int init_ops_minus_equals        = FORGE_TOKEN_TYPE_MINUS_EQUALS;
+        static const int init_ops_asterisk_equals     = FORGE_TOKEN_TYPE_ASTERISK_EQUALS;
+        static const int init_ops_forwardslash_equals = FORGE_TOKEN_TYPE_FORWARDSLASH_EQUALS;
+        static const int init_ops_percent_equals      = FORGE_TOKEN_TYPE_PERCENT_EQUALS;
+        static const int init_ops_ampersand_equals    = FORGE_TOKEN_TYPE_AMPERSAND_EQUALS;
+        static const int init_ops_pipe_equals         = FORGE_TOKEN_TYPE_PIPE_EQUALS;
+
+        static const int init_ops_double_equals      = FORGE_TOKEN_TYPE_DOUBLE_EQUALS;
+        static const int init_ops_greaterthan_equals = FORGE_TOKEN_TYPE_GREATERTHAN_EQUALS;
+        static const int init_ops_lessthan_equals    = FORGE_TOKEN_TYPE_LESSTHAN_EQUALS;
+        static const int init_ops_bang_equals        = FORGE_TOKEN_TYPE_BANG_EQUALS;
+
         forge_smap_insert(&m, "(",  (void *)&init_ops_left_parenthesis);
         forge_smap_insert(&m, ")",  (void *)&init_ops_right_parenthesis);
         forge_smap_insert(&m, "{",  (void *)&init_ops_left_curly);
@@ -168,6 +195,21 @@ init_ops(void)
         forge_smap_insert(&m, "?",  (void *)&init_ops_question);
         forge_smap_insert(&m, ";",  (void *)&init_ops_semicolon);
         forge_smap_insert(&m, ":",  (void *)&init_ops_colon);
+
+        if (bits & FORGE_LEXER_C_OPERATORS) {
+                forge_smap_insert(&m, "+=", (void *)&init_ops_plus_equals);
+                forge_smap_insert(&m, "-=", (void *)&init_ops_minus_equals);
+                forge_smap_insert(&m, "*=", (void *)&init_ops_asterisk_equals);
+                forge_smap_insert(&m, "/=", (void *)&init_ops_forwardslash_equals);
+                forge_smap_insert(&m, "%=", (void *)&init_ops_percent_equals);
+                forge_smap_insert(&m, "&=", (void *)&init_ops_ampersand_equals);
+                forge_smap_insert(&m, "|=", (void *)&init_ops_pipe_equals);
+
+                forge_smap_insert(&m, "==", (void *)&init_ops_double_equals);
+                forge_smap_insert(&m, ">=", (void *)&init_ops_greaterthan_equals);
+                forge_smap_insert(&m, "<=", (void *)&init_ops_lessthan_equals);
+                forge_smap_insert(&m, "!=", (void *)&init_ops_bang_equals);
+        }
 
         return m;
 }
@@ -219,6 +261,17 @@ not_single_quote(int c)
         return (char)c != '\'';
 }
 
+static int
+isop(int c)
+{
+        return !isalnum(c)
+                && c != ' '
+                && c != '\n'
+                && c != '\r'
+                && c != '\t'
+                && c != '_';
+}
+
 forge_lexer
 forge_lexer_create(forge_lexer_config config)
 {
@@ -247,7 +300,7 @@ forge_lexer_create(forge_lexer_config config)
 
         fl.fp = strdup(config.fp);
 
-        forge_smap ops = init_ops();
+        forge_smap ops = init_ops(config.bits);
         char *src      = strdup(config.src);
         size_t r       = 1;
         size_t c       = 1;
@@ -413,15 +466,38 @@ forge_lexer_create(forge_lexer_config config)
                         i += len, c += len;
                 }
                 else {
-                        char op_str[2] = {ch, '\0'};
-                        void *op_type = forge_smap_get(&ops, op_str);
-                        if (op_type) {
-                                forge_token *t = forge_token_alloc(src + i, 1,
-                                                                   *(forge_token_type *)op_type,
-                                                                   r, c, fl.fp);
-                                forge_lexer_append(&fl, t);
-                        } // Ignore unrecognized characters
-                        ++i, ++c;
+                        void *op_type = NULL;
+                        if (config.bits & FORGE_LEXER_C_OPERATORS) {
+                                char op[32] = {0};
+                                size_t len = 0;
+                                while (isop(src[i+len])) {
+                                        op[len] = src[i+len];
+                                        ++len;
+                                }
+                                while (!(op_type = forge_smap_get(&ops, op)) && len < 32) {
+                                        op[--len] = 0;
+                                }
+                                if (op_type) {
+                                        forge_token *t = forge_token_alloc(src + i, len,
+                                                                           *(forge_token_type *)op_type,
+                                                                           r, c, fl.fp);
+                                        forge_lexer_append(&fl, t);
+                                        i += len, c += len;
+                                } else {
+                                        // Ignore unrecognized characters
+                                        ++i, ++c;
+                                }
+                        } else {
+                                char op_str[2] = {ch, '\0'};
+                                op_type = forge_smap_get(&ops, op_str);
+                                if (op_type) {
+                                        forge_token *t = forge_token_alloc(src + i, 1,
+                                                                           *(forge_token_type *)op_type,
+                                                                           r, c, fl.fp);
+                                        forge_lexer_append(&fl, t);
+                                } // Ignore unrecognized characters
+                                ++i, ++c;
+                        }
                 }
         }
 
