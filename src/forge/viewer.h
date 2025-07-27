@@ -15,7 +15,9 @@ typedef struct {
         size_t win_width;
         size_t win_height;
         size_t height_offset;
+        size_t width_offset;
         struct termios old_termios;
+        int linenos;
 
         struct {
                 int mode;
@@ -36,14 +38,15 @@ typedef struct {
 } forge_viewer;
 
 /**
- * Parameter: data   -> the lines to put into the viewer
- * Parameter: data_n -> the number of lines in `data`
+ * Parameter: data    -> the lines to put into the viewer
+ * Parameter: data_n  -> the number of lines in `data`
+ * Parameter: linenos -> should we show line numbers? (experimental)
  * Returns: a new forge_viewer
  * Description: Create a new forge_viewer of `data` (copied),
  *              `data_n` lines long. No need to free()
  *              `data`.
  */
-forge_viewer *forge_viewer_alloc(char **data, size_t data_n);
+forge_viewer *forge_viewer_alloc(char **data, size_t data_n, int linenos);
 
 /**
  * Parameter: v -> the viewer

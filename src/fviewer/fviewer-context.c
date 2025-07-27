@@ -140,7 +140,7 @@ fviewer_context_create(const str_array *filepaths)
                 size_t lines_n = 0;
                 char **lines = forge_str_take_to_lines(actual, &lines_n);
 
-                forge_viewer *v = forge_viewer_alloc(lines, lines_n);
+                forge_viewer *v = forge_viewer_alloc(lines, lines_n, 0);
                 for (size_t j = 0; j < lines_n; ++j) free(lines[j]);
                 dyn_array_append(ctx.viewers, v);
         }

@@ -5,10 +5,12 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <signal.h>
+#include <errno.h>
 
 #include "forge/viewer.h"
 #include "forge/ctrl.h"
 #include "forge/colors.h"
+#include "forge/rdln.h"
 
 #include "utils.h"
 
@@ -33,13 +35,18 @@ handle_sigwinch(int sig)
                             current_viewer->height_offset > current_viewer->rows - current_viewer->win_height) {
                                 current_viewer->height_offset = current_viewer->rows - current_viewer->win_height;
                         }
+                        // Adjust width_offset to prevent going past the end
+                        if (current_viewer->cols > current_viewer->win_width &&
+                            current_viewer->width_offset > current_viewer->cols - current_viewer->win_width) {
+                                current_viewer->width_offset = current_viewer->cols - current_viewer->win_width;
+                        }
                 }
                 resize_flag = 1;
         }
 }
 
 forge_viewer *
-forge_viewer_alloc(char **data, size_t data_n)
+forge_viewer_alloc(char **data, size_t data_n, int linenos)
 {
         forge_viewer *m = (forge_viewer*)malloc(sizeof(forge_viewer));
 
@@ -88,12 +95,13 @@ forge_viewer_alloc(char **data, size_t data_n)
                                 m->data[i][j] = data[i][j];
                         }
                 }
-                m->data[i][col_max] = 0;
+                m->data[i][col_max] = '\0';
         }
 
         m->rows = data_n;
         m->cols = col_max;
         m->height_offset = 0;
+        m->width_offset = 0;
 
         // Initialize search fields
         m->search.mode = 0;
@@ -110,7 +118,10 @@ forge_viewer_alloc(char **data, size_t data_n)
         m->match.cap = data_n;
         m->match.current = 0;
 
+        m->linenos = linenos;
+
         current_viewer = m;
+
         return m;
 }
 
@@ -121,35 +132,20 @@ controls(const forge_viewer *m)
                 return;
         }
         printf("\033[%zu;1H", m->win_height);
-        printf(BOLD RED INVERT "q:quit" RESET
-               " "
-               BOLD RED INVERT "C-c:quit" RESET
-               " "
-               BOLD GREEN INVERT "j:down" RESET
-               " "
-               BOLD GREEN INVERT "k:up" RESET
-               " "
-               BOLD GREEN INVERT "g:top" RESET
-               " "
-               BOLD GREEN INVERT "G:bottom" RESET
-               " "
-               BOLD GREEN INVERT "^D:pgdn" RESET
-               " "
-               BOLD GREEN INVERT "^U:pgup" RESET
-               " "
-               BOLD GREEN INVERT "^N:down" RESET
-               " "
-               BOLD GREEN INVERT "^P:up" RESET
-               " "
-               BOLD GREEN INVERT "↑:up" RESET
-               " "
-               BOLD GREEN INVERT "↓:down" RESET
-               " "
-               BOLD GREEN INVERT "/:search" RESET
-               " "
-               BOLD GREEN INVERT "n:next" RESET
-               " "
-               BOLD GREEN INVERT "N:prev" RESET);
+        printf("[" BOLD YELLOW "q" RESET ":quit]");
+        printf("[" BOLD YELLOW "↓|j|C-n" RESET ":down]");
+        printf("[" BOLD YELLOW "↑|k|C-p" RESET ":up]");
+        printf("[" BOLD YELLOW "← |h|C-b" RESET ":left]");
+        printf("[" BOLD YELLOW "→ |l|C-f" RESET ":right]");
+        printf("[" BOLD YELLOW "0|C-a" RESET ":BOL]");
+        printf("[" BOLD YELLOW "$|C-e" RESET ":EOL]");
+        printf("[" BOLD YELLOW "g" RESET ":top]");
+        printf("[" BOLD YELLOW "G" RESET ":bottom]");
+        printf("[" BOLD YELLOW "^D" RESET ":pgdn]");
+        printf("[" BOLD YELLOW "^U" RESET ":pgup]");
+        printf("[" BOLD YELLOW "/" RESET ":search]");
+        printf("[" BOLD YELLOW "n" RESET ":/next]");
+        printf("[" BOLD YELLOW "N" RESET ":/prev]");
         fflush(stdout);
 }
 
@@ -165,14 +161,23 @@ forge_viewer_dump(const forge_viewer *m)
                 return;
         }
 
+        const size_t lineno_width = 5;
+
+        // Adjust display width for content based on whether line numbers are shown
+        size_t content_width = m->linenos && m->win_width > lineno_width ? m->win_width - lineno_width : m->win_width;
+
         // Display viewer data up to win_height - 1
         size_t display_height = m->win_height - 1;
         size_t end_row = m->height_offset + display_height;
         if (end_row > m->rows) {
                 end_row = m->rows; // Cap at total rows
         }
+
         for (size_t i = m->height_offset; i < end_row; ++i) {
-                for (size_t j = 0; j < m->cols && j < m->win_width; ++j) {
+                if (m->linenos) {
+                        printf(ITALIC BOLD CYAN "%4zu " RESET, i + 1);
+                }
+                for (size_t j = m->width_offset; j < m->cols && j < m->width_offset + content_width; ++j) {
                         putchar(m->data[i][j]);
                 }
                 putchar('\n');
@@ -215,6 +220,42 @@ up(forge_viewer *m)
         if (m->height_offset > 0) {
                 --m->height_offset;
         }
+}
+
+static inline void
+left(forge_viewer *m)
+{
+        if (m->width_offset > 0) {
+                --m->width_offset;
+        }
+}
+
+static inline void
+right(forge_viewer *m)
+{
+        if (m->win_width <= 1 || m->cols <= m->win_width) {
+                m->width_offset = 0; // No scrolling if viewer fits or window too small
+                return;
+        }
+        if (m->width_offset < m->cols - m->win_width) {
+                ++m->width_offset;
+        }
+}
+
+static inline void
+bol(forge_viewer *m)
+{
+        m->width_offset = 0;
+}
+
+static inline void
+eol(forge_viewer *m)
+{
+        if (m->win_width <= 1 || m->cols <= m->win_width) {
+                m->width_offset = 0; // No scrolling if viewer fits or window too small
+                return;
+        }
+        m->width_offset = m->cols - m->win_width;
 }
 
 static inline void
@@ -362,6 +403,42 @@ search(forge_viewer *m)
         }
 }
 
+static void
+lineno(forge_viewer *m)
+{
+        char *n = (char *)forge_rdln("goto line: ");
+        if (!n) {
+                // Empty or invalid input
+                return;
+        }
+
+        char *endptr;
+        errno = 0;
+        long i = strtol(n, &endptr, 10);
+
+        // Check if the input is a valid number
+        if (endptr == n || *endptr != '\0') {
+                // Input is empty or contains non-numeric characters
+                free(n);
+                return;
+        }
+
+        // Check for overflow or underflow
+        if (errno == ERANGE || i <= 0 || i > (long)m->rows) {
+                free(n);
+                return;
+        }
+
+        // Valid line number
+        m->height_offset = (size_t)(i - 1);
+
+        if (m->rows > m->win_height - 1 && m->height_offset > m->rows - (m->win_height - 1)) {
+                m->height_offset = m->rows - (m->win_height - 1);
+        }
+
+        free(n);
+}
+
 void
 forge_viewer_display(forge_viewer *m)
 {
@@ -382,22 +459,33 @@ forge_viewer_display(forge_viewer *m)
                 case USER_INPUT_TYPE_NORMAL:
                         if      (ch == 'k') { up(m); }
                         else if (ch == 'j') { down(m); }
+                        else if (ch == 'h') { left(m); }
+                        else if (ch == 'l') { right(m); }
+                        else if (ch == '0') { bol(m); }
+                        else if (ch == '$') { eol(m); }
                         else if (ch == 'g') { top(m); }
                         else if (ch == 'G') { bottom(m); }
                         else if (ch == '/') { search(m); }
                         else if (ch == 'n') { next_match(m); }
                         else if (ch == 'N') { prev_match(m); }
                         else if (ch == 'q') { goto done; }
+                        else if (ch == ':') { lineno(m); }
                         break;
                 case USER_INPUT_TYPE_CTRL:
                         if      (ch == CTRL_N) { down(m); }
                         else if (ch == CTRL_P) { up(m); }
                         else if (ch == CTRL_D) { page_down(m); }
                         else if (ch == CTRL_U) { page_up(m); }
+                        else if (ch == CTRL_A) { bol(m); }
+                        else if (ch == CTRL_E) { eol(m); }
+                        else if (ch == CTRL_F) { right(m); }
+                        else if (ch == CTRL_B) { left(m); }
                         break;
                 case USER_INPUT_TYPE_ARROW:
-                        if      (ch == UP_ARROW)   { up(m); }
-                        else if (ch == DOWN_ARROW) { down(m); }
+                        if      (ch == UP_ARROW)    { up(m); }
+                        else if (ch == DOWN_ARROW)  { down(m); }
+                        else if (ch == LEFT_ARROW)  { left(m); }
+                        else if (ch == RIGHT_ARROW) { right(m); }
                         break;
                 default:
                         break;

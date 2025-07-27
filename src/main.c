@@ -1997,7 +1997,7 @@ api_dump(const char *name, int api)
         }
         free(lines);
 
-        forge_viewer *m = forge_viewer_alloc(colored_lines, line_count);
+        forge_viewer *m = forge_viewer_alloc(colored_lines, line_count, 0);
         forge_viewer_display(m);
         forge_viewer_free(m);
         forge_str_destroy(&path);
@@ -2521,7 +2521,7 @@ browse_api(void)
                 free(apis[i]);
         }
 
-        forge_viewer *m = forge_viewer_alloc(combined.data, combined.len);
+        forge_viewer *m = forge_viewer_alloc(combined.data, combined.len, 0);
         forge_viewer_display(m);
         forge_viewer_free(m);
 
