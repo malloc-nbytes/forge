@@ -132,20 +132,20 @@ controls(const forge_viewer *m)
                 return;
         }
         printf("\033[%zu;1H", m->win_height);
-        printf("[" BOLD YELLOW "q" RESET ":quit]");
-        printf("[" BOLD YELLOW "↓|j|C-n" RESET ":down]");
-        printf("[" BOLD YELLOW "↑|k|C-p" RESET ":up]");
-        printf("[" BOLD YELLOW "← |h|C-b" RESET ":left]");
-        printf("[" BOLD YELLOW "→ |l|C-f" RESET ":right]");
-        printf("[" BOLD YELLOW "0|C-a" RESET ":BOL]");
-        printf("[" BOLD YELLOW "$|C-e" RESET ":EOL]");
-        printf("[" BOLD YELLOW "g" RESET ":top]");
-        printf("[" BOLD YELLOW "G" RESET ":bottom]");
-        printf("[" BOLD YELLOW "^D" RESET ":pgdn]");
-        printf("[" BOLD YELLOW "^U" RESET ":pgup]");
-        printf("[" BOLD YELLOW "/" RESET ":search]");
-        printf("[" BOLD YELLOW "n" RESET ":/next]");
-        printf("[" BOLD YELLOW "N" RESET ":/prev]");
+        printf("[" BOLD YELLOW "q" RESET "]");
+        printf("[" BOLD YELLOW "↓|j|C-n" RESET "]");
+        printf("[" BOLD YELLOW "↑|k|C-p" RESET "]");
+        printf("[" BOLD YELLOW "← |h|C-b" RESET "]");
+        printf("[" BOLD YELLOW "→ |l|C-f" RESET "]");
+        printf("[" BOLD YELLOW "0|C-a" RESET "]");
+        printf("[" BOLD YELLOW "$|C-e" RESET "]");
+        printf("[" BOLD YELLOW "g" RESET "]");
+        printf("[" BOLD YELLOW "G" RESET "]");
+        printf("[" BOLD YELLOW "^D" RESET "]");
+        printf("[" BOLD YELLOW "^U" RESET "]");
+        printf("[" BOLD YELLOW "/" RESET "]");
+        printf("[" BOLD YELLOW "n" RESET "]");
+        printf("[" BOLD YELLOW "N" RESET "]");
         fflush(stdout);
 }
 

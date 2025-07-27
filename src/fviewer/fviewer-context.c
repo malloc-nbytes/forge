@@ -1,5 +1,6 @@
 #include <fviewer-context.h>
 #include <fviewer-gl.h>
+#include <fviewer-flags.h>
 
 #include <forge/colors.h>
 #include <forge/ctrl.h>
@@ -55,10 +56,6 @@ collect_files(const char *path, str_array *files)
         if (S_ISREG(st.st_mode)) {
                 // Regular file
                 char *path_copy = strdup(path);
-                if (!path_copy) {
-                        fprintf(stderr, "Memory allocation failed for path %s\n", path);
-                        return;
-                }
                 dyn_array_append(*files, path_copy);
         } else if (S_ISDIR(st.st_mode)) {
                 // Directory, recurse
@@ -78,10 +75,6 @@ collect_files(const char *path, str_array *files)
                         // Construct full path
                         size_t path_len = strlen(path) + strlen(entry->d_name) + 2; // +1 for '/' and null terminator
                         char *full_path = malloc(path_len);
-                        if (!full_path) {
-                                fprintf(stderr, "Memory allocation failed for path %s/%s\n", path, entry->d_name);
-                                continue;
-                        }
                         snprintf(full_path, path_len, "%s/%s", path, entry->d_name);
 
                         // Recurse
@@ -140,7 +133,7 @@ fviewer_context_create(const str_array *filepaths)
                 size_t lines_n = 0;
                 char **lines = forge_str_take_to_lines(actual, &lines_n);
 
-                forge_viewer *v = forge_viewer_alloc(lines, lines_n, 0);
+                forge_viewer *v = forge_viewer_alloc(lines, lines_n, g_config.flags & FVIEWER_FT_LINES);
                 for (size_t j = 0; j < lines_n; ++j) free(lines[j]);
                 dyn_array_append(ctx.viewers, v);
         }

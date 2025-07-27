@@ -44,6 +44,7 @@ forge_token_type_to_cstr(forge_token_type ty)
         case FORGE_TOKEN_TYPE_ASTERISK:          return "FORGE_TOKEN_TYPE_ASTERISK";
         case FORGE_TOKEN_TYPE_HYPHEN:            return "FORGE_TOKEN_TYPE_HYPHEN";
         case FORGE_TOKEN_TYPE_PLUS:              return "FORGE_TOKEN_TYPE_PLUS";
+        case FORGE_TOKEN_TYPE_MINUS:             return "FORGE_TOKEN_TYPE_MINUS";
         case FORGE_TOKEN_TYPE_EQUALS:            return "FORGE_TOKEN_TYPE_EQUALS";
         case FORGE_TOKEN_TYPE_PIPE:              return "FORGE_TOKEN_TYPE_PIPE";
         case FORGE_TOKEN_TYPE_BACKSLASH:         return "FORGE_TOKEN_TYPE_BACKSLASH";
@@ -63,11 +64,14 @@ forge_token_type_to_cstr(forge_token_type ty)
         case FORGE_TOKEN_TYPE_PERCENT_EQUALS: return "FORGE_TOKEN_TYPE_PERCENT_EQUALS";
         case FORGE_TOKEN_TYPE_AMPERSAND_EQUALS: return "FORGE_TOKEN_TYPE_AMPERSAND_EQUALS";
         case FORGE_TOKEN_TYPE_PIPE_EQUALS: return "FORGE_TOKEN_TYPE_PIPE_EQUALS";
+        case FORGE_TOKEN_TYPE_UPTICK_EQUALS: return "FORGE_TOKEN_TYPE_UPTICK_EQUALS";
 
         case FORGE_TOKEN_TYPE_DOUBLE_EQUALS: return "FORGE_TOKEN_TYPE_DOUBLE_EQUALS";
         case FORGE_TOKEN_TYPE_GREATERTHAN_EQUALS: return "FORGE_TOKEN_TYPE_GREATERTHAN_EQUALS";
         case FORGE_TOKEN_TYPE_LESSTHAN_EQUALS: return "FORGE_TOKEN_TYPE_LESSTHAN_EQUALS";
         case FORGE_TOKEN_TYPE_BANG_EQUALS: return "FORGE_TOKEN_TYPE_BANG_EQUALS";
+        case FORGE_TOKEN_TYPE_DOUBLE_AMPERSAND: return "FORGE_TOKEN_TYPE_DOUBLE_AMPERSAND";
+        case FORGE_TOKEN_TYPE_DOUBLE_PIPE: return "FORGE_TOKEN_TYPE_DOUBLE_PIPE";
 
         default: {
                 fprintf(stderr, "invalid token: %d\n", (int)ty);
@@ -141,6 +145,7 @@ init_ops(uint32_t bits)
         static const int init_ops_asterisk          = FORGE_TOKEN_TYPE_ASTERISK;
         static const int init_ops_hyphen            = FORGE_TOKEN_TYPE_HYPHEN;
         static const int init_ops_plus              = FORGE_TOKEN_TYPE_PLUS;
+        static const int init_ops_minus             = FORGE_TOKEN_TYPE_MINUS;
         static const int init_ops_equals            = FORGE_TOKEN_TYPE_EQUALS;
         static const int init_ops_pipe              = FORGE_TOKEN_TYPE_PIPE;
         static const int init_ops_backslash         = FORGE_TOKEN_TYPE_BACKSLASH;
@@ -160,11 +165,14 @@ init_ops(uint32_t bits)
         static const int init_ops_percent_equals      = FORGE_TOKEN_TYPE_PERCENT_EQUALS;
         static const int init_ops_ampersand_equals    = FORGE_TOKEN_TYPE_AMPERSAND_EQUALS;
         static const int init_ops_pipe_equals         = FORGE_TOKEN_TYPE_PIPE_EQUALS;
+        static const int init_ops_uptick_equals       = FORGE_TOKEN_TYPE_UPTICK_EQUALS;
 
         static const int init_ops_double_equals      = FORGE_TOKEN_TYPE_DOUBLE_EQUALS;
         static const int init_ops_greaterthan_equals = FORGE_TOKEN_TYPE_GREATERTHAN_EQUALS;
         static const int init_ops_lessthan_equals    = FORGE_TOKEN_TYPE_LESSTHAN_EQUALS;
         static const int init_ops_bang_equals        = FORGE_TOKEN_TYPE_BANG_EQUALS;
+        static const int init_ops_double_ampersand   = FORGE_TOKEN_TYPE_DOUBLE_AMPERSAND;
+        static const int init_ops_double_pipe        = FORGE_TOKEN_TYPE_DOUBLE_PIPE;
 
         forge_smap_insert(&m, "(",  (void *)&init_ops_left_parenthesis);
         forge_smap_insert(&m, ")",  (void *)&init_ops_right_parenthesis);
@@ -184,6 +192,7 @@ init_ops(uint32_t bits)
         forge_smap_insert(&m, "*",  (void *)&init_ops_asterisk);
         forge_smap_insert(&m, "-",  (void *)&init_ops_hyphen);
         forge_smap_insert(&m, "+",  (void *)&init_ops_plus);
+        forge_smap_insert(&m, "-",  (void *)&init_ops_minus);
         forge_smap_insert(&m, "=",  (void *)&init_ops_equals);
         forge_smap_insert(&m, "|",  (void *)&init_ops_pipe);
         forge_smap_insert(&m, "\\", (void *)&init_ops_backslash);
@@ -204,11 +213,14 @@ init_ops(uint32_t bits)
                 forge_smap_insert(&m, "%=", (void *)&init_ops_percent_equals);
                 forge_smap_insert(&m, "&=", (void *)&init_ops_ampersand_equals);
                 forge_smap_insert(&m, "|=", (void *)&init_ops_pipe_equals);
+                forge_smap_insert(&m, "^=", (void *)&init_ops_uptick_equals);
 
                 forge_smap_insert(&m, "==", (void *)&init_ops_double_equals);
                 forge_smap_insert(&m, ">=", (void *)&init_ops_greaterthan_equals);
                 forge_smap_insert(&m, "<=", (void *)&init_ops_lessthan_equals);
                 forge_smap_insert(&m, "!=", (void *)&init_ops_bang_equals);
+                forge_smap_insert(&m, "&&", (void *)&init_ops_double_ampersand);
+                forge_smap_insert(&m, "||", (void *)&init_ops_double_pipe);
         }
 
         return m;
