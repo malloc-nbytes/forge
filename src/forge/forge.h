@@ -17,6 +17,7 @@
 #include "forge/utils.h"
 #include "forge/chooser.h"
 #include "forge/err.h"
+#include "forge/test.h"
 #include "forge/conf.h"
 
 /**
