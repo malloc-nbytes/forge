@@ -18,7 +18,8 @@ libforge_la_SOURCES = utils.c colors.c depgraph.c flags.c main.c \
 	forge-headers-src/forge-colors.c forge-headers-src/forge-mem.c \
 	forge-headers-src/forge-ctrl.c forge-headers-src/forge-rdln.c \
 	forge-headers-src/forge-arg.c forge-headers-src/forge-lexer.c \
-	forge-headers-src/forge-utils.c forge-headers-src/forge-chooser.c
+	forge-headers-src/forge-utils.c forge-headers-src/forge-chooser.c \
+	forge-headers-src/forge-cstr.c
 
 # Flags for libforge.so
 libforge_la_CFLAGS = $(AM_CFLAGS) -fPIC
@@ -35,7 +36,8 @@ forge_production_SOURCES = utils.c colors.c depgraph.c flags.c main.c \
 	forge-headers-src/forge-colors.c forge-headers-src/forge-mem.c \
 	forge-headers-src/forge-ctrl.c forge-headers-src/forge-rdln.c \
 	forge-headers-src/forge-arg.c forge-headers-src/forge-lexer.c \
-	forge-headers-src/forge-utils.c forge-headers-src/forge-chooser.c
+	forge-headers-src/forge-utils.c forge-headers-src/forge-chooser.c \
+	forge-headers-src/forge-cstr.c
 
 # Flags for forge executable
 forge_production_CFLAGS = $(AM_CFLAGS)
@@ -56,6 +58,7 @@ nobase_include_HEADERS = forge/array.h \
 	forge/io.h \
 	forge/pkg.h \
 	forge/str.h \
+	forge/cstr.h \
 	forge/smap.h \
 	forge/conf.h \
 	forge/colors.h \

@@ -107,15 +107,6 @@ char *forge_str_contains_substr(
 void forge_str_insert_at(forge_str *fs, char c, size_t idx);
 
 /**
- * Parameter: first -> the first string
- * VARIADIC         -> other strings
- * Returns: the concatination of all strings
- * Description: Build a string of the variadic parameters.
- *              Note: Remember to put NULL as the last argument!
- */
-char *forge_str_builder(const char *first, ...);
-
-/**
  * Parameter: fs -> the forge_string
  * Returns: the character that was removed
  * Description: Pop's the last character off of

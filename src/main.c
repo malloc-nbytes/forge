@@ -379,10 +379,10 @@ get_c_module_filepath_from_basic_name(const char *name)
 {
         char **dirs = ls(C_MODULE_DIR_PARENT);
         for (size_t i = 0; dirs[i]; ++i) {
-                char *module_dir = forge_str_builder(C_MODULE_DIR_PARENT, dirs[i], NULL);
+                char *module_dir = forge_cstr_builder(C_MODULE_DIR_PARENT, dirs[i], NULL);
                 if (forge_io_is_dir(module_dir)) {
                         CD(module_dir, {});
-                        char *path = forge_str_builder(module_dir, "/", name, ".c", NULL);
+                        char *path = forge_cstr_builder(module_dir, "/", name, ".c", NULL);
                         if (cio_file_exists(path)) {
                                 return path;
                         }
@@ -422,7 +422,7 @@ restore_pkg(forge_context *ctx, const char *name)
                         continue;
                 }
 
-                char *module_dir = forge_str_builder(C_MODULE_DIR_PARENT, dirs[i], NULL);
+                char *module_dir = forge_cstr_builder(C_MODULE_DIR_PARENT, dirs[i], NULL);
                 if (!forge_io_is_dir(module_dir)) {
                         free(module_dir);
                         free(dirs[i]);
@@ -1458,7 +1458,7 @@ rebuild_pkgs(forge_context *ctx)
                         free(dirs[d]);
                         continue;
                 }
-                char *abspath = forge_str_builder(C_MODULE_DIR_PARENT, dirs[d], NULL);
+                char *abspath = forge_cstr_builder(C_MODULE_DIR_PARENT, dirs[d], NULL);
                 DIR *dir = opendir(abspath);
                 if (!dir) {
                         perror("Failed to open directory");
@@ -1572,7 +1572,7 @@ init_env(void)
 void
 edit_file_in_editor(const char *path)
 {
-        char *cmd = forge_str_builder(FORGE_EDITOR, " ", path, NULL);
+        char *cmd = forge_cstr_builder(FORGE_EDITOR, " ", path, NULL);
         if (system(cmd) == -1) {
                 fprintf(stderr, "Failed to open %s in %s: %s\n", path, FORGE_EDITOR, strerror(errno));
         }
@@ -1623,7 +1623,7 @@ edit_c_module(str_array *names)
         for (size_t i = 0; i < names->len; ++i) {
                 char *path = get_c_module_filepath_from_basic_name(names->data[i]);
                 if (path) {
-                        char *cmd = forge_str_builder(FORGE_EDITOR, " ", path, NULL);
+                        char *cmd = forge_cstr_builder(FORGE_EDITOR, " ", path, NULL);
                         if (system(cmd) == -1) {
                                 fprintf(stderr, "Failed to open %s in %s: %s\n", path, FORGE_EDITOR, strerror(errno));
                         }
@@ -2209,7 +2209,7 @@ void
 add_repo(const char *name)
 {
         CD(C_MODULE_DIR_PARENT, goto bad);
-        char *clone = forge_str_builder("git clone ", name, NULL);
+        char *clone = forge_cstr_builder("git clone ", name, NULL);
         CMD(clone, goto bad);
         goto ok;
  bad:
@@ -2223,7 +2223,7 @@ drop_repo(forge_context *ctx,
           const char    *repo_name)
 {
         // Construct the full path to the repository
-        char *repo_path = forge_str_builder(C_MODULE_DIR_PARENT, repo_name, NULL);
+        char *repo_path = forge_cstr_builder(C_MODULE_DIR_PARENT, repo_name, NULL);
         if (!forge_io_is_dir(repo_path)) {
                 fprintf(stderr, "Repository %s does not exist at %s\n", repo_name, repo_path);
                 free(repo_path);
@@ -2330,7 +2330,7 @@ list_repos(void)
                         continue;
                 }
 
-                char *repo_path = forge_str_builder(C_MODULE_DIR_PARENT, dirs[i], NULL);
+                char *repo_path = forge_cstr_builder(C_MODULE_DIR_PARENT, dirs[i], NULL);
                 if (forge_io_is_dir(repo_path)) {
                         dyn_array_append(repos, strdup(dirs[i]));
                         max_name_len = MAX(max_name_len, strlen(dirs[i]));
@@ -2398,10 +2398,10 @@ void
 create_repo(const char *repo_name,
             const char *repo_url)
 {
-        char *new_repo_path = forge_str_builder(C_MODULE_DIR_PARENT, repo_name, NULL);
-        char *copy_cmd = forge_str_builder("cp ", C_MODULE_USER_DIR, "*.c ", new_repo_path, " 2>/dev/null || true", NULL); // Handle no .c files
-        char *del_cmd = forge_str_builder("rm -f ", C_MODULE_USER_DIR, "*.c", NULL);
-        char *add_origin_cmd = forge_str_builder("git remote add origin ", repo_url, NULL);
+        char *new_repo_path = forge_cstr_builder(C_MODULE_DIR_PARENT, repo_name, NULL);
+        char *copy_cmd = forge_cstr_builder("cp ", C_MODULE_USER_DIR, "*.c ", new_repo_path, " 2>/dev/null || true", NULL); // Handle no .c files
+        char *del_cmd = forge_cstr_builder("rm -f ", C_MODULE_USER_DIR, "*.c", NULL);
+        char *add_origin_cmd = forge_cstr_builder("git remote add origin ", repo_url, NULL);
 
         // Create the new repository directory
         if (mkdir_p_wmode(new_repo_path, 0755) != 0) {
@@ -2508,7 +2508,7 @@ browse_api(void)
                         continue;
                 }
 
-                char *path = forge_str_builder(FORGE_API_HEADER_DIR, "/", apis[i], NULL);
+                char *path = forge_cstr_builder(FORGE_API_HEADER_DIR, "/", apis[i], NULL);
                 char **lines = forge_io_read_file_to_lines(path);
 
                 for (size_t j = 0; lines[j]; ++j) {
@@ -2748,7 +2748,7 @@ edit_install(forge_context *ctx)
         while (sqlite3_step(stmt) == SQLITE_ROW) {
                 const char *name = (const char *)sqlite3_column_text(stmt, 0);
                 int is_installed = sqlite3_column_int(stmt, 1);
-                char *entry = forge_str_builder(is_installed ? "<*> " : "< > ", name, NULL);
+                char *entry = forge_cstr_builder(is_installed ? "<*> " : "< > ", name, NULL);
                 dyn_array_append(pkgnames, entry);
                 dyn_array_append(installed, is_installed ? installed_flag : 0);
         }

@@ -7,7 +7,7 @@
 #include "forge/io.h"
 #include "forge/mem.h"
 #include "forge/smap.h"
-#include "forge/str.h"
+#include "forge/cstr.h"
 
 const char *
 forge_token_type_to_cstr(forge_token_type ty)
@@ -585,7 +585,7 @@ forge_lexer_format_err(const forge_lexer *fl)
         sprintf(row, "%zu", fl->err.r);
         sprintf(col, "%zu", fl->err.c);
 
-        return forge_str_builder(fl->fp, ":", row, ":", col, ":", fl->err.msg, NULL);
+        return forge_cstr_builder(fl->fp, ":", row, ":", col, ":", fl->err.msg, NULL);
 }
 
 forge_token *
@@ -602,7 +602,7 @@ forge_token_format_loc_as_err(const forge_token *t)
 {
         char lineno[256] = {0};
         sprintf(lineno, ":%zu:%zu:", t->loc.r, t->loc.c);
-        return forge_str_builder(t->loc.fp, lineno, NULL);
+        return forge_cstr_builder(t->loc.fp, lineno, NULL);
 }
 
 forge_token *

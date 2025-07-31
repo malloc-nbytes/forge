@@ -4,6 +4,7 @@
 #include "forge/pkg.h"
 #include "forge/cmd.h"
 #include "forge/str.h"
+#include "forge/cstr.h"
 #include "forge/array.h"
 #include "forge/io.h"
 #include "forge/smap.h"
