@@ -1,6 +1,8 @@
 #ifndef FORGE_CHOOSER_H_INCLUDED
 #define FORGE_CHOOSER_H_INCLUDED
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
