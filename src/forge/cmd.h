@@ -133,6 +133,13 @@ char **ls(const char *dir);
  */
 int is_git_dir(const char *path);
 
+/**
+ * Returns: 1 if the user is superuser, and 0 if not
+ * Description: Check if the user running this process
+ *              is a superuser.
+ */
+int is_sudo(void);
+
 #ifdef __cplusplus
 }
 #endif

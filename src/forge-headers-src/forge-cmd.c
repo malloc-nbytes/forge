@@ -357,3 +357,9 @@ is_git_dir(const char *path)
 
         return is_git;
 }
+
+int
+is_sudo(void)
+{
+        return !geteuid();
+}
