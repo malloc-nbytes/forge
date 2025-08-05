@@ -1658,7 +1658,11 @@ update_pkgs(forge_context *ctx, str_array *names)
 
         str_array skipped_pkgs = dyn_array_empty(str_array);
 
+
         for (size_t i = 0; i < pkg_names.len; ++i) {
+                if (i == 0) {
+                        putchar('\n');
+                }
                 const char *name = pkg_names.data[i];
 
                 // Check if package is installed
@@ -1686,7 +1690,7 @@ update_pkgs(forge_context *ctx, str_array *names)
                         continue;
                 }
 
-                printf(GREEN BOLD "\n*** Updating package %s [%zu of %zu]\n\n" RESET, name, i+1, pkg_names.len);
+                printf(GREEN BOLD "*** Updating package %s [%zu of %zu]\n\n" RESET, name, i+1, pkg_names.len);
                 fflush(stdout);
                 sleep(1);
 
@@ -1890,7 +1894,7 @@ update_pkgs(forge_context *ctx, str_array *names)
 
                 rc = sqlite3_step(stmt);
                 if (rc != SQLITE_DONE) {
-                        fprintf(stderr, "Update package info error: %s\n", sqlite3_errmsg(ctx->db));
+                        fprintf(stderr, "\nUpdate package info error: %s\n", sqlite3_errmsg(ctx->db));
                 }
                 sqlite3_finalize(stmt);
 
