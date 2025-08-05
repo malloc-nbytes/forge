@@ -1686,7 +1686,7 @@ update_pkgs(forge_context *ctx, str_array *names)
                         continue;
                 }
 
-                printf(GREEN BOLD "*** Updating package %s [%zu of %zu]\n\n" RESET, name, i+1, pkg_names.len);
+                printf(GREEN BOLD "\n*** Updating package %s [%zu of %zu]\n\n" RESET, name, i+1, pkg_names.len);
                 fflush(stdout);
                 sleep(1);
 
