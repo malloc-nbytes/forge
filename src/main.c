@@ -2967,9 +2967,6 @@ try_first_time_startup(int argc)
                 printf("Superuser access is required the first time forge is ran.\n");
                 assert_sudo();
 
-                /* const char *ans[] = {"Yes, I want some premade packages", "No, I want to start from scratch"}; */
-                /* int choice = forge_chooser("Would you like to install the offical forge repository?", */
-                /*                            (const char **)ans, sizeof(ans)/sizeof(*ans), 0); */
                 int choice = forge_chooser_yesno("Would you like to install the offical forge repository?", NULL, 1);
 
                 init_env();
