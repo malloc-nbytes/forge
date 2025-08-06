@@ -104,6 +104,13 @@ int forge_io_rm_dir(const char *path);
  */
 const char *forge_io_file_ext(const char *path);
 
+/**
+ * Parameter: path -> the file to truncate
+ * Returns: 1 on success, 0 on failure
+ * Description: Will truncate the file `path`.
+ */
+int forge_io_truncate_file(const char *path);
+
 #ifdef __cplusplus
 }
 #endif

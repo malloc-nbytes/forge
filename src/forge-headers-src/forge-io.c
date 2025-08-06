@@ -332,3 +332,18 @@ forge_io_file_ext(const char *path)
 
         return buf;
 }
+
+int
+forge_io_truncate_file(const char *path)
+{
+        if (!path || !forge_io_filepath_exists(path)) {
+                return 0;
+        }
+
+        if (truncate(path, 0) == -1) {
+                /* fprintf(stderr, "Failed to truncate file %s: %s\n", path, strerror(errno)); */
+                return 0;
+        }
+
+        return 1;
+}
