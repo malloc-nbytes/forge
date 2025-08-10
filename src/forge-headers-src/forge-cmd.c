@@ -248,7 +248,11 @@ env(const char *var)
 char *
 get_prev_user(void)
 {
-        return getenv("SUDO_USER");
+        char *user = getenv("SUDO_USER");
+        if (!user) {
+                user = getenv("USER");
+        }
+        return user;
 }
 
 int

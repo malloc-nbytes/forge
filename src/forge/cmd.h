@@ -84,7 +84,8 @@ char *env(const char *var);
  * Description: Get the username of the previous user
  *              calling forge. For example, if forge was
  *              ran as: `USER@/bin/sh# sudo forge install ...`, then the
- *              result will be USER.
+ *              result will be USER. If not being ran as root, or the user
+ *              *is* root (not through sudo), then the current user is returned.
  */
 char *get_prev_user(void);
 
