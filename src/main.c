@@ -2925,6 +2925,25 @@ interactive(forge_context *ctx)
                 }
         }
 
+        for (size_t i = 0; i < to_install.len; ++i) {
+                if (i == 0) {
+                        printf(RESET YELLOW BOLD "*" RESET " To be " YELLOW BOLD "installed:\n" RESET);
+                }
+                printf(GREEN "    %s\n", to_install.data[i]);
+        }
+        for (size_t i = 0; i < to_uninstall.len; ++i) {
+                if (i == 0) {
+                        printf(YELLOW BOLD "*" RESET " To be " YELLOW BOLD "uninstalled:\n" RESET);
+                }
+                printf(RED "    %s\n", to_uninstall.data[i]);
+        }
+        printf(RESET);
+
+        int proceed = forge_chooser_yesno("Proceed?", NULL, 1);
+        if (proceed <= 0) {
+                goto clean;
+        }
+
         // Perform uninstallations
         if (to_uninstall.len > 0) {
                 printf(GREEN BOLD "*** Processing Uninstallations\n" RESET);
@@ -2937,13 +2956,14 @@ interactive(forge_context *ctx)
                 install_pkg(ctx, &to_install, 0);
         }
 
+ clean:
         for (size_t i = 0; i < display_entries.len; ++i) free(display_entries.data[i]);
-        for (size_t i = 0; i < pkg_names.len; ++i) free(pkg_names.data[i]);
-        for (size_t i = 0; i < names.len; ++i) free(names.data[i]);
-        for (size_t i = 0; i < versions.len; ++i) free(versions.data[i]);
-        for (size_t i = 0; i < descriptions.len; ++i) free(descriptions.data[i]);
-        for (size_t i = 0; i < to_install.len; ++i) free(to_install.data[i]);
-        for (size_t i = 0; i < to_uninstall.len; ++i) free(to_uninstall.data[i]);
+        for (size_t i = 0; i < pkg_names.len; ++i)       free(pkg_names.data[i]);
+        for (size_t i = 0; i < names.len; ++i)           free(names.data[i]);
+        for (size_t i = 0; i < versions.len; ++i)        free(versions.data[i]);
+        for (size_t i = 0; i < descriptions.len; ++i)    free(descriptions.data[i]);
+        for (size_t i = 0; i < to_install.len; ++i)      free(to_install.data[i]);
+        for (size_t i = 0; i < to_uninstall.len; ++i)    free(to_uninstall.data[i]);
 
         dyn_array_free(to_install);
         dyn_array_free(to_uninstall);
