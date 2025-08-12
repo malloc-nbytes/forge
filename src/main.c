@@ -1488,11 +1488,23 @@ rebuild_pkgs(forge_context *ctx)
                 str_array passed = dyn_array_empty(str_array),
                         failed = dyn_array_empty(str_array);
                 for (size_t i = 0; i < files.len; ++i) {
+                        size_t loading = (size_t)(((float)i/(float)files.len)*10.f);
+                        putchar('[');
+                        for (size_t i = 0; i < 10; ++i) {
+                                if (i > loading) {
+                                        putchar(' ');
+                                } else {
+                                        //printf(INVERT DIM YELLOW " " RESET);
+                                        putchar('*');
+                                }
+                        }
+                        printf("] ");
+
                         char buf[256] = {0};
                         sprintf(buf, "gcc -Wextra -Wall -Werror -shared -fPIC %s.c -lforge -L/usr/local/lib -o" MODULE_LIB_DIR "%s.so -I../include",
                                 files.data[i], files.data[i]);
-                        printf("[CC] %s.c\n", files.data[i]);
-                        //printf("%s\n", buf);
+                        //printf("[CC] %s.c\n", files.data[i]);
+                        printf("%s.c\n", files.data[i]);
                         fflush(stdout);
                         int status = system(buf);
                         if (status == -1) {

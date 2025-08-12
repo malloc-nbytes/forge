@@ -88,7 +88,7 @@ cmd(const char *cmd)
 {
         printf("\033[93m" "\033[2m");
 
-        printf("%s\n", cmd);
+        printf(">>> %s\n", cmd);
 
         FILE *fp = popen(cmd, "r");
         if (fp == NULL) {
@@ -126,7 +126,7 @@ cmd_as(const char *cmd,
         }
         snprintf(sudo_cmd, strlen(cmd) + strlen(username) + 20, "sudo -u %s %s", username, cmd);
 
-        printf("%s\n", sudo_cmd);
+        printf(">>> %s\n", sudo_cmd);
 
         // Open pipe to execute the command
         FILE *fp = popen(sudo_cmd, "r");
