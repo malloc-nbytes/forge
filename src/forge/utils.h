@@ -5,6 +5,14 @@
 extern "C" {
 #endif
 
+// Perform a foreach loop on each element in `ar` with
+// the named value of `k` until `len`, doing `blk`.
+#define FOREACH(k, ar, len, blk)                                \
+        for (size_t __iter = 0; __iter < len; ++__iter) {       \
+                typeof((ar)[__iter]) k = (ar)[__iter];          \
+                blk;                                            \
+        }
+
 /**
  * Parameter: pattern -> the regex pattern
  * Parameter: s       -> the string to test
