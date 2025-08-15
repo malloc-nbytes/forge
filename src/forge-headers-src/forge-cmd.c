@@ -1,5 +1,5 @@
 /*
- * forge: Forge your own packages
+ * forge: Forge your system
  * Copyright (C) 2025  malloc-nbytes
  * Contact: zdhdev@yahoo.com
 
@@ -101,6 +101,26 @@ cmd(const char *cmd)
         while (fgets(buffer, sizeof(buffer), fp) != NULL) {
                 printf("\033[0m");
                 printf("%s", buffer);
+        }
+
+        // Get exit status
+        int status = pclose(fp);
+        if (status == -1) {
+                printf("\033[0m");
+                fprintf(stderr, "Failed to close pipe for command '%s': %s\n", cmd, strerror(errno));
+                return 0;
+        }
+
+        printf("\033[0m");
+        return WEXITSTATUS(status) == 0;
+}
+
+int cmd_s(const char *cmd)
+{
+        FILE *fp = popen(cmd, "r");
+        if (fp == NULL) {
+                fprintf(stderr, "Failed to execute command '%s': %s\n", cmd, strerror(errno));
+                return 0;
         }
 
         // Get exit status
