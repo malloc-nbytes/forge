@@ -17,11 +17,11 @@ typedef struct {
         char *(*desc)(void);
         char **(*deps)(void);
         char *(*download)(void);
-        void (*build)(void);
-        void (*install)(void);
-        void (*uninstall)(void);
+        int (*build)(void);
+        int (*install)(void);
+        int (*uninstall)(void);
         int (*update)(void);
-        void (*get_changes)(void);
+        int (*get_changes)(void);
 } pkg;
 
 /**

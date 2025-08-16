@@ -5,6 +5,12 @@
 extern "C" {
 #endif
 
+// cd() to `path`. If it failed, perform block `block`.
+#define CD(path, block) if (!cd(path)) block;
+
+// Perform cmd() on `c`. If it failed, perform block `block`.
+#define CMD(c, block)   if (!cmd(c))   block;
+
 /**
  * Returns: the current working directory
  * Description: Gets the current working directory or NULL on failure.

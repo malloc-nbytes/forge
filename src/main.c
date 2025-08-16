@@ -57,13 +57,13 @@
         "char *download(void) {\n" \
         "        return NULL; // should return the name of the final directory!\n" \
         "}\n" \
-        "void build(void) {}\n" \
-        "void install(void) {}\n" \
-        "void uninstall(void) {}\n" \
+        "int build(void) { return 1; }\n" \
+        "int install(void) { return 1; }\n" \
+        "int uninstall(void) { return 1; }\n" \
         "int update(void) {\n" \
         "        return 0; // return 1 if it needs a rebuild, 0 otherwise\n" \
         "}\n" \
-        "void get_changes(void) {\n" \
+        "int get_changes(void) {\n" \
         "        // pull in the new changes if update() returns 1\n" \
         "}\n" \
         "\n" \
@@ -82,9 +82,6 @@
         "         // or define your own if not using git\n" \
         "        .get_changes = forge_pkg_git_pull,\n" \
         "};"
-
-#define CD(path, block) if (!cd(path)) block;
-#define CMD(c, block)   if (!cmd(c))   block;
 
 #define DB_DIR                                    "/var/lib/forge/"
 #define DB_FP DB_DIR                              "forge.db"
@@ -990,7 +987,11 @@ uninstall_pkg(forge_context *ctx,
 
                 // Perform uninstall
                 printf(GREEN "\n(%s)->uninstall()\n\n" RESET, name);
-                pkg->uninstall();
+                if (!pkg->uninstall()) {
+                        fprintf(stderr, "failed to uninstall package, aborting...\n");
+                        free(pkg_src_loc);
+                        continue;
+                }
 
                 // Update installed status in database
                 const char *sql_update = "UPDATE Pkgs SET installed = 0 WHERE id = ?;";
@@ -1281,10 +1282,19 @@ install_pkg(forge_context *ctx,
                 } else {
                         printf(GREEN "\n(%s)->download()\n\n" RESET, name);
                         pkgname = pkg->download();
+                        if (!pkgname) {
+                                fprintf(stderr, "could not download package, aborting...\n");
+                                free(pkg_src_loc);
+                                return 0;
+                        }
                 }
 
                 if (!cd_silent(pkgname)) {
-                        pkg->download();
+                        if (!pkg->download()) {
+                                fprintf(stderr, "could not download package, aborting...\n");
+                                free(pkg_src_loc);
+                                return 0;
+                        }
                         if (!cd(pkgname)) {
                                 fprintf(stderr, "aborting...\n");
                                 free(pkg_src_loc);
@@ -1296,7 +1306,10 @@ install_pkg(forge_context *ctx,
                 sprintf(base, PKG_SOURCE_DIR "%s", pkgname);
 
                 printf(GREEN "\n(%s)->build()\n\n" RESET, name);
-                pkg->build();
+                if (!pkg->build()) {
+                        fprintf(stderr, "could not build package, aborting...\n");
+                        return 0;
+                }
                 if (!cd(base)) {
                         fprintf(stderr, "aborting...\n");
                         free(pkg_src_loc);
@@ -1306,7 +1319,11 @@ install_pkg(forge_context *ctx,
                 forge_smap snapshot_before = snapshot_files();
 
                 printf(GREEN "\n(%s)->install()\n\n" RESET, name);
-                pkg->install();
+                if (!pkg->install()) {
+                        fprintf(stderr, "failed to install package, aborting...\n");
+                        free(pkg_src_loc);
+                        return 0;
+                }
 
                 forge_smap snapshot_after = snapshot_files();
 
@@ -1670,7 +1687,6 @@ update_pkgs(forge_context *ctx, str_array *names)
 
         str_array skipped_pkgs = dyn_array_empty(str_array);
 
-
         for (size_t i = 0; i < pkg_names.len; ++i) {
                 if (i == 0) {
                         putchar('\n');
@@ -1873,7 +1889,10 @@ update_pkgs(forge_context *ctx, str_array *names)
                 if (updated || (g_config.flags & FT_FORCE)) {
                         if (pkg->get_changes) {
                                 printf(GREEN "\n(%s)->get_changes()\n\n" RESET, name);
-                                pkg->get_changes();
+                                if (!pkg->get_changes()) {
+                                        fprintf(stderr, "could not get changes for updating package, aborting...\n");
+                                        return;
+                                }
                         } else {
                                 printf(YELLOW "\nRemoving source directory: %s\n\n" RESET, base);
                                 if (!forge_io_rm_dir(base)) {
