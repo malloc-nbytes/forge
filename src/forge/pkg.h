@@ -36,7 +36,7 @@ int forge_pkg_git_update(void);
  * Description: Performs the built-in way of pulling
  *              changes if a package uses git.
  */
-void forge_pkg_git_pull(void);
+int forge_pkg_git_pull(void);
 
 /**
  * Description: Used in the .update part of the pkg struct.

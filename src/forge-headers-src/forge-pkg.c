@@ -64,8 +64,8 @@ forge_pkg_git_update(void)
         return res;
 }
 
-void
+int
 forge_pkg_git_pull(void)
 {
-        cmd("git pull");
+        return cmd("git pull");
 }
