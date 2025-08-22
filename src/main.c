@@ -53,6 +53,7 @@
         "char *getname(void) { return \"author@pkg_name\"; }\n" \
         "char *getver(void) { return \"1.0.0\"; }\n" \
         "char *getdesc(void) { return \"My Description\"; }\n" \
+        "char *getweb(void) { return \"Package Website\"; }\n" \
         "char **getdeps(void) { return deps; }\n" \
         "char *download(void) {\n" \
         "        return NULL; // should return the name of the final directory!\n" \
@@ -71,6 +72,7 @@
         "        .name = getname,\n" \
         "        .ver = getver,\n" \
         "        .desc = getdesc,\n" \
+        "        .web = getweb,\n" \
         "        .deps = NULL,\n" \
         "        .download = download,\n" \
         "        .build = build,\n" \
