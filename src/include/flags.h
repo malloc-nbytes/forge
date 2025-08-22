@@ -70,6 +70,7 @@
 #define CMD_LIST_DEPS "list-deps"
 #define CMD_EDIT_INSTALL "edit-install"
 #define CMD_INT "int"
+#define CMD_INFO "info"
 
 #define CLI_CMDS {                              \
                 CMD_LIST,                       \
@@ -101,6 +102,7 @@
                 CMD_LIST_DEPS,                  \
                 CMD_EDIT_INSTALL,               \
                 CMD_INT,                        \
+                CMD_INFO,                       \
         }
 
 #define CMD_COMMANDS "COMMANDS" // not included in CLI_COMMANDS (hidden)

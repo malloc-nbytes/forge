@@ -160,6 +160,16 @@ help_update(void)
 }
 
 static void
+help_info(void)
+{
+        printf("help(%s <pkg>):\n", CMD_INFO);
+        INDENT printf("View in-depth package information.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge info malloc-nbytes@earl\n");
+}
+
+static void
 help_add_repo(void)
 {
         printf("help(%s <git-link>):\n", CMD_ADD_REPO);
@@ -524,6 +534,7 @@ forge_flags_help(const char *flag)
                 help_list_deps,
                 help_edit_install,
                 help_int,
+                help_info,
         };
 
         size_t n = strlen(flag);
@@ -624,6 +635,8 @@ forge_flags_help(const char *flag)
                 hs[31]();
         } else if (!strcmp(flag, CMD_INT)) {
                 hs[32]();
+        } else if (!strcmp(flag, CMD_INFO)) {
+                hs[33]();
         }
 
         else if (!strcmp(flag, "*")) {
@@ -683,6 +696,7 @@ forge_flags_usage(void)
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "       R "     RESET  " install packages\n", CMD_INSTALL);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "     R "       RESET  " uninstall packages\n", CMD_UNINSTALL);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "        R "    RESET  " update packages or leave empty to update all\n", CMD_UPDATE);
+        printf(GREEN BOLD "    %s <pkg>      " RESET YELLOW BOLD "        R "    RESET  " view package information\n", CMD_INFO);
         printf(GREEN BOLD "    %s <name> " RESET YELLOW BOLD "        R "    RESET  " save a dependency package as explictly installed\n", CMD_SAVE_DEP);
         printf(GREEN BOLD "    %s" RESET YELLOW BOLD "                   RN"    RESET  " remove unused dependency packages\n", CMD_CLEAN);
         printf(GREEN BOLD "    %s <git-link> " RESET YELLOW BOLD "    RN"    RESET  " add a github repository to forge\n", CMD_ADD_REPO);

@@ -15,6 +15,7 @@ typedef struct {
         char *(*name)(void);
         char *(*ver)(void);
         char *(*desc)(void);
+        char *(*web)(void);
         char **(*deps)(void);
         char *(*download)(void);
         int (*build)(void);

@@ -3034,6 +3034,72 @@ try_first_time_startup(int argc)
         return -1;
 }
 
+void
+view_pkg_info(const forge_context *ctx,
+              const char          *pkgname)
+{
+        pkg *pkg = NULL;
+        for (size_t i = 0; i < ctx->pkgs.len; ++i) {
+                if (!strcmp(ctx->pkgs.data[i]->name(), pkgname)) {
+                        pkg = ctx->pkgs.data[i];
+                        break;
+                }
+        }
+
+        if (!pkg) {
+                fprintf(stderr, RED "Package '%s' not found in loaded modules.\n" RESET, pkgname);
+                return;
+        }
+
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT installed, is_explicit, pkg_src_loc FROM Pkgs WHERE name = ?;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_text(stmt, 1, pkgname, -1, SQLITE_STATIC);
+
+        int installed = 0, is_explicit = 0;
+        char *pkg_src_loc = NULL;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                installed = sqlite3_column_int(stmt, 0);
+                is_explicit = sqlite3_column_int(stmt, 1);
+                const char *src_loc = (const char *)sqlite3_column_text(stmt, 2);
+                if (src_loc) {
+                        pkg_src_loc = strdup(src_loc);
+                }
+        } else {
+                fprintf(stderr, RED "Package '%s' not found in database.\n" RESET, pkgname);
+                sqlite3_finalize(stmt);
+                return;
+        }
+        sqlite3_finalize(stmt);
+
+        printf(GREEN BOLD "Package Information for '%s':\n" RESET, pkgname);
+        printf("%-15s %s\n", "Name:", pkg->name());
+        printf("%-15s %s\n", "Version:", pkg->ver());
+        printf("%-15s %s\n", "Description:", pkg->desc());
+        printf("%-15s %s\n", "Website:", pkg->web ? pkg->web() : "(none)");
+        printf("%-15s %s\n", "Installed:", installed ? "Yes" : "No");
+        printf("%-15s %s\n", "Explicit:", is_explicit ? "Yes" : "No");
+        if (pkg_src_loc) {
+                printf("%-15s %s\n", "Source Location:", pkg_src_loc);
+                free(pkg_src_loc);
+        } else {
+                printf("%-15s %s\n", "Source Location:", "(none)");
+        }
+
+        // List dependencies
+        printf("\n" GREEN BOLD "Dependencies:\n" RESET);
+        char **deps = pkg->deps ? pkg->deps() : NULL;
+        if (deps && deps[0]) {
+                for (size_t i = 0; deps[i]; ++i) {
+                        printf("  - %s\n", deps[i]);
+                }
+        } else {
+                printf("  (none)\n");
+        }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -3129,6 +3195,11 @@ main(int argc, char **argv)
                         update_pkgs(&ctx, &names);
                         for (size_t i = 0; i < names.len; ++i) { free(names.data[i]); }
                         dyn_array_free(names);
+                } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_INFO)) {
+                        if (!clap_next(&arg)) {
+                                err_wargs("flag `%s` requires an argument", CMD_INFO);
+                        }
+                        view_pkg_info(&ctx, arg.start);
                 } else if (arg.hyphc == 0 && !strcmp(arg.start, CMD_DUMP)) {
                         str_array names = dyn_array_empty(str_array);
                         while (clap_next(&arg)) {
