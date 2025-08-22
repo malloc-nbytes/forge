@@ -34,7 +34,7 @@ _forge_completion() {
             COMPREPLY=( $(compgen -W "${opts} ${commands} *" -- "${cur}") )
             return 0
             ;;
-        search|install|uninstall|update|save-dep|deps|new|edit|dump|drop|files|restore)
+        search|install|uninstall|update|save-dep|deps|new|edit|dump|drop|files|restore|info)
             # Suggest package names for package-related commands
             COMPREPLY=( $(compgen -W "$(_get_package_names)" -- "${cur}") )
             return 0
