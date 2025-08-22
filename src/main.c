@@ -66,6 +66,7 @@
         "}\n" \
         "int get_changes(void) {\n" \
         "        // pull in the new changes if update() returns 1\n" \
+        "        return 0;\n" \
         "}\n" \
         "\n" \
         "FORGE_GLOBAL pkg package = {\n" \
