@@ -55,3 +55,29 @@ forge_cstr_builder(const char *first, ...)
         result[total_length] = '\0';
         return result;
 }
+
+const char *
+forge_cstr_first_of(const char *s, char c)
+{
+        if (!s) return NULL;
+
+        for (size_t i = 0; s[i]; ++i) {
+                if (s[i] == c) return &s[i];
+        }
+
+        return NULL;
+}
+
+const char *
+forge_cstr_last_of(const char *s, char c)
+{
+        if (!s) return NULL;
+
+        const char *last = NULL;
+
+        for (size_t i = 0; s[i]; ++i) {
+                if (s[i] == c) last = &s[i];
+        }
+
+        return last;
+}
