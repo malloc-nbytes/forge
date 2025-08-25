@@ -1,6 +1,8 @@
 #ifndef FORGE_IO_H_INCLUDED
 #define FORGE_IO_H_INCLUDED
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
