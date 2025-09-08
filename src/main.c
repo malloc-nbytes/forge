@@ -50,7 +50,7 @@
         "\n" \
         "char *deps[] = {NULL}; // Must be NULL terminated\n" \
         "\n" \
-        "char *getname(void) { return \"author@pkg_name\"; }\n" \
+        "char *getname(void) { /*return \"author@pkg_name\";*/ }\n"     \
         "char *getver(void) { return \"1.0.0\"; }\n" \
         "char *getdesc(void) { return \"My Description\"; }\n" \
         "char *getweb(void) { return \"Package Website\"; }\n" \
@@ -2932,8 +2932,8 @@ interactive(forge_context *ctx)
         while (1) {
                 int idx = forge_chooser("Select packages to install/uninstall", (const char **)display_entries.data, display_entries.len, cpos);
                 if (idx == -1) break;
-                status.data[idx] ^= installed_flag; // Toggle installed flag
-                status.data[idx] |= modified_flag;  // Mark as modified
+                status.data[idx] ^= installed_flag;
+                status.data[idx] |= modified_flag;
                 // Update display entry
                 display_entries.data[idx][1] = (status.data[idx] & installed_flag) ? '*' : ' ';
                 cpos = (size_t)idx;
@@ -2941,7 +2941,6 @@ interactive(forge_context *ctx)
 
         forge_ctrl_disable_raw_terminal(STDIN_FILENO, &term);
 
-        // Collect packages to install/uninstall
         str_array to_install = dyn_array_empty(str_array);
         str_array to_uninstall = dyn_array_empty(str_array);
 
@@ -2972,6 +2971,8 @@ interactive(forge_context *ctx)
                 printf(RED "    %s\n", to_uninstall.data[i]);
         }
         printf(RESET);
+
+        if (!to_install.len && !to_uninstall.len) goto clean;
 
         int proceed = forge_chooser_yesno("Proceed?", NULL, 1);
         if (proceed <= 0) {
