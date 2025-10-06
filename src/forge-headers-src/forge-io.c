@@ -54,6 +54,9 @@ char *
 forge_io_read_file_to_cstr(const char *fp)
 {
         FILE *f = fopen(fp, "r");
+
+        if (!f) return NULL;
+
         char *line = NULL;
         size_t len = 0;
         ssize_t read;
@@ -96,6 +99,9 @@ char **
 forge_io_read_file_to_lines(const char *fp)
 {
         FILE *f = fopen(fp, "r");
+
+        if (!f) return NULL;
+
         char *line = NULL;
         size_t len = 0;
         ssize_t read;
@@ -258,7 +264,6 @@ forge_io_rm_dir(const char *path)
 {
         DIR *dir = opendir(path);
         if (!dir) {
-                fprintf(stderr, "Failed to open directory %s: %s\n", path, strerror(errno));
                 return 0;
         }
 
@@ -275,7 +280,6 @@ forge_io_rm_dir(const char *path)
 
                 struct stat st;
                 if (stat(full_path, &st) == -1) {
-                        fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
                         closedir(dir);
                         return 0;
                 }
@@ -289,7 +293,6 @@ forge_io_rm_dir(const char *path)
                 } else {
                         // Remove files
                         if (unlink(full_path) == -1) {
-                                fprintf(stderr, "Failed to remove file %s: %s\n", full_path, strerror(errno));
                                 closedir(dir);
                                 return 0;
                         }
@@ -300,7 +303,6 @@ forge_io_rm_dir(const char *path)
 
         // Remove the empty directory
         if (rmdir(path) == -1) {
-                fprintf(stderr, "Failed to remove directory %s: %s\n", path, strerror(errno));
                 return 0;
         }
 

@@ -46,7 +46,7 @@ extern "C" {
  *   }
  */
 #define DYN_ARRAY_TYPE(ty, name) \
-    typedef struct {             \
+    typedef struct name {        \
         ty *data;                \
         size_t len, cap;         \
     } name
