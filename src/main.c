@@ -45,6 +45,11 @@
 #define CLAP_IMPL
 #include "clap.h"
 
+#include "forge/set.h"
+
+forge_set_type(int, int_set)
+forge_set_type(char *, str_set)
+
 #define FORGE_C_MODULE_TEMPLATE \
         "#include <forge/forge.h>\n" \
         "\n" \
@@ -3104,8 +3109,29 @@ view_pkg_info(const forge_context *ctx,
         }
 }
 
+unsigned hash(int *x) { return *x; }
+unsigned hash2(char **x) { return (unsigned)**x; }
+int cmp(int *x, int *y) { return *x - *y; }
+int cmp2(char **x, char **y) { return strcmp(*x, *y); }
+void show(int *x) { printf("%d\n", *x); }
+void show2(char **x) { printf("%s\n", *x); }
+
+int main() {
+        str_set set2 = str_set_create(hash2, cmp2, NULL);
+        str_set_insert(&set2, "foo");
+        str_set_insert(&set2, "bar");
+        str_set_insert(&set2, "baz");
+        str_set_remove(&set2, "baz");
+        printf("%d\n", str_set_contains(&set2, "foo"));
+        printf("%d\n", str_set_contains(&set2, "bar"));
+        printf("%d\n", str_set_contains(&set2, "baz"));
+        printf("%d\n", str_set_contains(&set2, "asdfjhjk"));
+
+        return 0;
+}
+
 int
-main(int argc, char **argv)
+main1(int argc, char **argv)
 {
         ++argv, --argc;
         clap_init(argc, argv);
