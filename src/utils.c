@@ -1,36 +1,43 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <regex.h>
+#include "utils.h"
 
 #include "forge/array.h"
 
-#include "utils.h"
+#include <string.h>
+#include <sys/stat.h>
+#include <errno.h>
 
-void
-dyn_array_append_str(char_array *arr, const char *str)
+int
+mkdir_p_wmode(const char *path, mode_t mode)
 {
-        if (!arr || !str) {
-                return; // Handle null inputs
+        if (!path || !*path) return -1;
+
+        // Try to create the directory
+        if (mkdir(path, mode) == 0 || errno == EEXIST) {
+                return 0;
         }
 
-        // Calculate length of the input string (excluding null terminator)
-        size_t str_len = strlen(str);
-
-        // Ensure the array has enough capacity
-        while (arr->len + str_len >= arr->cap) {
-                // Double the capacity or set to a minimum if zero
-                size_t new_cap = arr->cap == 0 ? 16 : arr->cap * 2;
-                char *new_data = realloc(arr->data, new_cap * sizeof(char));
-                if (!new_data) {
-                        fprintf(stderr, "Failed to reallocate memory for char_array\n");
-                        return; // Memory allocation failure
-                }
-                arr->data = new_data;
-                arr->cap = new_cap;
+        if (errno != ENOENT) {
+                return -1;
         }
 
-        // Copy the string into the array
-        memcpy(arr->data + arr->len, str, str_len);
-        arr->len += str_len;
+        // Find the last '/'
+        char *parent = strdup(path);
+        if (!parent) return -1;
+
+        char *last_slash = strrchr(parent, '/');
+        if (!last_slash || last_slash == parent) {
+                free(parent);
+                return -1;
+        }
+
+        *last_slash = '\0';
+
+        // Recursively create parent directories
+        int result = mkdir_p_wmode(parent, mode);
+        free(parent);
+
+        if (result != 0) return -1;
+
+        // Try creating the directory again
+        return mkdir(path, mode) == 0 || errno == EEXIST ? 0 : -1;
 }

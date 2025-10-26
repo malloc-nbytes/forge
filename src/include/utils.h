@@ -20,6 +20,8 @@
 #ifndef UTILS_H_INCLUDED
 #define UTILS_H_INCLUDED
 
+#include <sys/stat.h>
+
 #define err_wargs(msg, ...)                                             \
         do {                                                            \
                 fprintf(stderr, "error: " msg "\n", __VA_ARGS__);       \
@@ -34,6 +36,6 @@
 
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 
-int regex(const char *pattern, const char *s);
+int mkdir_p_wmode(const char *path, mode_t mode);
 
 #endif // UTILS_H_INCLUDED
