@@ -48,7 +48,7 @@ void depgraph_destroy(depgraph *dg);
 // Does not take ownership of `name`.
 void depgraph_insert_pkg(depgraph *dg, const char *name);
 
-// Does not take ownership of `from` and `todo`.
+// Does not take ownership of `from` and `to`.
 void depgraph_add_dep(depgraph *dg, const char *from, const char *to);
 size_t_array depgraph_gen_order(const depgraph *dg);
 void depgraph_dump(const depgraph *dg);

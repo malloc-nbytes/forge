@@ -20,6 +20,7 @@
 #include "forge/err.h"
 #include "forge/test.h"
 #include "forge/logger.h"
+#include "forge/set.h"
 #include "forge/conf.h"
 
 /**
