@@ -17,6 +17,18 @@
  * with this program; if not, see <https://www.gnu.org/licenses/>.
 */
 
+#include "forge/pkg.h"
+#include "forge/colors.h"
+#include "forge/chooser.h"
+
+#include "config.h"
+#include "depgraph.h"
+#include "flags.h"
+#include "utils.h"
+#include "paths.h"
+
+#include "sqlite3.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,15 +42,6 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <time.h>
-
-#include "sqlite3.h"
-
-#include "forge/forge.h"
-#include "config.h"
-#include "depgraph.h"
-#include "flags.h"
-#include "utils.h"
-#include "colors.h"
 
 #define FORGE_C_MODULE_TEMPLATE \
         "#include <forge/forge.h>\n" \
@@ -81,18 +84,6 @@
         "        .get_changes = forge_pkg_git_pull,\n" \
         "};"
 
-#define DATABASE_DIR                              "/var/lib/forge"
-#define DATABASE_FP                               DATABASE_DIR "/forge.db"
-
-#define C_MODULE_DIR                              PREFIX "/src/forge/modules"
-#define C_MODULE_USER_DIR                         PREFIX "/src/forge/user_modules"
-#define C_MODULE_DIR_PARENT                       PREFIX "/src/forge"
-
-#define MODULE_LIB_DIR                            PREFIX "/lib/forge/modules"
-#define PKG_SOURCE_DIR                            "/var/cache/forge/sources"
-#define FORGE_API_HEADER_DIR                      PREFIX "/include/forge"
-#define FORGE_CONF_HEADER_FP                      FORGE_API_HEADER_DIR "/conf.h"
-
 #define CHECK_SQLITE(rc, db)                                            \
         do {                                                            \
                 if (rc != SQLITE_OK) {                                  \
@@ -116,19 +107,10 @@ typedef struct {
         pkg_ptr_array pkgs;
 } forge_context;
 
-typedef struct {
-        char *name;
-        char *version;
-        char *description;
-        int installed;
-} pkg_info;
-
-DYN_ARRAY_TYPE(pkg_info, pkg_info_array);
-
 struct {
         uint32_t flags;
 } g_config = {
-        .flags = 0x00000000,
+        .flags = 0x0000,
 };
 
 sqlite3 *
@@ -291,36 +273,6 @@ show_options_for_bash_completion(void)
                 if (i != 0) putchar(' ');
                 printf("%s", s[i]);
         }
-}
-
-int
-try_first_time_startup(int argc)
-{
-        assert(0);
-        //int exists = cio_file_exists(DATABASE_FP);
-        int exists = 1;
-
-        if (exists && argc == 0) {
-                forge_flags_usage();
-        } else if (!exists) {
-                printf("Superuser access is required the first time forge is ran.\n");
-                assert_sudo();
-
-                int choice = forge_chooser_yesno("Would you like to install the offical forge repository?", NULL, 1);
-
-                init_env();
-
-                if (choice == -1) {
-                        printf("Something went wrong... :(\n");
-                } else if (choice == 1) {
-                        assert(0);
-                        //add_repo("https://github.com/malloc-nbytes/forge-modules.git");
-                }
-
-                return choice;
-        }
-
-        return -1;
 }
 
 int

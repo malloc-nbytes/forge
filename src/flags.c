@@ -21,8 +21,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "forge/colors.h"
+
 #include "flags.h"
-#include "colors.h"
 #include "config.h"
 #include "copying.h"
 #include "utils.h"
