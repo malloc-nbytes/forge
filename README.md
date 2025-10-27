@@ -19,19 +19,16 @@ and data structures are supplied as the forge API.
 
 Along with `forge`, it will also compile and install a tool called `fviewer`. It works similarly to `less`.
 
-## Compiling
-Forge requires sqlite3. You must either download and untar it yourself, or just run `bootstrap.sh`.
-_Note_: `bootstrap.sh` generates `configure` with `--prefix=/usr` and `--libdir=/usr/lib64`.
+## Building
 
-Using `bootstrap.sh`:
-```
-./boostrap.sh
-make
-```
+### Dependencies
 
-Without:
+- Gentoo: dev-db/sqlite
+- Debian: libsqlite3-dev
+
+### Compiling
 ```
-autoreconf --install
+autoreconf -iv
 ./configure --prefix=<prefix> --libdir=<dir>
 make
 ```
