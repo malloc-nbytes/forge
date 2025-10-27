@@ -283,7 +283,8 @@ unmount_all(const char *root)
 {
         const char *subs[] = {
                 "/usr/bin", "/usr/lib", "/usr/include",
-                "/bin", "/lib", "/lib64", "/buildsrc", NULL
+                "/bin", "/lib", "/lib64", "/buildsrc",
+                "/usr/x86_64-pc-linux-gnu", "/usr/libexec/", NULL
         };
         for (size_t i = 0; subs[i]; ++i) {
                 char path[PATH_MAX];
@@ -336,6 +337,8 @@ create_skeleton(const char *root)
                 "usr/lib",
                 "usr/include",
                 "var",
+                "/usr/x86_64-pc-linux-gnu",
+                "/usr/libexec/",
                 NULL
         };
 
@@ -444,8 +447,8 @@ char *fakeroot;
 void
 clean_fakeroot(void)
 {
-        /* unmount_all(fakeroot); */
-        /* rm_rf(fakeroot); */
+        unmount_all(fakeroot);
+        rm_rf(fakeroot);
 }
 
 int
@@ -466,6 +469,8 @@ main(int argc, char **argv)
         safe_bind_mount("/bin",         fakeroot, "/bin",         0);
         safe_bind_mount("/lib",         fakeroot, "/lib",         0);
         bind_lib64_if_present(fakeroot);
+        safe_bind_mount("/usr/x86_64-pc-linux-gnu", fakeroot, "/usr/x86_64-pc-linux-gnu", MS_RDONLY);
+        safe_bind_mount("/usr/libexec/", fakeroot, "/usr/libexec/", MS_RDONLY);
 
         char src_bind[PATH_MAX];
         snprintf(src_bind, sizeof(src_bind), "%s/buildsrc", fakeroot);
@@ -481,6 +486,8 @@ main(int argc, char **argv)
         }
 
         if (pid == 0) {
+                printf("chroot: %s\n", fakeroot);
+
                 // CHILD: inside sandbox
                 if (chroot(fakeroot) == -1) {
                         perror("chroot");
@@ -521,10 +528,27 @@ main(int argc, char **argv)
         printf("Build succeeded! Staged files are in: %s\n", fakeroot);
         printf("   -> Package ready for packaging (tar, etc.)\n");
 
-        /* Optional: keep fakeroot for inspection */
-        /* rm_rf(fakeroot); */
-
         return 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         ++argv, --argc;
 
         forge_context ctx = (forge_context) {
