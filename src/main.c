@@ -278,41 +278,6 @@ show_options_for_bash_completion(void)
         }
 }
 
-#define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/mount.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <errno.h>
-#include <libgen.h>
-#include <dirent.h>
-#include <fcntl.h>
-#include <limits.h>
-
-#ifndef PATH_MAX
-#define PATH_MAX 4096
-#endif
-
-static void
-unmount_all(const char *root)
-{
-        const char *subs[] = {
-                "/usr/bin", "/usr/lib", "/usr/include", "/usr/lib/gcc", "/usr/libexec/gcc",
-                "/bin", "/lib", "/lib64", "/buildsrc",
-                "/usr/x86_64-pc-linux-gnu", "/usr/libexec/", "/usr/lib/binutils",
-                "/etc", "/dev", NULL
-        };
-        for (size_t i = 0; subs[i]; ++i) {
-                char path[PATH_MAX];
-                snprintf(path, sizeof(path), "%s%s", root, subs[i]);
-                if (umount2(path, MNT_DETACH) && errno != EINVAL && errno != ENOENT)
-                        perror("umount2");
-        }
-}
-
 void
 rm_rf(const char *path)
 {
@@ -320,25 +285,6 @@ rm_rf(const char *path)
         snprintf(cmd, sizeof(cmd), "rm -rf %s", path);
         if (system(cmd) != 0) {
                 fprintf(stderr, "Failed to clean up %s\n", path);
-        }
-}
-
-void
-drop_privileges(void)
-{
-        if (setgid(getgid()) == -1) perror("setgid");
-        if (setuid(getuid()) == -1) perror("setuid");
-}
-
-void
-bind_mount(const char *src, const char *dst, unsigned long extra_flags)
-{
-        printf("bind_mount(%s, %s)\n", src, dst);
-
-        unsigned long flags = MS_BIND | MS_REC | extra_flags;
-        if (mount(src, dst, NULL, flags, NULL) == -1) {
-                perror("mount --bind");
-                exit(1);
         }
 }
 
@@ -388,82 +334,14 @@ mkdir_p(const char *path)
         }
 }
 
-void
-safe_bind_mount(const char *src, const char *fakeroot, const char *rel, unsigned long extra_flags)
-{
-        printf("safe_bind_mount(%s, %s%s)\n", src, fakeroot, rel);
-
-        char dst[PATH_MAX];
-        snprintf(dst, sizeof(dst), "%s%s", fakeroot, rel);
-
-        char *dir = strdup(dst);
-        if (!dir) {
-                perror("strdup");
-                exit(1);
-        }
-        mkdir_p(dirname(dir));
-        free(dir);
-
-        unsigned long flags = MS_BIND | MS_REC | extra_flags;
-        if (mount(src, dst, NULL, flags, NULL) == -1) {
-                perror("mount --bind");
-                exit(1);
-        }
-}
-
-void
-bind_dev(const char *fakeroot)
-{
-        const char *devs[] = { "null", "zero", "full", "random", "urandom", "tty" };
-        char src[PATH_MAX], dst[PATH_MAX];
-
-        snprintf(dst, sizeof(dst), "%s/dev", fakeroot);
-        mkdir_p(dst);
-
-        for (size_t i = 0; i < sizeof(devs)/sizeof(devs[0]); ++i) {
-                snprintf(src, sizeof(src), "/dev/%s", devs[i]);
-                snprintf(dst, sizeof(dst), "%s/dev/%s", fakeroot, devs[i]);
-                if (mount(src, dst, NULL, MS_BIND, NULL) == -1) {
-                        if (errno != ENOENT) perror("mount dev");
-                }
-        }
-}
-
-static void
-bind_lib64_if_present(const char *fakeroot)
-{
-        const char *host = "/lib64";
-        if (access(host, F_OK) != 0)
-                return;
-
-        char dst[PATH_MAX];
-        snprintf(dst, sizeof(dst), "%s/lib64", fakeroot);
-        mkdir_p(dst);
-
-        unsigned long flags = MS_BIND | MS_REC | MS_RDONLY;
-        if (mount(host, dst, NULL, flags, NULL) == -1) {
-                perror("mount --bind /lib64");
-                exit(1);
-        }
-}
-
-static void
-bind_if_exists(const char *src, const char *fakeroot, const char *rel, unsigned long extra_flags)
-{
-        if (access(src, F_OK) == 0) {
-                safe_bind_mount(src, fakeroot, rel, extra_flags);
-        }
-}
-
 void die(const char *msg) { perror(msg); exit(1); }
 
-char *fakeroot;
+char *fakeroot = NULL;
 
 void
 clean_fakeroot(void)
 {
-        unmount_all(fakeroot);
-        rm_rf(fakeroot);
+	if (fakeroot) rm_rf(fakeroot);
 }
 
 int
@@ -471,6 +349,9 @@ main(int argc, char **argv)
 {
         char *src_dir = "/home/zdh/dev/c/playground";
         char tmpl[] = "/tmp/pkgbuild-XXXXXX";
+	(void)src_dir;
+	(void)tmpl;
+
         fakeroot = mkdtemp(tmpl);
         if (!fakeroot) die("mkdtemp");
 
@@ -478,182 +359,7 @@ main(int argc, char **argv)
 
         create_skeleton(fakeroot);
 
-        // Core system
-        safe_bind_mount("/usr/bin",     fakeroot, "/usr/bin",     MS_RDONLY);
-        safe_bind_mount("/usr/lib",     fakeroot, "/usr/lib",     MS_RDONLY);
-        safe_bind_mount("/usr/include", fakeroot, "/usr/include", MS_RDONLY);
-        safe_bind_mount("/bin",         fakeroot, "/bin",         0);
-        safe_bind_mount("/lib",         fakeroot, "/lib",         0);
-        bind_lib64_if_present(fakeroot);
-
-        // GCC & Binutils runtime
-        safe_bind_mount("/usr/lib/gcc",            fakeroot, "/usr/lib/gcc",            MS_RDONLY);
-        safe_bind_mount("/usr/libexec/gcc",        fakeroot, "/usr/libexec/gcc",        MS_RDONLY);
-        /* safe_bind_mount("/usr/x86_64-pc-linux-gnu/bin", fakeroot, "/usr/x86_64-pc-linux-gnu/bin", MS_RDONLY); */
-
-        // Target triplet
-        safe_bind_mount("/usr/x86_64-pc-linux-gnu", fakeroot, "/usr/x86_64-pc-linux-gnu", MS_RDONLY);
-        safe_bind_mount("/usr/libexec/",           fakeroot, "/usr/libexec/",           MS_RDONLY);
-
-        // Optional: binutils-specific libs
-        bind_if_exists("/usr/lib/binutils", fakeroot, "/usr/lib/binutils", MS_RDONLY);
-
-        // Critical: linker config
-        safe_bind_mount("/etc", fakeroot, "/etc", MS_BIND | MS_RDONLY);
-
-        // Source directory
-        char src_bind[PATH_MAX];
-        snprintf(src_bind, sizeof(src_bind), "%s/buildsrc", fakeroot);
-        mkdir_p(src_bind);
-        safe_bind_mount(src_dir, fakeroot, "/buildsrc", MS_RDONLY);
-
-        // Devices
-        bind_dev(fakeroot);
-
-        // Fork + chroot
-        pid_t pid = fork();
-        if (pid == -1) {
-                perror("fork");
-                return 1;
-        }
-
-        if (pid == 0) {
-                // CHILD: inside sandbox
-                printf("chroot: %s\n", fakeroot);
-
-                if (chroot(fakeroot) == -1) {
-                        perror("chroot");
-                        _exit(1);
-                }
-                if (chdir("/buildsrc") == -1) {
-                        perror("chdir to source");
-                        _exit(1);
-                }
-
-                setenv("HOME", "/buildsrc", 1);
-                setenv("PATH", "/usr/bin:/bin", 1);
-                setenv("SHELL", "/bin/sh", 1);
-
-                drop_privileges();
-
-                // Execute build script
-                char *make_args[] = { "./build.sh", NULL };
-                execvp(make_args[0], make_args);
-                perror("execvp");
-                _exit(127);
-        }
-
-        // Parent: wait
-        int status;
-        if (waitpid(pid, &status, 0) == -1) {
-                perror("waitpid");
-                return 1;
-        }
-
-        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-                fprintf(stderr, "Build failed with status %d\n", WEXITSTATUS(status));
-                return 1;
-        }
-
-        unmount_all(fakeroot);
-        printf("Build succeeded! Staged files are in: %s\n", fakeroot);
-        printf("   -> Package ready for packaging (tar, etc.)\n");
-
         return 0;
-}
-
-int
-main2(int argc, char **argv)
-{
-        char *src_dir = "/home/zdh/dev/c/playground";
-        char tmpl[] = "/tmp/pkgbuild-XXXXXX";
-        fakeroot = mkdtemp(tmpl);
-        if (!fakeroot) die("mkdtemp");
-
-        atexit(clean_fakeroot);
-
-        create_skeleton(fakeroot);
-
-        safe_bind_mount("/usr/bin",     fakeroot, "/usr/bin",     MS_RDONLY);
-        safe_bind_mount("/usr/lib",     fakeroot, "/usr/lib",     MS_RDONLY);
-        safe_bind_mount("/usr/include", fakeroot, "/usr/include", MS_RDONLY);
-        safe_bind_mount("/bin",         fakeroot, "/bin",         0);
-        safe_bind_mount("/lib",         fakeroot, "/lib",         0);
-        bind_lib64_if_present(fakeroot);
-        safe_bind_mount("/usr/x86_64-pc-linux-gnu", fakeroot, "/usr/x86_64-pc-linux-gnu", MS_RDONLY);
-        safe_bind_mount("/usr/libexec/", fakeroot, "/usr/libexec/", MS_RDONLY);
-
-        char src_bind[PATH_MAX];
-        snprintf(src_bind, sizeof(src_bind), "%s/buildsrc", fakeroot);
-        mkdir_p(src_bind);
-        safe_bind_mount(src_dir, fakeroot, "/buildsrc", MS_RDONLY);
-
-        bind_dev(fakeroot);
-
-        pid_t pid = fork();
-        if (pid == -1) {
-                perror("fork");
-                return 1;
-        }
-
-        if (pid == 0) {
-                printf("chroot: %s\n", fakeroot);
-
-                // CHILD: inside sandbox
-                if (chroot(fakeroot) == -1) {
-                        perror("chroot");
-                        _exit(1);
-                }
-                if (chdir("/buildsrc") == -1) {
-                        perror("chdir to source");
-                        _exit(1);
-                }
-
-                /* setenv("PATH", "/usr/bin:/bin:/usr/sbin:/sbin", 1); */
-                /* setenv("SHELL", "/bin/sh", 1); */
-                setenv("HOME", "/buildsrc", 1);
-                setenv("PATH", "/usr/bin:/bin", 1);
-                setenv("SHELL", "/bin/sh", 1);
-
-                drop_privileges();
-
-                /* Exec make with user-provided args */
-                char *make_args[] = {NULL};
-                execvp("./build.sh", make_args);
-                perror("execvp");
-                _exit(127);
-        }
-
-        int status;
-        if (waitpid(pid, &status, 0) == -1) {
-                perror("waitpid");
-                return 1;
-        }
-
-        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-                fprintf(stderr, "Build failed with status %d\n", WEXITSTATUS(status));
-                return 1;
-        }
-
-        unmount_all(fakeroot);
-        printf("Build succeeded! Staged files are in: %s\n", fakeroot);
-        printf("   -> Package ready for packaging (tar, etc.)\n");
-
-        return 0;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
