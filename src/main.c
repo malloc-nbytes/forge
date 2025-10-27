@@ -45,7 +45,7 @@
         "\n" \
         "char *deps[] = {NULL}; // Must be NULL terminated\n" \
         "\n" \
-        "char *getname(void) { /*return \"author@pkg_name\";*/ }\n"     \
+        "char *getname(void) { /*return \"author@pkg_name\";*/ }\n" \
         "char *getver(void) { return \"1.0.0\"; }\n" \
         "char *getdesc(void) { return \"My Description\"; }\n" \
         "char *getweb(void) { return \"Package Website\"; }\n" \
@@ -81,15 +81,17 @@
         "        .get_changes = forge_pkg_git_pull,\n" \
         "};"
 
-#define DB_DIR                                    "/var/lib/forge/"
-#define DB_FP DB_DIR                              "forge.db"
-#define C_MODULE_DIR                              PREFIX "/src/forge/modules/"
-#define C_MODULE_USER_DIR                         PREFIX "/src/forge/user_modules/"
-#define C_MODULE_DIR_PARENT                       PREFIX "/src/forge/"
-#define MODULE_LIB_DIR                            PREFIX "/lib/forge/modules/"
-#define PKG_SOURCE_DIR                            "/var/cache/forge/sources/"
+#define DATABASE_DIR                              "/var/lib/forge"
+#define DATABASE_FP                               DATABASE_DIR "/forge.db"
+
+#define C_MODULE_DIR                              PREFIX "/src/forge/modules"
+#define C_MODULE_USER_DIR                         PREFIX "/src/forge/user_modules"
+#define C_MODULE_DIR_PARENT                       PREFIX "/src/forge"
+
+#define MODULE_LIB_DIR                            PREFIX "/lib/forge/modules"
+#define PKG_SOURCE_DIR                            "/var/cache/forge/sources"
 #define FORGE_API_HEADER_DIR                      PREFIX "/include/forge"
-#define FORGE_CONF_HEADER_FP FORGE_API_HEADER_DIR "/conf.h"
+#define FORGE_CONF_HEADER_FP                      FORGE_API_HEADER_DIR "/conf.h"
 
 #define CHECK_SQLITE(rc, db)                                            \
         do {                                                            \
@@ -107,8 +109,8 @@ DYN_ARRAY_TYPE(pkg *, pkg_ptr_array);
 typedef struct {
         sqlite3 *db;
         struct {
-                handle_array handles; // should be same len as paths
-                str_array paths;      // should be same len as handles
+                handle_array handles; // assert(handles.len == paths.len)
+                str_array paths;      // assert(paths.len == handles.len)
         } dll;
         depgraph dg;
         pkg_ptr_array pkgs;
@@ -161,16 +163,6 @@ init_db(const char *dbname)
         rc = sqlite3_exec(db, create_deps, NULL, NULL, NULL);
         CHECK_SQLITE(rc, db);
 
-        const char *create_files =
-                "CREATE TABLE IF NOT EXISTS Files ("
-                "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                "pkg_id INTEGER NOT NULL,"
-                "file_path TEXT NOT NULL,"
-                "FOREIGN KEY (pkg_id) REFERENCES Pkgs(id),"
-                "UNIQUE (pkg_id, file_path));";
-        rc = sqlite3_exec(db, create_files, NULL, NULL, NULL);
-        CHECK_SQLITE(rc, db);
-
         return db;
 }
 
@@ -206,7 +198,7 @@ obtain_handles_and_pkgs_from_dll(forge_context *ctx)
         while ((entry = readdir(dir))) {
                 if (strstr(entry->d_name, ".so")) {
                         char *path = (char *)malloc(512);
-                        snprintf(path, 512, "%s%s", MODULE_LIB_DIR, entry->d_name);
+                        snprintf(path, 512, "%s/%s", MODULE_LIB_DIR, entry->d_name);
 
                         void *handle = dlopen(path, RTLD_LAZY);
                         if (!handle) {
@@ -258,12 +250,12 @@ void
 init_env(void)
 {
         // Database location
-        if (mkdir(DB_DIR, 0755) != 0 && errno != EEXIST) {
-                fprintf(stderr, "could not create path: %s, %s\n", DB_DIR, strerror(errno));
+        if (mkdir(DATABASE_DIR, 0755) != 0 && errno != EEXIST) {
+                fprintf(stderr, "could not create path: %s, %s\n", DATABASE_DIR, strerror(errno));
         }
-        sqlite3 *db = init_db(DB_FP);
+        sqlite3 *db = init_db(DATABASE_FP);
         if (!db) {
-                fprintf(stderr, "could not initialize database: %s\n", DB_FP);
+                fprintf(stderr, "could not initialize database: %s\n", DATABASE_FP);
         }
         sqlite3_close(db);
 
@@ -305,7 +297,7 @@ int
 try_first_time_startup(int argc)
 {
         assert(0);
-        //int exists = cio_file_exists(DB_FP);
+        //int exists = cio_file_exists(DATABASE_FP);
         int exists = 1;
 
         if (exists && argc == 0) {
@@ -337,7 +329,7 @@ main(int argc, char **argv)
         ++argv, --argc;
 
         forge_context ctx = (forge_context) {
-                .db = init_db(DB_FP),
+                .db = init_db(DATABASE_FP),
                 .dll = {
                         .handles = dyn_array_empty(handle_array),
                         .paths = dyn_array_empty(str_array),

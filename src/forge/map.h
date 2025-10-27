@@ -6,7 +6,7 @@
 
 #define FORGE_MAP_DEFAULT_CAPACITY 2048
 
-#define forge_map_type(ktype, vtype, mapname) \
+#define FORGE_MAP_TYPE(ktype, vtype, mapname) \
         typedef unsigned (*forge_##mapname##_hash_sig)(ktype *); \
         typedef int      (*forge_##mapname##_cmp_sig)(ktype *, ktype *); \
         \
