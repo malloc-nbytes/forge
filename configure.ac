@@ -7,23 +7,17 @@ AC_PROG_RANLIB
 AM_PROG_AR
 LT_INIT
 
-# Build SQLite amalgamation
-AC_MSG_NOTICE([Configuring SQLite amalgamation])
-AC_CONFIG_COMMANDS([sqlite-config],
-  [cd ./src/sqlite-autoconf-3500100 && ./configure && cd ..],
-  [test -d ./src/sqlite-autoconf-3500100 || AC_MSG_ERROR([SQLite directory not found])])
-
 # Check for required libraries
 AC_CHECK_LIB([pthread], [pthread_create], [], [AC_MSG_ERROR([pthread library not found])])
 AC_CHECK_LIB([dl], [dlopen], [], [AC_MSG_ERROR([dl library not found])])
-AC_CHECK_LIB([sqlite3], [sqlite3_open], [], [AC_MSG_ERROR([sqlite3 library not found])], [-L./src/sqlite-autoconf-3500100/.libs])
+AC_CHECK_LIB([sqlite3], [sqlite3_open], [], [AC_MSG_ERROR([sqlite3 library not found])])
 
 AC_DEFINE_UNQUOTED([COMPILER_NAME], ["$CC"], [Name of the C compiler])
 AC_DEFINE_UNQUOTED([COMPILER_VERSION], ["`$CC --version | head -n1`"], [Version of the C compiler])
 AC_DEFINE_UNQUOTED([COMPILER_PATH], ["`which $CC`"], [Full path to the C compiler])
 
 # Add include directories for forge and fviewer
-AC_SUBST([AM_CFLAGS], ["-I$top_srcdir/src/include -I$top_srcdir/src/forge -I$top_srcdir/src/fviewer/include -I$top_srcdir/src/sqlite-autoconf-3500100 -march=native -pedantic -Wextra -Wall -Wno-maybe-uninitialized"])
+AC_SUBST([AM_CFLAGS], ["-I$top_srcdir/src/include -I$top_srcdir/src/forge -I$top_srcdir/src/fviewer/include -march=native -pedantic -Wextra -Wall -Wno-maybe-uninitialized"])
 
 AC_DEFINE_UNQUOTED([COMPILER_FLAGS], ["$AM_CFLAGS"], [Compiler flags used])
 AC_DEFINE_UNQUOTED([PREFIX], ["$prefix"], [Installation prefix directory])
