@@ -20,6 +20,8 @@
 #include "forge/pkg.h"
 #include "forge/colors.h"
 #include "forge/chooser.h"
+#include "forge/cstr.h"
+#include "forge/cmd.h"
 
 #include "config.h"
 #include "depgraph.h"
@@ -41,7 +43,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdint.h>
-#include <time.h>
+#include <sys/mount.h>
+#include <libgen.h>
 
 #define FORGE_C_MODULE_TEMPLATE \
         "#include <forge/forge.h>\n" \
@@ -275,9 +278,253 @@ show_options_for_bash_completion(void)
         }
 }
 
+static void
+unmount_all(const char *root)
+{
+        const char *subs[] = {
+                "/usr/bin", "/usr/lib", "/usr/include",
+                "/bin", "/lib", "/lib64", "/buildsrc", NULL
+        };
+        for (size_t i = 0; subs[i]; ++i) {
+                char path[PATH_MAX];
+                snprintf(path, sizeof(path), "%s%s", root, subs[i]);
+                if (umount2(path, MNT_DETACH) && errno != EINVAL && errno != ENOENT)
+                        perror("umount2");
+        }
+}
+
+void
+rm_rf(const char *path)
+{
+        char cmd[PATH_MAX * 2];
+        snprintf(cmd, sizeof(cmd), "rm -rf %s", path);
+        if (system(cmd) != 0) {
+                fprintf(stderr, "Failed to clean up %s\n", path);
+        }
+}
+
+void
+drop_privileges(void)
+{
+        if (setgid(getgid()) == -1) perror("setgid");
+        if (setuid(getuid()) == -1) perror("setuid");
+}
+
+void
+bind_mount(const char    *src,
+           const char    *dst,
+           unsigned long  extra_flags)
+{
+        printf("bind_mount(%s, %s)\n", src, dst);
+
+        unsigned long flags = MS_BIND | MS_REC | extra_flags;
+        if (mount(src, dst, NULL, flags, NULL) == -1) {
+                perror("mount --bind");
+                exit(1);
+        }
+}
+
+void
+create_skeleton(const char *root)
+{
+        const char *paths[] = {
+                "bin",
+                "etc",
+                "lib",
+                "usr",
+                "usr/bin",
+                "usr/lib",
+                "usr/include",
+                "var",
+                NULL
+        };
+
+        for (size_t i = 0; paths[i]; ++i) {
+                char path[PATH_MAX] = {0};
+                snprintf(path, sizeof(path), "%s/%s", root, paths[i]);
+                if (mkdir(path, 0755) && errno != EEXIST) {
+                        perror("mkdir");
+                        // Don't exit — keep trying
+                }
+        }
+}
+
+void
+mkdir_p(const char *path)
+{
+        char tmp[PATH_MAX];
+        const char *p;
+
+        snprintf(tmp, sizeof(tmp), "%s", path);
+
+        for (p = tmp; *p == '/'; p++) continue;
+
+        for (; *p; p++) {
+                if (*p == '/') {
+                        char c = *p;
+                        *(char *)p = '\0';
+                        if (mkdir(tmp, 0755) && errno != EEXIST) {
+                                perror("mkdir");
+                        }
+                        *(char *)p = c;
+                }
+        }
+
+        if (mkdir(tmp, 0755) && errno != EEXIST) {
+                perror("mkdir");
+        }
+}
+
+void
+safe_bind_mount(const char    *src,
+                const char    *fakeroot,
+                const char    *rel,
+                unsigned long  extra_flags)
+{
+        printf("safe_bind_mount(%s, %s%s)\n", src, fakeroot, rel);
+
+        char dst[PATH_MAX];
+        snprintf(dst, sizeof(dst), "%s%s", fakeroot, rel);
+
+        // Ensure destination directory exists
+        char *dir = strdup(dst);
+        mkdir_p(dirname(dir));
+        free(dir);
+
+        unsigned long flags = MS_BIND | MS_REC | extra_flags;
+        if (mount(src, dst, NULL, flags, NULL) == -1) {
+                perror("mount --bind");
+                exit(1);
+        }
+}
+
+void bind_dev(const char *fakeroot)
+{
+        const char *devs[] = { "null", "zero", "full", "random", "urandom", "tty" };
+        char src[PATH_MAX], dst[PATH_MAX];
+
+        snprintf(dst, sizeof(dst), "%s/dev", fakeroot);
+        mkdir_p(dst);
+
+        for (size_t i = 0; i < sizeof(devs)/sizeof(devs[0]); ++i) {
+                snprintf(src, sizeof(src), "/dev/%s", devs[i]);
+                snprintf(dst, sizeof(dst), "%s/dev/%s", fakeroot, devs[i]);
+                if (mount(src, dst, NULL, MS_BIND, NULL) == -1) {
+                        if (errno != ENOENT) perror("mount dev");
+                }
+        }
+}
+
+/* Bind /lib64 only if it exists on the host */
+static void
+bind_lib64_if_present(const char *fakeroot)
+{
+        const char *host = "/lib64";
+        if (access(host, F_OK) != 0)
+                return;
+
+        char dst[PATH_MAX];
+        snprintf(dst, sizeof(dst), "%s/lib64", fakeroot);
+
+        /* 1. create the destination directory */
+        mkdir_p(dst);                         /* your mkdir -p helper */
+
+        /* 2. bind (read-only is fine) */
+        unsigned long flags = MS_BIND | MS_REC | MS_RDONLY;
+        if (mount(host, dst, NULL, flags, NULL) == -1) {
+                perror("mount --bind /lib64");
+                exit(1);
+        }
+}
+
+void die(const char *msg) { perror(msg); exit(1); }
+
+char *fakeroot;
+
+void
+clean_fakeroot(void)
+{
+        /* unmount_all(fakeroot); */
+        /* rm_rf(fakeroot); */
+}
+
 int
 main(int argc, char **argv)
 {
+        char *src_dir = "/home/zdh/dev/c/playground";
+        char tmpl[] = "/tmp/pkgbuild-XXXXXX";
+        fakeroot = mkdtemp(tmpl);
+        if (!fakeroot) die("mkdtemp");
+
+        atexit(clean_fakeroot);
+
+        create_skeleton(fakeroot);
+
+        safe_bind_mount("/usr/bin",     fakeroot, "/usr/bin",     MS_RDONLY);
+        safe_bind_mount("/usr/lib",     fakeroot, "/usr/lib",     MS_RDONLY);
+        safe_bind_mount("/usr/include", fakeroot, "/usr/include", MS_RDONLY);
+        safe_bind_mount("/bin",         fakeroot, "/bin",         0);
+        safe_bind_mount("/lib",         fakeroot, "/lib",         0);
+        bind_lib64_if_present(fakeroot);
+
+        char src_bind[PATH_MAX];
+        snprintf(src_bind, sizeof(src_bind), "%s/buildsrc", fakeroot);
+        mkdir_p(src_bind);
+        safe_bind_mount(src_dir, fakeroot, "/buildsrc", MS_RDONLY);
+
+        bind_dev(fakeroot);
+
+        pid_t pid = fork();
+        if (pid == -1) {
+                perror("fork");
+                return 1;
+        }
+
+        if (pid == 0) {
+                // CHILD: inside sandbox
+                if (chroot(fakeroot) == -1) {
+                        perror("chroot");
+                        _exit(1);
+                }
+                if (chdir("/buildsrc") == -1) {
+                        perror("chdir to source");
+                        _exit(1);
+                }
+
+                /* setenv("PATH", "/usr/bin:/bin:/usr/sbin:/sbin", 1); */
+                /* setenv("SHELL", "/bin/sh", 1); */
+                setenv("HOME", "/buildsrc", 1);
+                setenv("PATH", "/usr/bin:/bin", 1);
+                setenv("SHELL", "/bin/sh", 1);
+
+                drop_privileges();
+
+                /* Exec make with user-provided args */
+                char *make_args[] = {NULL};
+                execvp("./build.sh", make_args);
+                perror("execvp");
+                _exit(127);
+        }
+
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {
+                perror("waitpid");
+                return 1;
+        }
+
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+                fprintf(stderr, "Build failed with status %d\n", WEXITSTATUS(status));
+                return 1;
+        }
+
+        unmount_all(fakeroot);
+        printf("Build succeeded! Staged files are in: %s\n", fakeroot);
+        printf("   -> Package ready for packaging (tar, etc.)\n");
+
+        /* Optional: keep fakeroot for inspection */
+        /* rm_rf(fakeroot); */
+
+        return 0;
         ++argv, --argc;
 
         forge_context ctx = (forge_context) {
