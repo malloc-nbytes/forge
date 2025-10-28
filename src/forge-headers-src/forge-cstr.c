@@ -83,7 +83,7 @@ forge_cstr_last_of(const char *s, char c)
         return last;
 }
 
-int
+char *
 forge_cstr_of_int(int i)
 {
         int digits = 0;
@@ -101,5 +101,5 @@ forge_cstr_of_int(int i)
         char *s = (char *)malloc(digits + 1);
         sprintf(s, "%d", i);
         s[digits-1] = 0;
-        return digits;
+        return s;
 }

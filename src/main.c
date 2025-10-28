@@ -25,6 +25,7 @@
 #include "forge/err.h"
 #include "forge/arg.h"
 #include "forge/io.h"
+#include "forge/smap.h"
 
 #include "config.h"
 #include "depgraph.h"
@@ -233,11 +234,12 @@ cleanup_forge_context(forge_context *ctx)
         depgraph_destroy(&ctx->dg);
 }
 
-void
+static int
 init_env(void)
 {
         // Database location
-        if (mkdir(DATABASE_DIR, 0755) != 0 && errno != EEXIST) {
+        if (mkdir(DATABASE_DIR, 0755) != 0) {
+                if (errno == EEXIST) return 0;
                 fprintf(stderr, "could not create path: %s, %s\n", DATABASE_DIR, strerror(errno));
         }
         sqlite3 *db = init_db(DATABASE_FP);
@@ -247,17 +249,22 @@ init_env(void)
         sqlite3_close(db);
 
         // Module locations
-        if (mkdir_p_wmode(MODULE_LIB_DIR, 0755) != 0 && errno != EEXIST) {
+        if (mkdir_p_wmode(MODULE_LIB_DIR, 0755) != 0) {
+                if (errno == EEXIST) return 0;
                 fprintf(stderr, "could not create path: %s, %s\n", MODULE_LIB_DIR, strerror(errno));
         }
-        if (mkdir_p_wmode(C_MODULE_USER_DIR, 0755) != 0 && errno != EEXIST) {
+        if (mkdir_p_wmode(C_MODULE_USER_DIR, 0755) != 0) {
+                if (errno == EEXIST) return 0;
                 fprintf(stderr, "could not create path: %s, %s\n", C_MODULE_USER_DIR, strerror(errno));
         }
 
         // Pkg source location
-        if (mkdir_p_wmode(PKG_SOURCE_DIR, 0755) != 0 && errno != EEXIST) {
+        if (mkdir_p_wmode(PKG_SOURCE_DIR, 0755) != 0) {
+                if (errno == EEXIST) return 0;
                 fprintf(stderr, "could not create path: %s, %s\n", PKG_SOURCE_DIR, strerror(errno));
         }
+
+        return 1;
 }
 
 void
@@ -280,15 +287,15 @@ show_options_for_bash_completion(void)
         }
 }
 
-void
-rm_rf(const char *path)
-{
-        char cmd[PATH_MAX * 2];
-        snprintf(cmd, sizeof(cmd), "rm -rf %s", path);
-        if (system(cmd) != 0) {
-                fprintf(stderr, "Failed to clean up %s\n", path);
-        }
-}
+/* void */
+/* rm_rf(const char *path) */
+/* { */
+/*         char cmd[PATH_MAX * 2]; */
+/*         snprintf(cmd, sizeof(cmd), "rm -rf %s", path); */
+/*         if (system(cmd) != 0) { */
+/*                 fprintf(stderr, "Failed to clean up %s\n", path); */
+/*         } */
+/* } */
 
 void
 create_skeleton(const char *root)
@@ -457,21 +464,345 @@ rebuild_pkgs(void)
         }
 }
 
-static void
-install_pkg(forge_context *ctx, forge_arg **arg)
+void
+add_dep_to_db(forge_context *ctx,
+              int            pkg_id,
+              int            dep_id)
 {
-        str_array pkg_names = dyn_array_empty(str_array);
-        for (size_t i = 0; *arg; ++i) {
-                dyn_array_append(pkg_names, strdup((*arg)->s));
-                *arg = (*arg)->n;
+        sqlite3_stmt *stmt;
+        const char *sql = "INSERT OR IGNORE INTO Deps (pkg_id, dep_id) VALUES (?, ?);";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_int(stmt, 1, pkg_id);
+        sqlite3_bind_int(stmt, 2, dep_id);
+
+        rc = sqlite3_step(stmt);
+        if (rc != SQLITE_DONE) {
+                fprintf(stderr, "Dependency insert error: %s\n", sqlite3_errmsg(ctx->db));
         }
 
-        for (size_t i = 0; i < pkg_names.len; ++i) {
-                info_builder("Installing package ",
-                             (*arg)->s, " [", forge_cstr_of_int(i+1), "/",
-                             forge_cstr_of_int(pkg_names.len), "]", NULL);
+        sqlite3_finalize(stmt);
+}
+
+int
+get_pkg_id(forge_context *ctx, const char *name)
+{
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT id FROM Pkgs WHERE name = ?;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+
+        int id = -1;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                id = sqlite3_column_int(stmt, 0);
+        }
+
+        sqlite3_finalize(stmt);
+        return id;
+}
+
+void
+register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
+{
+        if (!pkg->name) {
+                forge_err("register_pkg(): pkg (unknown) does not have a name");
+        }
+        if (!pkg->ver) {
+                forge_err_wargs("register_pkg(): pkg %s does not have a version", pkg->name());
+        }
+        if (!pkg->desc) {
+                forge_err_wargs("register_pkg(): pkg %s does not have a description", pkg->name());
+        }
+
+        const char *name = pkg->name();
+        const char *ver = pkg->ver();
+        const char *desc = pkg->desc();
+
+        sqlite3_stmt *stmt;
+        const char *sql_select = "SELECT id FROM Pkgs WHERE name = ?;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+        int id = -1;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                id = sqlite3_column_int(stmt, 0);
+        }
+        sqlite3_finalize(stmt);
+
+        if (id != -1) {
+                // Update existing package
+                const char *sql_update = "UPDATE Pkgs SET version = ?, description = ?, is_explicit = ? WHERE name = ?;";
+                rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_text(stmt, 1, ver, -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 2, desc, -1, SQLITE_STATIC);
+                sqlite3_bind_int(stmt, 3, is_explicit);
+                sqlite3_bind_text(stmt, 4, name, -1, SQLITE_STATIC);
+
+                rc = sqlite3_step(stmt);
+                if (rc != SQLITE_DONE) {
+                        fprintf(stderr, "Update error: %s\n", sqlite3_errmsg(ctx->db));
+                }
+                sqlite3_finalize(stmt);
+        } else {
+                // New package
+                //printf(YELLOW BOLD "* " RESET "Registered package: " YELLOW BOLD "%s\n" RESET, name);
+                info_builder("Registered package: ", YELLOW, name, RESET, "\n", NULL);
+
+                const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed, is_explicit) VALUES (?, ?, ?, 0, ?);";
+                rc = sqlite3_prepare_v2(ctx->db, sql_insert, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 2, ver, -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 3, desc, -1, SQLITE_STATIC);
+                sqlite3_bind_int(stmt, 4, is_explicit);
+
+                rc = sqlite3_step(stmt);
+                if (rc != SQLITE_DONE) {
+                        fprintf(stderr, "Insert error: %s\n", sqlite3_errmsg(ctx->db));
+                }
+                sqlite3_finalize(stmt);
+
+                if (pkg->deps) {
+                        char **deps = pkg->deps();
+                        for (size_t i = 0; deps[i]; ++i) {
+                                //printf(GREEN BOLD "*** Adding dependency %s for %s\n" RESET, deps[i], name);
+                                add_dep_to_db(ctx, get_pkg_id(ctx, name), get_pkg_id(ctx, deps[i]));
+                        }
+                }
         }
 }
+
+static int
+pkg_is_installed(forge_context *ctx, const char *name)
+{
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT installed FROM Pkgs WHERE name = ?;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+
+        int installed = 0;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                installed = sqlite3_column_int(stmt, 0);
+        } else {
+                // Package not found in database
+                sqlite3_finalize(stmt);
+                return -1;
+        }
+
+        sqlite3_finalize(stmt);
+        return installed;
+}
+
+static int
+install_pkg(forge_context *ctx, str_array names, int is_dep)
+{
+        (void)ctx;
+
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *name = names.data[i];
+
+                // Printing
+                char *current = forge_cstr_of_int(i+1);
+                char *outof = forge_cstr_of_int(names.len);
+                info_builder("Installing package ",
+                             name, " [", YELLOW, current, RESET, "/",
+                             YELLOW, outof, RESET, "]\n", NULL);
+                free(current);
+                free(outof);
+
+                pkg *pkg = NULL;
+                char *pkg_src_loc = NULL;
+                int pkg_id = get_pkg_id(ctx, name);
+                if (pkg_id == -1) {
+                        forge_err_wargs("unregistered package `%s`", name);
+                }
+                for (size_t j = 0; j < ctx->pkgs.len; ++j) {
+                        if (!strcmp(ctx->pkgs.data[j]->name(), name)) {
+                                pkg = ctx->pkgs.data[j];
+                                break;
+                        }
+                }
+                assert(pkg);
+
+                if (pkg_is_installed(ctx, name) /*&& is_dep*/) {
+                        printf(YELLOW "dependency %s is already installed\n" RESET, name);
+                        continue; // Skip to next package
+                }
+
+                // Check current is_explicit status
+                int is_explicit = !is_dep; // Default: 0 for deps, 1 for explicit
+                if (pkg_id != -1) { // Package exists in database
+                        sqlite3_stmt *stmt;
+                        const char *sql = "SELECT is_explicit FROM Pkgs WHERE name = ?;";
+                        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+                        CHECK_SQLITE(rc, ctx->db);
+
+                        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+                        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                                int existing_is_explicit = sqlite3_column_int(stmt, 0);
+                                if (!is_dep) { // For explicit installations, preserve is_explicit = 1
+                                        is_explicit = existing_is_explicit || 1; // Keep 1 if already 1, else set to 1
+                                } else { // For dependencies, keep existing is_explicit
+                                        is_explicit = existing_is_explicit;
+                                }
+                        }
+                        sqlite3_finalize(stmt);
+                }
+
+                // Register package with the determined is_explicit value
+                register_pkg(ctx, pkg, is_explicit);
+
+                // Install deps
+                if (pkg->deps) {
+                        info("Installing Dependencies\n");
+                        printf(GREEN "(%s)->deps()\n" RESET, name);
+                        char **deps = pkg->deps();
+                        str_array depnames = dyn_array_empty(str_array);
+                        for (size_t j = 0; deps[j]; ++j) {
+                                dyn_array_append(depnames, strdup(deps[j]));
+                        }
+                        if (!install_pkg(ctx, depnames, /*is_dep=*/1)) {
+                                forge_err_wargs("could not install package %s, stopping...\n", names.data[i]);
+                                for (size_t j = 0; j < depnames.len; ++j) {
+                                        free(depnames.data[j]);
+                                }
+                                dyn_array_free(depnames);
+                                return 0;
+                        }
+                        for (size_t j = 0; j < depnames.len; ++j) {
+                                free(depnames.data[j]);
+                        }
+                        dyn_array_free(depnames);
+                }
+
+                sqlite3_stmt *stmt;
+                const char *sql_select = "SELECT pkg_src_loc FROM Pkgs WHERE name = ?;";
+                int rc = sqlite3_prepare_v2(ctx->db, sql_select, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+                if (sqlite3_step(stmt) == SQLITE_ROW) {
+                        const char *src_loc = (const char *)sqlite3_column_text(stmt, 0);
+                        if (src_loc) {
+                                pkg_src_loc = strdup(src_loc);
+                        }
+                }
+                sqlite3_finalize(stmt);
+
+                if (!cd(PKG_SOURCE_DIR)) {
+                        fprintf(stderr, "aborting...\n");
+                        free(pkg_src_loc);
+                        return 0;
+                }
+
+                const char *pkgname = NULL;
+
+                if (pkg_src_loc) {
+                        pkgname = forge_io_basename(pkg_src_loc);
+                } else {
+                        printf(GREEN "\n(%s)->download()\n\n" RESET, name);
+                        pkgname = pkg->download();
+                        if (!pkgname) {
+                                fprintf(stderr, "could not download package, aborting...\n");
+                                free(pkg_src_loc);
+                                return 0;
+                        }
+                }
+
+                if (!cd_silent(pkgname)) {
+                        if (!pkg->download()) {
+                                fprintf(stderr, "could not download package, aborting...\n");
+                                free(pkg_src_loc);
+                                return 0;
+                        }
+                        if (!cd(pkgname)) {
+                                fprintf(stderr, "aborting...\n");
+                                free(pkg_src_loc);
+                                return 0;
+                        }
+                }
+
+                char base[256] = {0};
+                sprintf(base, PKG_SOURCE_DIR "%s", pkgname);
+
+                printf(GREEN "\n(%s)->build()\n\n" RESET, name);
+                if (!pkg->build()) {
+                        fprintf(stderr, "could not build package, aborting...\n");
+                        return 0;
+                }
+                if (!cd(base)) {
+                        fprintf(stderr, "aborting...\n");
+                        free(pkg_src_loc);
+                        return 0;
+                }
+
+                /* forge_smap snapshot_before = snapshot_files(); */
+                /* printf(GREEN "\n(%s)->install()\n\n" RESET, name); */
+                /* if (!pkg->install()) { */
+                /*         fprintf(stderr, "failed to install package, aborting...\n"); */
+                /*         free(pkg_src_loc); */
+                /*         return 0; */
+                /* } */
+                /* forge_smap snapshot_after = snapshot_files(); */
+                /* str_array diff_files = dyn_array_empty(str_array); */
+                /* char **keys = forge_smap_iter(&snapshot_after); */
+                /* for (size_t j = 0; keys[j]; ++j) { */
+                /*         if (!forge_smap_contains(&snapshot_before, keys[j])) { */
+                /*                 dyn_array_append(diff_files, strdup(keys[j])); */
+                /*         } */
+                /* } */
+
+                // Ensure pkg_id is available
+                pkg_id = get_pkg_id(ctx, name);
+                if (pkg_id == -1) {
+                        fprintf(stderr, "Failed to find package ID for %s\n", name);
+                        free(pkg_src_loc);
+                        return 0;
+                }
+
+                // Update pkg_src_loc in database
+                const char *sql_update = "UPDATE Pkgs SET pkg_src_loc = ?, installed = 1 WHERE name = ?;";
+                rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_text(stmt, 1, base, -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
+
+                rc = sqlite3_step(stmt);
+                if (rc != SQLITE_DONE) {
+                        fprintf(stderr, "Update pkg_src_loc error: %s\n", sqlite3_errmsg(ctx->db));
+                }
+                sqlite3_finalize(stmt);
+
+                free(pkg_src_loc);
+        }
+}
+
+static void
+first_time_reposync(void)
+{
+        int choice = forge_chooser_yesno("Would you like to install the default forge repository", NULL, 0);
+        if (choice) {
+                CD(C_MODULE_DIR_PARENT,
+                   forge_err_wargs("could not `cd` into %s, aborting...", C_MODULE_DIR_PARENT));
+                if (!git_clone("malloc-nbytes", "forge-modules")) {
+                        forge_err("failed to clone the repository, aborting...");
+                }
+                g_config.flags |= FT_REBUILD;
+        }
+}
+
+static str_array
+
 
 int
 main(int argc, char **argv)
@@ -481,6 +812,10 @@ main(int argc, char **argv)
         /* g_fakeroot = mkdtemp(tmpl); */
         /* if (!g_fakeroot) die("mkdtemp"); */
         /* create_skeleton(g_fakeroot); */
+
+        if (init_env()) {
+                first_time_reposync();
+        }
 
         forge_context ctx = (forge_context) {
                 .db = init_db(DATABASE_FP),
@@ -511,7 +846,7 @@ main(int argc, char **argv)
                         assert(0);
                 } else {
                         if (streq(arg->s, CMD_INSTALL)) {
-                                install_pkg(&ctx, &arg->n);
+                                install_pkg(&ctx, &arg->n, /*is_dep=*/0);
                         } else {
                                 forge_err_wargs("unknown command `%s`", arg->s);
                         }
