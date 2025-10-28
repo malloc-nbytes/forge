@@ -22,12 +22,16 @@
 #include "forge/chooser.h"
 #include "forge/cstr.h"
 #include "forge/cmd.h"
+#include "forge/err.h"
+#include "forge/arg.h"
+#include "forge/io.h"
 
 #include "config.h"
 #include "depgraph.h"
 #include "flags.h"
 #include "utils.h"
 #include "paths.h"
+#include "msgs.h"
 
 #include "sqlite3.h"
 
@@ -43,8 +47,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdint.h>
-#include <sys/mount.h>
-#include <libgen.h>
 
 #define FORGE_C_MODULE_TEMPLATE \
         "#include <forge/forge.h>\n" \
@@ -115,6 +117,14 @@ struct {
 } g_config = {
         .flags = 0x0000,
 };
+
+void
+assert_sudo(void)
+{
+        if (geteuid() != 0) {
+                forge_err(BOLD YELLOW "* " RESET "This action requires " BOLD YELLOW "superuser privileges" RESET);
+        }
+}
 
 sqlite3 *
 init_db(const char *dbname)
@@ -224,14 +234,6 @@ cleanup_forge_context(forge_context *ctx)
 }
 
 void
-assert_sudo(void)
-{
-        if (geteuid() != 0) {
-                err(BOLD YELLOW "* " RESET "This action requires " BOLD YELLOW "superuser privileges" RESET);
-        }
-}
-
-void
 init_env(void)
 {
         // Database location
@@ -291,82 +293,194 @@ rm_rf(const char *path)
 void
 create_skeleton(const char *root)
 {
+        info("Creating fakeroot\n");
+
         const char *paths[] = {
                 "bin", "etc", "lib", "usr", "usr/bin", "usr/lib", "usr/include",
-                "var", "dev", "buildsrc",
-                "/usr/x86_64-pc-linux-gnu",
-                "/usr/libexec",
-                "/usr/lib/gcc",
-                "/usr/libexec/gcc",
-                NULL
+                "var", "dev", "buildsrc", NULL
         };
 
         for (size_t i = 0; paths[i]; ++i) {
                 char path[PATH_MAX] = {0};
                 snprintf(path, sizeof(path), "%s/%s", root, paths[i]);
-                if (mkdir(path, 0755) && errno != EEXIST) {
+                if (mkdir(path, 0755) == -1 && errno != EEXIST) {
                         perror("mkdir");
                 }
         }
 }
 
-void
-mkdir_p(const char *path)
-{
-        char tmp[PATH_MAX];
-        const char *p;
-
-        snprintf(tmp, sizeof(tmp), "%s", path);
-        for (p = tmp; *p == '/'; p++) continue;
-
-        for (; *p; p++) {
-                if (*p == '/') {
-                        char c = *p;
-                        *(char *)p = '\0';
-                        if (mkdir(tmp, 0755) && errno != EEXIST) {
-                                perror("mkdir");
-                        }
-                        *(char *)p = c;
-                }
-        }
-        if (mkdir(tmp, 0755) && errno != EEXIST) {
-                perror("mkdir");
-        }
-}
-
 void die(const char *msg) { perror(msg); exit(1); }
 
-char *fakeroot = NULL;
+char *g_fakeroot = NULL;
 
 void
 clean_fakeroot(void)
 {
-	if (fakeroot) rm_rf(fakeroot);
+        //if (g_fakeroot) rm_rf(g_fakeroot);
+}
+
+void
+sync(void)
+{
+        assert_sudo();
+
+        CD(C_MODULE_DIR_PARENT, {
+                fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
+                return;
+        });
+
+        char **files = ls(".");
+
+        for (size_t i = 0; files[i]; ++i) {
+                if (is_git_dir(files[i])) {
+                        printf(GREEN BOLD "Syncing [%s]\n" RESET, files[i]);
+                        CD(files[i], fprintf(stderr, "could not change directory: %s\n", strerror(errno)));
+                        CMD("git fetch origin && git pull origin main", {
+                                fprintf(stderr, "could not sync directory %s: %s\n",
+                                        files[i], strerror(errno));
+                        });
+                        CD(C_MODULE_DIR_PARENT, {
+                                fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
+                                return;
+                        });
+                }
+                free(files[i]);
+        }
+        free(files);
+}
+
+void
+rebuild_pkgs(void)
+{
+        assert_sudo();
+
+        info("Rebuilding package modules\n");
+
+        char **dirs = ls(C_MODULE_DIR_PARENT);
+        for (size_t d = 0; dirs[d]; ++d) {
+                if (!strcmp(dirs[d], ".") || !strcmp(dirs[d], "..")) {
+                        free(dirs[d]);
+                        continue;
+                }
+                char *abspath = forge_cstr_builder(C_MODULE_DIR_PARENT, "/", dirs[d], NULL);
+                DIR *dir = opendir(abspath);
+                if (!dir) {
+                        perror("Failed to open directory");
+                        return;
+                }
+
+                str_array files = dyn_array_empty(str_array);
+                struct dirent *entry;
+                while ((entry = readdir(dir))) {
+                        // Check if the file name ends with ".c"
+                        if (entry->d_type == DT_REG && strstr(entry->d_name, ".c") != NULL) {
+                                size_t len = strlen(entry->d_name);
+                                if (len >= 2 && strcmp(entry->d_name + len - 2, ".c") == 0) {
+                                        char *filename = strdup(entry->d_name);
+                                        filename[len - 2] = '\0'; // Remove ".c"
+                                        dyn_array_append(files, filename);
+                                }
+                        }
+                }
+
+                if (!cd_silent(abspath)) {
+                        fprintf(stderr, "aborting...\n");
+                        goto cleanup;
+                }
+
+                str_array passed = dyn_array_empty(str_array),
+                        failed = dyn_array_empty(str_array);
+                for (size_t i = 0; i < files.len; ++i) {
+                        size_t loading = (size_t)(((float)i/(float)files.len)*10.f);
+                        putchar('[');
+                        for (size_t i = 0; i < 10; ++i) {
+                                if (i > loading) {
+                                        putchar(' ');
+                                } else {
+                                        putchar('*');
+                                }
+                        }
+                        printf("] ");
+
+                        char buf[256] = {0};
+                        sprintf(buf, "gcc -Wextra -Wall -Werror -shared -fPIC %s.c -lforge -L/usr/local/lib -o" MODULE_LIB_DIR "/%s.so -I../include",
+                                files.data[i], files.data[i]);
+                        printf("%s.c\n", files.data[i]);
+                        fflush(stdout);
+                        int status = system(buf);
+                        if (status == -1) {
+                                perror("system");
+                                dyn_array_append(failed, files.data[i]);
+                        } else {
+                                if (WIFEXITED(status)) {
+                                        printf("\033[1A");
+                                        printf("\033[2K");
+                                        int exit_status = WEXITSTATUS(status);
+                                        if (exit_status != 0) {
+                                                fflush(stdout);
+                                                fprintf(stderr, INVERT BOLD RED "In module %s:\n" RESET, files.data[i]);
+                                                fprintf(stderr, INVERT BOLD RED "  located in: " MODULE_LIB_DIR "%s.c\n" RESET, files.data[i]);
+                                                fprintf(stderr, INVERT BOLD RED "  use:\n" RESET);
+                                                fprintf(stderr, INVERT BOLD RED "    forge -r edit %s\n" RESET, files.data[i]);
+                                                fprintf(stderr, INVERT BOLD RED "  to fix your errors!\n" RESET);
+                                                fprintf(stderr, BOLD YELLOW "  skipping %s module compilation...\n" RESET, files.data[i]);
+                                                dyn_array_append(failed, files.data[i]);
+                                        } else {
+                                                dyn_array_append(passed, files.data[i]);
+                                        }
+                                } else {
+                                        fprintf(stdout, INVERT BOLD RED "program did not exit normally\n" RESET);
+                                        dyn_array_append(failed, files.data[i]);
+                                }
+                        }
+                }
+
+                const char *basename = forge_io_basename(abspath);
+                if (failed.len > 0) {
+                        printf(YELLOW "%s:" RESET " [ " BOLD GREEN "%zu Compiled" RESET ", " BOLD RED "%zu Failed" RESET " ]\n",
+                               basename, passed.len, failed.len);
+                } else {
+                        printf(YELLOW "%s:" RESET " [ " BOLD GREEN "%zu Compiled" RESET " ]\n",
+                               basename, passed.len);
+                }
+
+        cleanup:
+                dyn_array_free(passed);
+                dyn_array_free(failed);
+                for (size_t i = 0; i < files.len; ++i) {
+                        free(files.data[i]);
+                }
+                dyn_array_free(files);
+                closedir(dir);
+                free(dirs[d]);
+                free(abspath);
+        }
+}
+
+static void
+install_pkg(forge_context *ctx, forge_arg **arg)
+{
+        str_array pkg_names = dyn_array_empty(str_array);
+        for (size_t i = 0; *arg; ++i) {
+                dyn_array_append(pkg_names, strdup((*arg)->s));
+                *arg = (*arg)->n;
+        }
+
+        for (size_t i = 0; i < pkg_names.len; ++i) {
+                info_builder("Installing package ",
+                             (*arg)->s, " [", forge_cstr_of_int(i+1), "/",
+                             forge_cstr_of_int(pkg_names.len), "]", NULL);
+        }
 }
 
 int
 main(int argc, char **argv)
 {
-        char *src_dir = "/home/zdh/dev/c/playground";
-        char tmpl[] = "/tmp/pkgbuild-XXXXXX";
-	(void)src_dir;
-	(void)tmpl;
-
-        fakeroot = mkdtemp(tmpl);
-        if (!fakeroot) die("mkdtemp");
-
-        atexit(clean_fakeroot);
-
-        create_skeleton(fakeroot);
-
-        return 0;
-
-
-
-
-
-
-        ++argv, --argc;
+        /* char *src_dir = "/home/zdh/dev/c/playground"; */
+        /* char tmpl[] = "/tmp/pkgbuild-XXXXXX"; */
+        /* g_fakeroot = mkdtemp(tmpl); */
+        /* if (!g_fakeroot) die("mkdtemp"); */
+        /* create_skeleton(g_fakeroot); */
 
         forge_context ctx = (forge_context) {
                 .db = init_db(DATABASE_FP),
@@ -383,7 +497,36 @@ main(int argc, char **argv)
         construct_depgraph(&ctx);
         size_t_array indices = depgraph_gen_order(&ctx.dg);
 
-        // args...
+        forge_arg *arghd = forge_arg_alloc(argc, argv, 1);
+        forge_arg *arg = arghd;
+        while (arg) {
+                if (arg->h == 1) {
+                        for (size_t i = 0; arg->s[i]; ++i) {
+                                char c = arg->s[i];
+                                if      (c == FLAG_1HY_REBUILD[0]) g_config.flags |= FT_REBUILD;
+                                else if (c == FLAG_1HY_SYNC[0])    g_config.flags |= FT_SYNC;
+                                else                               forge_err_wargs("unknown option `%c`", c);
+                        }
+                } else if (arg->h == 2) {
+                        assert(0);
+                } else {
+                        if (streq(arg->s, CMD_INSTALL)) {
+                                install_pkg(&ctx, &arg->n);
+                        } else {
+                                forge_err_wargs("unknown command `%s`", arg->s);
+                        }
+                }
+                arg = arg->n;
+        }
+        forge_arg_free(arghd);
+
+        if (g_config.flags & FT_SYNC) {
+                sync();
+        }
+
+        if (g_config.flags & FT_REBUILD) {
+                rebuild_pkgs();
+        }
 
         dyn_array_free(indices);
         cleanup_forge_context(&ctx);

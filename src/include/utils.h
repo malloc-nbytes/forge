@@ -22,20 +22,9 @@
 
 #include <sys/stat.h>
 
-#define err_wargs(msg, ...)                                             \
-        do {                                                            \
-                fprintf(stderr, "error: " msg "\n", __VA_ARGS__);       \
-                exit(1);                                                \
-        } while (0)
-
-#define err(msg)                                \
-        do {                                    \
-                fprintf(stderr, msg "\n");      \
-                exit(1);                        \
-        } while (0)
-
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 
 int mkdir_p_wmode(const char *path, mode_t mode);
+int streq(const char *s0, const char *s1);
 
 #endif // UTILS_H_INCLUDED

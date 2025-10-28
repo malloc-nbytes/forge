@@ -82,7 +82,7 @@ char *git_clone(char *author, char *name);
  * Returns: the filepath, or NULL on failure
  * Description: Create a directory with the `-p` flag.
  */
-char *mkdirp(char *fp);
+char *mkdirp(const char *path);
 
 /**
  * Parameter: var -> the environment variable

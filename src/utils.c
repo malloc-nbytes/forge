@@ -41,3 +41,10 @@ mkdir_p_wmode(const char *path, mode_t mode)
         // Try creating the directory again
         return mkdir(path, mode) == 0 || errno == EEXIST ? 0 : -1;
 }
+
+int
+streq(const char *s0,
+      const char *s1)
+{
+        return !strcmp(s0, s1);
+}

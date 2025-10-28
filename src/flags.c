@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "forge/colors.h"
+#include "forge/err.h"
 
 #include "flags.h"
 #include "config.h"
@@ -648,7 +649,7 @@ forge_flags_help(const char *flag)
                         hs[i]();
                 }
         } else {
-                err_wargs("unknown flag `%s`", flag);
+                forge_err_wargs("unknown flag `%s`", flag);
         }
 
         exit(0);
