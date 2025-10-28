@@ -16,6 +16,8 @@ extern "C" {
 
 #define FORGE_EDITOR "vim"
 
+extern char *g_fakeroot;
+
 #ifdef __cplusplus
 }
 #endif

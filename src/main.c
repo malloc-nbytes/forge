@@ -26,6 +26,7 @@
 #include "forge/arg.h"
 #include "forge/io.h"
 #include "forge/smap.h"
+#include "forge/conf.h"
 
 #include "config.h"
 #include "depgraph.h"
@@ -118,6 +119,8 @@ struct {
 } g_config = {
         .flags = 0x0000,
 };
+
+char *g_fakeroot = NULL;
 
 void
 assert_sudo(void)
@@ -300,11 +303,13 @@ show_options_for_bash_completion(void)
 void
 create_skeleton(const char *root)
 {
-        info("Creating fakeroot\n");
+        assert(root);
+
+        info("Creating fakeroot skeleton\n");
 
         const char *paths[] = {
                 "bin", "etc", "lib", "usr", "usr/bin", "usr/lib", "usr/include",
-                "var", "dev", "buildsrc", NULL
+                "var", "dev", "sbin", "buildsrc", NULL,
         };
 
         for (size_t i = 0; paths[i]; ++i) {
@@ -317,8 +322,6 @@ create_skeleton(const char *root)
 }
 
 void die(const char *msg) { perror(msg); exit(1); }
-
-char *g_fakeroot = NULL;
 
 void
 clean_fakeroot(void)
@@ -602,6 +605,18 @@ pkg_is_installed(forge_context *ctx, const char *name)
         return installed;
 }
 
+static void
+sandbox(const char *pkgname)
+{
+        info("Creating sandbox\n");
+
+        char tmpl[256] = {0};
+        sprintf(tmpl, "/tmp/pkg-%s-XXXXXX", pkgname);
+        g_fakeroot = strdup(mkdtemp(tmpl));
+        if (!g_fakeroot) die("mkdtemp");
+        create_skeleton(g_fakeroot);
+}
+
 static int
 install_pkg(forge_context *ctx, str_array names, int is_dep)
 {
@@ -633,7 +648,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 }
                 assert(pkg);
 
-                if (pkg_is_installed(ctx, name) /*&& is_dep*/) {
+                if (pkg_is_installed(ctx, name) && is_dep) {
                         printf(YELLOW "dependency %s is already installed\n" RESET, name);
                         continue; // Skip to next package
                 }
@@ -676,7 +691,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                                         free(depnames.data[j]);
                                 }
                                 dyn_array_free(depnames);
-                                return 0;
+                                goto bad;
                         }
                         for (size_t j = 0; j < depnames.len; ++j) {
                                 free(depnames.data[j]);
@@ -701,20 +716,22 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 if (!cd(PKG_SOURCE_DIR)) {
                         fprintf(stderr, "aborting...\n");
                         free(pkg_src_loc);
-                        return 0;
+                        goto bad;
                 }
+
+                sandbox(name);
 
                 const char *pkgname = NULL;
 
                 if (pkg_src_loc) {
                         pkgname = forge_io_basename(pkg_src_loc);
                 } else {
-                        printf(GREEN "\n(%s)->download()\n\n" RESET, name);
+                        info_builder("\n(", YELLOW, name, RESET, ")->download()\n\n", NULL);
                         pkgname = pkg->download();
                         if (!pkgname) {
                                 fprintf(stderr, "could not download package, aborting...\n");
                                 free(pkg_src_loc);
-                                return 0;
+                                goto bad;
                         }
                 }
 
@@ -722,59 +739,77 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         if (!pkg->download()) {
                                 fprintf(stderr, "could not download package, aborting...\n");
                                 free(pkg_src_loc);
-                                return 0;
+                                goto bad;
                         }
                         if (!cd(pkgname)) {
                                 fprintf(stderr, "aborting...\n");
                                 free(pkg_src_loc);
-                                return 0;
+                                goto bad;
                         }
                 }
 
-                char base[256] = {0};
-                sprintf(base, PKG_SOURCE_DIR "%s", pkgname);
+                printf("fakeroot1: %s\n", g_fakeroot);
 
-                printf(GREEN "\n(%s)->build()\n\n" RESET, name);
-                if (!pkg->build()) {
-                        fprintf(stderr, "could not build package, aborting...\n");
-                        return 0;
+                {
+                        char *copy = forge_cstr_builder("cp -r ./* ", g_fakeroot);
+                        cmd(copy);
+                        free(copy);
                 }
-                if (!cd(base)) {
+
+                //char *old_fakeroot = strdup(g_fakeroot);
+                char src_loc[256] = {0};
+                sprintf(src_loc, PKG_SOURCE_DIR "/%s", pkgname);
+                //g_fakeroot = old_fakeroot;
+
+                /* CD(g_fakeroot, { */
+                /*         fprintf(stderr, "aborting...\n"); */
+                /*         free(pkg_src_loc); */
+                /*         goto bad; */
+                /* }); */
+                if (!cd(g_fakeroot)) {
                         fprintf(stderr, "aborting...\n");
                         free(pkg_src_loc);
-                        return 0;
+                        goto bad;
                 }
 
-                /* forge_smap snapshot_before = snapshot_files(); */
-                /* printf(GREEN "\n(%s)->install()\n\n" RESET, name); */
-                /* if (!pkg->install()) { */
-                /*         fprintf(stderr, "failed to install package, aborting...\n"); */
-                /*         free(pkg_src_loc); */
-                /*         return 0; */
-                /* } */
-                /* forge_smap snapshot_after = snapshot_files(); */
-                /* str_array diff_files = dyn_array_empty(str_array); */
-                /* char **keys = forge_smap_iter(&snapshot_after); */
-                /* for (size_t j = 0; keys[j]; ++j) { */
-                /*         if (!forge_smap_contains(&snapshot_before, keys[j])) { */
-                /*                 dyn_array_append(diff_files, strdup(keys[j])); */
-                /*         } */
-                /* } */
+                printf("fakeroot2: %s\n", g_fakeroot);
+                printf("FORGE: %s\n", cwd());
+
+                info_builder("(", YELLOW, name, RESET, ")->build()" RESET "\n\n", NULL);
+                if (!pkg->build()) {
+                        fprintf(stderr, "could not build package, aborting...\n");
+                        goto bad;
+                }
+
+                // Back to top-level of the package to reset our CWD.
+                if (!cd(g_fakeroot)) {
+                        fprintf(stderr, "aborting...\n");
+                        free(pkg_src_loc);
+                        goto bad;
+                }
+
+                info_builder("(", YELLOW, name, RESET, ")->install()" RESET "\n\n", NULL);
+
+                if (!pkg->install()) {
+                        fprintf(stderr, "failed to install package, aborting...\n");
+                        free(pkg_src_loc);
+                        goto bad;
+                }
 
                 // Ensure pkg_id is available
                 pkg_id = get_pkg_id(ctx, name);
                 if (pkg_id == -1) {
                         fprintf(stderr, "Failed to find package ID for %s\n", name);
                         free(pkg_src_loc);
-                        return 0;
+                        goto bad;
                 }
 
-                // Update pkg_src_loc in database
+                // Update pkg_src_loc in datasrc_loc
                 const char *sql_update = "UPDATE Pkgs SET pkg_src_loc = ?, installed = 1 WHERE name = ?;";
                 rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
                 CHECK_SQLITE(rc, ctx->db);
 
-                sqlite3_bind_text(stmt, 1, base, -1, SQLITE_STATIC);
+                sqlite3_bind_text(stmt, 1, src_loc, -1, SQLITE_STATIC);
                 sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
 
                 rc = sqlite3_step(stmt);
@@ -785,6 +820,12 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                 free(pkg_src_loc);
         }
+
+        g_fakeroot = NULL;
+        return 1;
+ bad:
+        g_fakeroot = NULL;
+        return 0;
 }
 
 static void
@@ -802,17 +843,19 @@ first_time_reposync(void)
 }
 
 static str_array
-
+fold_args(forge_arg **hd)
+{
+        str_array args = dyn_array_empty(str_array);
+        while (*hd) {
+                dyn_array_append(args, strdup((*hd)->s));
+                *hd = (*hd)->n;
+        }
+        return args;
+}
 
 int
 main(int argc, char **argv)
 {
-        /* char *src_dir = "/home/zdh/dev/c/playground"; */
-        /* char tmpl[] = "/tmp/pkgbuild-XXXXXX"; */
-        /* g_fakeroot = mkdtemp(tmpl); */
-        /* if (!g_fakeroot) die("mkdtemp"); */
-        /* create_skeleton(g_fakeroot); */
-
         if (init_env()) {
                 first_time_reposync();
         }
@@ -845,11 +888,16 @@ main(int argc, char **argv)
                 } else if (arg->h == 2) {
                         assert(0);
                 } else {
-                        if (streq(arg->s, CMD_INSTALL)) {
-                                install_pkg(&ctx, &arg->n, /*is_dep=*/0);
+                        char *argcmd = arg->s;
+                        arg = arg->n;
+                        if (streq(argcmd, CMD_INSTALL)) {
+                                install_pkg(&ctx, fold_args(&arg), /*is_dep=*/0);
+                        } else if (streq(argcmd, CMD_LIB)) {
+                                printf("-lforge\n");
                         } else {
-                                forge_err_wargs("unknown command `%s`", arg->s);
+                                forge_err_wargs("unknown command `%s`", argcmd);
                         }
+                        break;
                 }
                 arg = arg->n;
         }
@@ -860,7 +908,49 @@ main(int argc, char **argv)
         }
 
         if (g_config.flags & FT_REBUILD) {
+                // Clean up existing context to avoid stale handles
+                for (size_t i = 0; i < ctx.dll.handles.len; ++i) {
+                        dlclose(ctx.dll.handles.data[i]);
+                        free(ctx.dll.paths.data[i]);
+                }
+                dyn_array_free(ctx.dll.handles);
+                dyn_array_free(ctx.dll.paths);
+                dyn_array_free(ctx.pkgs);
+                depgraph_destroy(&ctx.dg);
+
+                // Reinitialize context
+                ctx.dll.handles = dyn_array_empty(handle_array);
+                ctx.dll.paths = dyn_array_empty(str_array);
+                ctx.pkgs = dyn_array_empty(pkg_ptr_array);
+                ctx.dg = depgraph_create();
+
+                // Rebuild packages and load new .so files
                 rebuild_pkgs();
+                obtain_handles_and_pkgs_from_dll(&ctx);
+                construct_depgraph(&ctx);
+                indices = depgraph_gen_order(&ctx.dg);
+
+                // Register packages, preserving is_explicit status
+                for (size_t i = 0; i < indices.len; ++i) {
+                        pkg *pkg = ctx.pkgs.data[indices.data[i]];
+                        const char *name = pkg->name();
+
+                        // Query the current is_explicit status
+                        int is_explicit = 0;
+                        sqlite3_stmt *stmt;
+                        const char *sql = "SELECT is_explicit FROM Pkgs WHERE name = ?;";
+                        int rc = sqlite3_prepare_v2(ctx.db, sql, -1, &stmt, NULL);
+                        CHECK_SQLITE(rc, ctx.db);
+
+                        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+                        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                                is_explicit = sqlite3_column_int(stmt, 0);
+                        }
+                        sqlite3_finalize(stmt);
+
+                        // Register package with the existing is_explicit value
+                        register_pkg(&ctx, pkg, is_explicit);
+                }
         }
 
         dyn_array_free(indices);
