@@ -696,7 +696,7 @@ unmount_fakeroot_essentials(void)
         // const char *mounts[] = {
         //     "proc", "sys", "dev", "run", "etc", "lib64", "lib", "bin"
         // };
-        const char *mounts[] = { "/bin", "/lib", "/lib64", "/etc", "/dev", "/sys", "/run" };
+        const char *mounts[] = { "bin", "lib", "lib64", "etc", "dev", "sys", "run" };
         char path[512];
         char command[600];
 
