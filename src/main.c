@@ -313,6 +313,7 @@ create_skeleton(const char *root)
 
         const char *paths[] = {
                 "bin", "etc", "lib", "usr", "usr/bin", "usr/lib", "usr/include",
+                "usr/local", "usr/local/bin", "/usr/local/include", "usr/lib", "usr/lib64",
                 "var", "dev", "sbin", "buildsrc", NULL,
         };
 
@@ -552,7 +553,8 @@ register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
                 sqlite3_finalize(stmt);
         } else {
                 // New package
-                info_builder(1, "Registered package: ", YELLOW, name, RESET, "\n", NULL);
+                //info_builder(1, "Registered package: ", YELLOW, name, RESET, "\n", NULL);
+                printf("\n" YELLOW "*" RESET "Registered package: " YELLOW "%s\n" RESET, name);
 
                 const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed, is_explicit) VALUES (?, ?, ?, 0, ?);";
                 rc = sqlite3_prepare_v2(ctx->db, sql_insert, -1, &stmt, NULL);
@@ -614,14 +616,39 @@ sandbox(const char *pkgname)
         create_skeleton(g_fakeroot);
 }
 
+/* static void */
+/* destroy_fakeroot(void) */
+/* { */
+/*         if (g_fakeroot) { */
+/*                 info(1, "Destroying fakeroot\n\n"); */
+/*                 rmrf(g_fakeroot); */
+/*                 free(g_fakeroot); */
+/*                 g_fakeroot = NULL; */
+/*         } */
+/* } */
+
 static void
 destroy_fakeroot(void)
 {
-        if (g_fakeroot) {
-                info(1, "Destroying fakeroot\n\n");
-                rmrf(g_fakeroot);
-                free(g_fakeroot);
-                g_fakeroot = NULL;
+        if (!g_fakeroot) return;
+
+        info(0, "Destroying fakeroot\n");
+        // Ensure no bind mounts remain
+        char check[512] = {0};
+        snprintf(check, sizeof(check), "mount | grep '%s/'", g_fakeroot);
+        int has_mounts = system(check);
+
+        if (has_mounts == 0) {
+                fprintf(stderr, "Cannot destroy fakeroot: mounts still active in %s\n", g_fakeroot);
+                return;
+        }
+
+        char command[512];
+        snprintf(command, 512, "rm -rf --one-file-system %s", g_fakeroot);
+        if (!cmd(command)) {
+                fprintf(stderr, "Failed to remove fakeroot %s: %s\n", g_fakeroot, strerror(errno));
+        } else {
+                printf("* Destroyed fakeroot: %s\n", g_fakeroot);
         }
 }
 
@@ -1105,7 +1132,7 @@ fold_args(forge_arg **hd)
 int
 main(int argc, char **argv)
 {
-        atexit(destroy_fakeroot);
+        atexit(unmount_fakeroot_essentials);
 
         if (init_env()) {
                 first_time_reposync();
