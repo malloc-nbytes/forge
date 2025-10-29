@@ -15,7 +15,7 @@
 
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, see <https://www.gnu.org/licenses/>.
-*/
+ */
 
 #include "forge/pkg.h"
 #include "forge/colors.h"
@@ -37,6 +37,8 @@
 
 #include "sqlite3.h"
 
+#include <sys/mount.h>
+#include <sys/types.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,60 +51,60 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdint.h>
-#include <sys/mount.h>
+#include <fcntl.h>
 /*#define _GNU_SOURCE*/
 #define __USE_GNU
 #include <sched.h>
 
-#define FORGE_C_MODULE_TEMPLATE \
-        "#include <forge/forge.h>\n" \
-        "\n" \
-        "char *deps[] = {NULL}; // Must be NULL terminated\n" \
-        "\n" \
-        "char *getname(void) { /*return \"author@pkg_name\";*/ }\n" \
-        "char *getver(void) { return \"1.0.0\"; }\n" \
-        "char *getdesc(void) { return \"My Description\"; }\n" \
-        "char *getweb(void) { return \"Package Website\"; }\n" \
-        "char **getdeps(void) { return deps; }\n" \
-        "char *download(void) {\n" \
+#define FORGE_C_MODULE_TEMPLATE                                         \
+        "#include <forge/forge.h>\n"                                    \
+        "\n"                                                            \
+        "char *deps[] = {NULL}; // Must be NULL terminated\n"           \
+        "\n"                                                            \
+        "char *getname(void) { /*return \"author@pkg_name\";*/ }\n"     \
+        "char *getver(void) { return \"1.0.0\"; }\n"                    \
+        "char *getdesc(void) { return \"My Description\"; }\n"          \
+        "char *getweb(void) { return \"Package Website\"; }\n"          \
+        "char **getdeps(void) { return deps; }\n"                       \
+        "char *download(void) {\n"                                      \
         "        return NULL; // should return the name of the final directory!\n" \
-        "}\n" \
-        "int build(void) { return 1; }\n" \
-        "int install(void) { return 1; }\n" \
-        "int uninstall(void) { return 1; }\n" \
-        "int update(void) {\n" \
+        "}\n"                                                           \
+        "int build(void) { return 1; }\n"                               \
+        "int install(void) { return 1; }\n"                             \
+        "int uninstall(void) { return 1; }\n"                           \
+        "int update(void) {\n"                                          \
         "        return 0; // return 1 if it needs a rebuild, 0 otherwise\n" \
-        "}\n" \
-        "int get_changes(void) {\n" \
-        "        // pull in the new changes if update() returns 1\n" \
-        "        return 0;\n" \
-        "}\n" \
-        "\n" \
-        "FORGE_GLOBAL pkg package = {\n" \
-        "        .name = getname,\n" \
-        "        .ver = getver,\n" \
-        "        .desc = getdesc,\n" \
-        "        .web = getweb,\n" \
-        "        .deps = NULL,\n" \
-        "        .download = download,\n" \
-        "        .build = build,\n" \
-        "        .install = install,\n" \
-        "        .uninstall = uninstall,\n" \
+        "}\n"                                                           \
+        "int get_changes(void) {\n"                                     \
+        "        // pull in the new changes if update() returns 1\n"    \
+        "        return 0;\n"                                           \
+        "}\n"                                                           \
+        "\n"                                                            \
+        "FORGE_GLOBAL pkg package = {\n"                                \
+        "        .name = getname,\n"                                    \
+        "        .ver = getver,\n"                                      \
+        "        .desc = getdesc,\n"                                    \
+        "        .web = getweb,\n"                                      \
+        "        .deps = NULL,\n"                                       \
+        "        .download = download,\n"                               \
+        "        .build = build,\n"                                     \
+        "        .install = install,\n"                                 \
+        "        .uninstall = uninstall,\n"                             \
         "        .update = forge_pkg_git_update, // or define your own if not using git\n" \
-        "         \n" \
+        "         \n"                                                   \
         "         // Make this NULL to just re-download the source code\n" \
-        "         // or define your own if not using git\n" \
-        "        .get_changes = forge_pkg_git_pull,\n" \
+        "         // or define your own if not using git\n"             \
+        "        .get_changes = forge_pkg_git_pull,\n"                  \
         "};"
 
-#define CHECK_SQLITE(rc, db)                                            \
-        do {                                                            \
-                if (rc != SQLITE_OK) {                                  \
-                        fprintf(stderr, "SQLite error: %s\n",           \
-                                sqlite3_errmsg(db));                    \
-                        sqlite3_close(db);                              \
-                        exit(1);                                        \
-                }                                                       \
+#define CHECK_SQLITE(rc, db)                                    \
+        do {                                                    \
+                if (rc != SQLITE_OK) {                          \
+                        fprintf(stderr, "SQLite error: %s\n",   \
+                                sqlite3_errmsg(db));            \
+                        sqlite3_close(db);                      \
+                        exit(1);                                \
+                }                                               \
         } while (0)
 
 DYN_ARRAY_TYPE(void *, handle_array);
@@ -134,7 +136,7 @@ struct {
 };
 
 char *g_fakeroot = NULL;
-int g_old_root_fd = -1;
+static int old_root_fd = -1;
 
 void
 assert_sudo(void)
@@ -312,9 +314,9 @@ create_skeleton(const char *root)
         info(0, "Creating fakeroot skeleton\n");
 
         const char *paths[] = {
-                "bin", "etc", "lib", "usr", "usr/bin", "usr/lib", "usr/include", "tmp", "lib64", "proc", "run", "sys",
-                "usr/local", "usr/local/bin", "/usr/local/include", "usr/lib", "usr/lib64",
-                "var", "dev", "sbin", "buildsrc", NULL,
+                "bin", "etc", "lib", "usr", "usr/bin", "usr/lib", "usr/include", "usr/lib64",
+                "usr/local", "usr/local/include", "usr/local/bin", "usr/local/lib", "usr/local/lib64"
+                "var", "dev", "proc", "sys", "run", "tmp", "sbin", "lib64", "buildsrc", NULL,
         };
 
         for (size_t i = 0; paths[i]; ++i) {
@@ -334,9 +336,9 @@ sync(void)
         assert_sudo();
 
         CD(C_MODULE_DIR_PARENT, {
-                fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
-                return;
-        });
+                        fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
+                        return;
+                });
 
         char **files = ls(".");
 
@@ -345,13 +347,13 @@ sync(void)
                         printf(GREEN BOLD "Syncing [%s]\n" RESET, files[i]);
                         CD(files[i], fprintf(stderr, "could not change directory: %s\n", strerror(errno)));
                         CMD("git fetch origin && git pull origin main", {
-                                fprintf(stderr, "could not sync directory %s: %s\n",
-                                        files[i], strerror(errno));
-                        });
+                                        fprintf(stderr, "could not sync directory %s: %s\n",
+                                                files[i], strerror(errno));
+                                });
                         CD(C_MODULE_DIR_PARENT, {
-                                fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
-                                return;
-                        });
+                                        fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
+                                        return;
+                                });
                 }
                 free(files[i]);
         }
@@ -554,7 +556,7 @@ register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
         } else {
                 // New package
                 //info_builder(1, "Registered package: ", YELLOW, name, RESET, "\n", NULL);
-                printf(YELLOW "*" RESET " Registered package: " YELLOW "%s\n" RESET, name);
+                printf("%s\n", name);
 
                 const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed, is_explicit) VALUES (?, ?, ?, 0, ?);";
                 rc = sqlite3_prepare_v2(ctx->db, sql_insert, -1, &stmt, NULL);
@@ -616,44 +618,42 @@ sandbox(const char *pkgname)
         create_skeleton(g_fakeroot);
 }
 
-/* static void */
-/* destroy_fakeroot(void) */
-/* { */
-/*         if (g_fakeroot) { */
-/*                 info(1, "Destroying fakeroot\n\n"); */
-/*                 rmrf(g_fakeroot); */
-/*                 free(g_fakeroot); */
-/*                 g_fakeroot = NULL; */
-/*         } */
-/* } */
-
-static void
-destroy_fakeroot(void)
+void destroy_fakeroot(const char *root)
 {
-        if (!g_fakeroot) return;
+        if (!root) return;
 
         info(0, "Destroying fakeroot\n");
         // Ensure no bind mounts remain
         char check[512] = {0};
-        snprintf(check, sizeof(check), "mount | grep '%s/'", g_fakeroot);
+        snprintf(check, sizeof(check), "mount | grep '%s/'", root);
         int has_mounts = system(check);
 
         if (has_mounts == 0) {
-                fprintf(stderr, "Cannot destroy fakeroot: mounts still active in %s\n", g_fakeroot);
+                fprintf(stderr, "Cannot destroy fakeroot: mounts still active in %s\n", root);
                 return;
         }
 
         char command[512];
-        snprintf(command, 512, "rm -rf --one-file-system %s", g_fakeroot);
+        snprintf(command, 512, "rm -rf --one-file-system %s", root);
         if (system(command) != 0) {
-                fprintf(stderr, "Failed to remove fakeroot %s: %s\n", g_fakeroot, strerror(errno));
+                fprintf(stderr, "Failed to remove fakeroot %s: %s\n", root, strerror(errno));
         } else {
-                printf("* Destroyed fakeroot: %s\n", g_fakeroot);
+                printf("* Destroyed fakeroot: %s\n", root);
         }
 }
 
-static void
-mount_fakeroot_essentials(void)
+// static void
+// destroy_fakeroot(void)
+// {
+//         if (g_fakeroot) {
+//                 info(1, "Destroying fakeroot\n\n");
+//                 rmrf(g_fakeroot);
+//                 free(g_fakeroot);
+//                 g_fakeroot = NULL;
+//         }
+// }
+
+void mount_fakeroot_essentials(const char *root)
 {
         char command[512] = {0};
 
@@ -671,62 +671,56 @@ mount_fakeroot_essentials(void)
         /* Bind-mount essential dirs */
         const char *dirs[] = { "/bin", "/lib", "/lib64", "/etc", "/dev", "/sys", "/run" };
         for (size_t i = 0; i < sizeof(dirs)/sizeof(dirs[0]); ++i) {
-                //snprintf(command, 512, "mount --bind %s %s%s", dirs[i], g_fakeroot, dirs[i]);
+                snprintf(command, 512, "mount --bind %s %s%s", dirs[i], root, dirs[i]);
                 if (system(command) != 0) {
                         fprintf(stderr, "mount failed for %s -> %s%s: %s\n",
-                                dirs[i], g_fakeroot, dirs[i], strerror(errno));
+                                dirs[i], root, dirs[i], strerror(errno));
                 }
         }
 
         /* Mount proc */
-        snprintf(command, 512, "mount -t proc proc %s/proc", g_fakeroot);
+        snprintf(command, 512, "mount -t proc proc %s/proc", root);
         if (system(command) != 0)
-                fprintf(stderr, "failed to mount proc\n");
+                fprintf(stderr, "could not mount proc\n");
 
-        snprintf(command, 512, "chmod 1777 %s/tmp", g_fakeroot);
+        snprintf(command, 512, "chmod 1777 %s/tmp", root);
         if (system(command) != 0)
-                fprintf(stderr, "failed to mount tmp\n");
+                fprintf(stderr, "could not mount tmp\n");
 }
 
 static void
 unmount_fakeroot_essentials(void)
 {
         if (!g_fakeroot) return;
-
-        info(0, "Unmounting fakeroot\n");
-
-        const char *mounts[] = {
-                "proc", "sys", "dev", "run", "etc", "lib64", "lib", "bin"
-        };
-        char path[512] = {0};
-        char command[600] = {0};
+        info(0, "Unmounting fakeroot");
+        // const char *mounts[] = {
+        //     "proc", "sys", "dev", "run", "etc", "lib64", "lib", "bin"
+        // };
+        const char *mounts[] = { "/bin", "/lib", "/lib64", "/etc", "/dev", "/sys", "/run" };
+        char path[512];
+        char command[600];
 
         /* Unmount in reverse order */
         for (size_t i = 0; i < sizeof(mounts) / sizeof(mounts[0]); ++i) {
                 snprintf(path, sizeof(path), "%s/%s", g_fakeroot, mounts[i]);
                 snprintf(command, sizeof(command), "umount -l %s 2>/dev/null", path);
-                if (system(command) != 0) {
-                        fprintf(stderr, "failed to unmount %s\n", path);
-                }
+                if (system(command) != 0)
+                        fprintf(stderr, "could not unmount %s\n", path);
         }
 }
 
 static void
-chroot_fakeroot(void)
+chroot_fakeroot(const char *root)
 {
-        if (!g_fakeroot) {
-                forge_err("could not chroot into fakeroot");
-                exit(1);
-        }
-
         info(0, "Entering chroot\n");
-        g_old_root_fd = open("/", O_RDONLY);
-        if (g_old_root_fd == -1) {
+
+        old_root_fd = open("/", O_RDONLY);
+        if (old_root_fd == -1) {
                 perror("open /");
                 exit(EXIT_FAILURE);
         }
 
-        if (chroot(g_fakeroot) != 0) {
+        if (chroot(root) != 0) {
                 perror("chroot");
                 exit(EXIT_FAILURE);
         }
@@ -740,11 +734,12 @@ chroot_fakeroot(void)
 static void
 leave_fakeroot(void)
 {
+        if (old_root_fd == -1)
+                return;
+
         info(0, "Leaving chroot\n");
 
-        if (g_old_root_fd == -1) return;
-
-        if (fchdir(g_old_root_fd) != 0) {
+        if (fchdir(old_root_fd) != 0) {
                 perror("fchdir");
                 exit(EXIT_FAILURE);
         }
@@ -754,8 +749,8 @@ leave_fakeroot(void)
                 exit(EXIT_FAILURE);
         }
 
-        close(g_old_root_fd);
-        g_old_root_fd = -1;
+        close(old_root_fd);
+        old_root_fd = -1;
 }
 
 static int
@@ -905,10 +900,10 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 sprintf(src_loc, PKG_SOURCE_DIR "/%s", pkgname);
 
                 CD(buildsrc, {
-                        fprintf(stderr, "aborting...\n");
-                        free(pkg_src_loc);
-                        goto bad;
-                });
+                                fprintf(stderr, "aborting...\n");
+                                free(pkg_src_loc);
+                                goto bad;
+                        });
 
                 info_builder(1, "build(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
                 if (!pkg->build()) {
@@ -927,8 +922,8 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                 info_builder(1, "install(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
 
-                mount_fakeroot_essentials();
-                chroot_fakeroot();
+                mount_fakeroot_essentials(g_fakeroot);
+                chroot_fakeroot(g_fakeroot);
 
                 if (!pkg->install()) {
                         fprintf(stderr, "failed to install package, aborting...\n");
@@ -967,7 +962,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 good(1, succ_msg);
                 free(succ_msg);
 
-                destroy_fakeroot();
+                //destroy_fakeroot(g_fakeroot);
         }
 
         return 1;
