@@ -6,9 +6,16 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
+
+static void
+rest(void)
+{
+        usleep(500000);
+}
 
 void
-info_builder(const char *first, ...)
+info_builder(int newline, const char *first, ...)
 {
         va_list args;
         size_t total_length = 0;
@@ -36,25 +43,28 @@ info_builder(const char *first, ...)
 
         result[total_length] = '\0';
 
-        info(result);
+        info(newline, result);
 
         free(result);
 }
 
 void
-info(const char *msg)
+info(int newline, const char *msg)
 {
-        printf(YELLOW BOLD "*" RESET " %s", msg);
+        printf("%s" YELLOW BOLD "*" RESET " %s", newline ? "\n" : "", msg);
+        rest();
 }
 
 void
-bad(const char *msg)
+bad(int newline, const char *msg)
 {
-        printf(RED BOLD "* %s" RESET, msg);
+        printf("%s" RED BOLD "* %s" RESET, newline ? "\n" : "", msg);
+        rest();
 }
 
 void
-good(const char *msg)
+good(int newline, const char *msg)
 {
-        printf(GREEN BOLD "* %s" RESET, msg);
+        printf("%s" GREEN BOLD "* %s" RESET, newline ? "\n" : "", msg);
+        rest();
 }

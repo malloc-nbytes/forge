@@ -154,6 +154,8 @@ int is_git_dir(const char *path);
  */
 int is_sudo(void);
 
+int rmrf(const char *fp);
+
 #ifdef __cplusplus
 }
 #endif

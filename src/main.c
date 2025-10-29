@@ -290,22 +290,12 @@ show_options_for_bash_completion(void)
         }
 }
 
-/* void */
-/* rm_rf(const char *path) */
-/* { */
-/*         char cmd[PATH_MAX * 2]; */
-/*         snprintf(cmd, sizeof(cmd), "rm -rf %s", path); */
-/*         if (system(cmd) != 0) { */
-/*                 fprintf(stderr, "Failed to clean up %s\n", path); */
-/*         } */
-/* } */
-
 void
 create_skeleton(const char *root)
 {
         assert(root);
 
-        info("Creating fakeroot skeleton\n");
+        info(0, "Creating fakeroot skeleton\n");
 
         const char *paths[] = {
                 "bin", "etc", "lib", "usr", "usr/bin", "usr/lib", "usr/include",
@@ -364,7 +354,7 @@ rebuild_pkgs(void)
 {
         assert_sudo();
 
-        info("Rebuilding package modules\n");
+        info(1, "Rebuilding package modules\n");
 
         char **dirs = ls(C_MODULE_DIR_PARENT);
         for (size_t d = 0; dirs[d]; ++d) {
@@ -555,7 +545,7 @@ register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
         } else {
                 // New package
                 //printf(YELLOW BOLD "* " RESET "Registered package: " YELLOW BOLD "%s\n" RESET, name);
-                info_builder("Registered package: ", YELLOW, name, RESET, "\n", NULL);
+                info_builder(1, "Registered package: ", YELLOW, name, RESET, "\n", NULL);
 
                 const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed, is_explicit) VALUES (?, ?, ?, 0, ?);";
                 rc = sqlite3_prepare_v2(ctx->db, sql_insert, -1, &stmt, NULL);
@@ -608,13 +598,24 @@ pkg_is_installed(forge_context *ctx, const char *name)
 static void
 sandbox(const char *pkgname)
 {
-        info("Creating sandbox\n");
+        info(0, "Creating sandbox\n");
 
         char tmpl[256] = {0};
         sprintf(tmpl, "/tmp/pkg-%s-XXXXXX", pkgname);
         g_fakeroot = strdup(mkdtemp(tmpl));
         if (!g_fakeroot) die("mkdtemp");
         create_skeleton(g_fakeroot);
+}
+
+static void
+destroy_fakeroot(void)
+{
+        if (g_fakeroot) {
+                info(1, "Destroying fakeroot\n\n");
+                rmrf(g_fakeroot);
+                free(g_fakeroot);
+                g_fakeroot = NULL;
+        }
 }
 
 static int
@@ -628,8 +629,8 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 // Printing
                 char *current = forge_cstr_of_int(i+1);
                 char *outof = forge_cstr_of_int(names.len);
-                info_builder("Installing package ",
-                             name, " [", YELLOW, current, RESET, "/",
+                info_builder(0, "Installing ", BOLD BRIGHT_PINK, !is_dep ? "package " : "dependency ", RESET, YELLOW, BOLD,
+                             name, RESET, " [", YELLOW, current, RESET, "/",
                              YELLOW, outof, RESET, "]\n", NULL);
                 free(current);
                 free(outof);
@@ -649,7 +650,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 assert(pkg);
 
                 if (pkg_is_installed(ctx, name) && is_dep) {
-                        printf(YELLOW "dependency %s is already installed\n" RESET, name);
+                        info_builder(0, "Dependency ", YELLOW BOLD, name, RESET, " is already installed\n", NULL);
                         continue; // Skip to next package
                 }
 
@@ -676,10 +677,12 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 // Register package with the determined is_explicit value
                 register_pkg(ctx, pkg, is_explicit);
 
+                char *orig_fakeroot = g_fakeroot;
+
                 // Install deps
                 if (pkg->deps) {
-                        info("Installing Dependencies\n");
-                        printf(GREEN "(%s)->deps()\n" RESET, name);
+                        info(0, "Installing Dependencies\n");
+                        info_builder(0, "deps(", YELLOW BOLD, name, RESET, ")\n", NULL);
                         char **deps = pkg->deps();
                         str_array depnames = dyn_array_empty(str_array);
                         for (size_t j = 0; deps[j]; ++j) {
@@ -698,6 +701,8 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         }
                         dyn_array_free(depnames);
                 }
+
+                g_fakeroot = orig_fakeroot;
 
                 sqlite3_stmt *stmt;
                 const char *sql_select = "SELECT pkg_src_loc FROM Pkgs WHERE name = ?;";
@@ -720,13 +725,14 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 }
 
                 sandbox(name);
+                char *buildsrc = forge_cstr_builder(g_fakeroot, "/buildsrc", NULL);
 
                 const char *pkgname = NULL;
 
                 if (pkg_src_loc) {
                         pkgname = forge_io_basename(pkg_src_loc);
                 } else {
-                        info_builder("\n(", YELLOW, name, RESET, ")->download()\n\n", NULL);
+                        info_builder(1, "(", YELLOW, name, RESET, ")->download()\n\n", NULL);
                         pkgname = pkg->download();
                         if (!pkgname) {
                                 fprintf(stderr, "could not download package, aborting...\n");
@@ -748,47 +754,38 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         }
                 }
 
-                printf("fakeroot1: %s\n", g_fakeroot);
-
                 {
-                        char *copy = forge_cstr_builder("cp -r ./* ", g_fakeroot);
-                        cmd(copy);
+                        char *copy = forge_cstr_builder("cp -r ./* ", buildsrc, NULL);
+                        info(0, "Copying build source\n");
+                        cmd_s(copy);
                         free(copy);
                 }
 
-                //char *old_fakeroot = strdup(g_fakeroot);
                 char src_loc[256] = {0};
                 sprintf(src_loc, PKG_SOURCE_DIR "/%s", pkgname);
-                //g_fakeroot = old_fakeroot;
 
-                /* CD(g_fakeroot, { */
-                /*         fprintf(stderr, "aborting...\n"); */
-                /*         free(pkg_src_loc); */
-                /*         goto bad; */
-                /* }); */
-                if (!cd(g_fakeroot)) {
+                CD(buildsrc, {
                         fprintf(stderr, "aborting...\n");
                         free(pkg_src_loc);
                         goto bad;
-                }
+                });
 
-                printf("fakeroot2: %s\n", g_fakeroot);
-                printf("FORGE: %s\n", cwd());
-
-                info_builder("(", YELLOW, name, RESET, ")->build()" RESET "\n\n", NULL);
+                info_builder(1, "build(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
                 if (!pkg->build()) {
                         fprintf(stderr, "could not build package, aborting...\n");
                         goto bad;
                 }
 
                 // Back to top-level of the package to reset our CWD.
-                if (!cd(g_fakeroot)) {
+                if (!cd(buildsrc)) {
                         fprintf(stderr, "aborting...\n");
                         free(pkg_src_loc);
                         goto bad;
                 }
 
-                info_builder("(", YELLOW, name, RESET, ")->install()" RESET "\n\n", NULL);
+                free(buildsrc);
+
+                info_builder(1, "install(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
 
                 if (!pkg->install()) {
                         fprintf(stderr, "failed to install package, aborting...\n");
@@ -819,12 +816,16 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 sqlite3_finalize(stmt);
 
                 free(pkg_src_loc);
+
+                char *succ_msg = forge_cstr_builder("Successfully installed ", YELLOW BOLD, name, RESET, "\n", NULL);
+                good(1, succ_msg);
+                free(succ_msg);
+
+                destroy_fakeroot();
         }
 
-        g_fakeroot = NULL;
         return 1;
  bad:
-        g_fakeroot = NULL;
         return 0;
 }
 
@@ -856,6 +857,8 @@ fold_args(forge_arg **hd)
 int
 main(int argc, char **argv)
 {
+        atexit(destroy_fakeroot);
+
         if (init_env()) {
                 first_time_reposync();
         }

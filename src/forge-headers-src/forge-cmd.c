@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <string.h>
 #include <dirent.h>
+#include <fcntl.h>
 
 #include "forge/cmd.h"
 #include "forge/conf.h"
@@ -403,4 +404,13 @@ int
 is_sudo(void)
 {
         return !geteuid();
+}
+
+int
+rmrf(const char *fp)
+{
+        char buf[PATH_MAX+7+1] = {0};
+        strcat(buf, "rm -rf ");
+        strcat(buf, fp);
+        return cmd_s(buf);
 }
