@@ -49,6 +49,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <sys/mount.h>
+/*#define _GNU_SOURCE*/
+#define __USE_GNU
+#include <sched.h>
 
 #define FORGE_C_MODULE_TEMPLATE \
         "#include <forge/forge.h>\n" \
@@ -130,6 +134,7 @@ struct {
 };
 
 char *g_fakeroot = NULL;
+int g_old_root_fd = -1;
 
 void
 assert_sudo(void)
@@ -620,6 +625,108 @@ destroy_fakeroot(void)
         }
 }
 
+static void
+mount_fakeroot_essentials(void)
+{
+        char command[512] = {0};
+
+        /* Make mounts private (isolated from host) */
+        if (unshare(CLONE_NEWNS) != 0) {
+                perror("unshare(CLONE_NEWNS)");
+                exit(EXIT_FAILURE);
+        }
+
+        if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0) {
+                perror("mount --make-rprivate /");
+                exit(EXIT_FAILURE);
+        }
+
+        /* Bind-mount essential dirs */
+        const char *dirs[] = { "/bin", "/lib", "/lib64", "/etc", "/dev", "/sys", "/run" };
+        for (size_t i = 0; i < sizeof(dirs)/sizeof(dirs[0]); ++i) {
+                //snprintf(command, 512, "mount --bind %s %s%s", dirs[i], g_fakeroot, dirs[i]);
+                if (!cmd(command)) {
+                        fprintf(stderr, "mount failed for %s -> %s%s: %s\n",
+                                dirs[i], g_fakeroot, dirs[i], strerror(errno));
+                }
+        }
+
+        /* Mount proc */
+        snprintf(command, 512, "mount -t proc proc %s/proc", g_fakeroot);
+        cmd(command);
+
+        snprintf(command, 512, "chmod 1777 %s/tmp", g_fakeroot);
+        cmd(command);
+}
+
+static void
+unmount_fakeroot_essentials(void)
+{
+        if (!g_fakeroot) return;
+
+        info(0, "Unmounting fakeroot\n");
+
+        const char *mounts[] = {
+                "proc", "sys", "dev", "run", "etc", "lib64", "lib", "bin"
+        };
+        char path[512] = {0};
+        char command[600] = {0};
+
+        /* Unmount in reverse order */
+        for (size_t i = 0; i < sizeof(mounts) / sizeof(mounts[0]); ++i) {
+                snprintf(path, sizeof(path), "%s/%s", g_fakeroot, mounts[i]);
+                snprintf(command, sizeof(command), "umount -l %s 2>/dev/null", path);
+                cmd(command);
+        }
+}
+
+static void
+chroot_fakeroot(void)
+{
+        if (!g_fakeroot) {
+                forge_err("could not chroot into fakeroot");
+                exit(1);
+        }
+
+        info(0, "Entering chroot\n");
+        g_old_root_fd = open("/", O_RDONLY);
+        if (g_old_root_fd == -1) {
+                perror("open /");
+                exit(EXIT_FAILURE);
+        }
+
+        if (chroot(g_fakeroot) != 0) {
+                perror("chroot");
+                exit(EXIT_FAILURE);
+        }
+
+        if (chdir("/buildsrc") != 0) {
+                perror("chdir /buildsrc");
+                exit(EXIT_FAILURE);
+        }
+}
+
+static void
+leave_fakeroot(void)
+{
+        info(0, "Leaving chroot\n");
+
+        if (g_old_root_fd == -1) return;
+
+        if (fchdir(g_old_root_fd) != 0) {
+                perror("fchdir");
+                exit(EXIT_FAILURE);
+        }
+
+        if (chroot(".") != 0) {
+                perror("restore chroot");
+                exit(EXIT_FAILURE);
+        }
+
+        close(g_old_root_fd);
+        g_old_root_fd = -1;
+}
+
 static int
 install_pkg(forge_context *ctx, str_array names, int is_dep)
 {
@@ -789,11 +896,17 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                 info_builder(1, "install(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
 
+                mount_fakeroot_essentials();
+                chroot_fakeroot();
+
                 if (!pkg->install()) {
                         fprintf(stderr, "failed to install package, aborting...\n");
                         free(pkg_src_loc);
                         goto bad;
                 }
+
+                leave_fakeroot();
+                unmount_fakeroot_essentials();
 
                 // Ensure pkg_id is available
                 pkg_id = get_pkg_id(ctx, name);
