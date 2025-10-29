@@ -312,7 +312,7 @@ create_skeleton(const char *root)
         info(0, "Creating fakeroot skeleton\n");
 
         const char *paths[] = {
-                "bin", "etc", "lib", "usr", "usr/bin", "usr/lib", "usr/include",
+                "bin", "etc", "lib", "usr", "usr/bin", "usr/lib", "usr/include", "tmp", "lib64", "proc", "run", "sys",
                 "usr/local", "usr/local/bin", "/usr/local/include", "usr/lib", "usr/lib64",
                 "var", "dev", "sbin", "buildsrc", NULL,
         };
