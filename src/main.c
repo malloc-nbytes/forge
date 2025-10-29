@@ -114,6 +114,15 @@ typedef struct {
         pkg_ptr_array pkgs;
 } forge_context;
 
+typedef struct {
+        char *name;
+        char *version;
+        char *description;
+        int installed;
+} pkg_info;
+
+DYN_ARRAY_TYPE(pkg_info, pkg_info_array);
+
 struct {
         uint32_t flags;
 } g_config = {
@@ -314,12 +323,6 @@ create_skeleton(const char *root)
 void die(const char *msg) { perror(msg); exit(1); }
 
 void
-clean_fakeroot(void)
-{
-        //if (g_fakeroot) rm_rf(g_fakeroot);
-}
-
-void
 sync(void)
 {
         assert_sudo();
@@ -365,7 +368,7 @@ rebuild_pkgs(void)
                 char *abspath = forge_cstr_builder(C_MODULE_DIR_PARENT, "/", dirs[d], NULL);
                 DIR *dir = opendir(abspath);
                 if (!dir) {
-                        perror("Failed to open directory");
+                        perror("opendir");
                         return;
                 }
 
@@ -544,7 +547,6 @@ register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
                 sqlite3_finalize(stmt);
         } else {
                 // New package
-                //printf(YELLOW BOLD "* " RESET "Registered package: " YELLOW BOLD "%s\n" RESET, name);
                 info_builder(1, "Registered package: ", YELLOW, name, RESET, "\n", NULL);
 
                 const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed, is_explicit) VALUES (?, ?, ?, 0, ?);";
@@ -830,6 +832,91 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 }
 
 static void
+list_pkgs(const forge_context *ctx)
+{
+        (void)ctx;
+
+        sqlite3 *db;
+        int rc = sqlite3_open_v2(DATABASE_FP, &db, SQLITE_OPEN_READONLY, NULL);
+        CHECK_SQLITE(rc, db);
+
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT name, version, description, installed FROM Pkgs;";
+        rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, db);
+
+        // Collect data and calculate max widths
+        pkg_info_array rows = dyn_array_empty(pkg_info_array);
+        size_t max_name_len = strlen("Name");
+        size_t max_version_len = strlen("Version");
+        size_t max_installed_len = strlen("Installed");
+        size_t max_desc_len = strlen("Description");
+
+        // Find out max lengths
+        while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+                pkg_info info = {0};
+                const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                const char *version = (const char *)sqlite3_column_text(stmt, 1);
+                const char *description = (const char *)sqlite3_column_text(stmt, 2);
+                int installed = sqlite3_column_int(stmt, 3);
+
+                info.name = strdup(name ? name : "");
+                info.version = strdup(version ? version : "");
+                info.description = strdup(description ? description : "(none)");
+                info.installed = installed;
+
+                max_name_len = MAX(max_name_len, strlen(info.name));
+                max_version_len = MAX(max_version_len, strlen(info.version));
+                max_desc_len = MAX(max_desc_len, strlen(info.description));
+                max_installed_len = MAX((int)max_installed_len, snprintf(NULL, 0, "%d", installed));
+
+                dyn_array_append(rows, info);
+        }
+
+        if (rc != SQLITE_DONE) {
+                fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(db));
+        }
+
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+
+        // Print header
+        printf("Available packages:\n");
+        printf("%-*s  %-*s  %*s  %-*s\n",
+               (int)max_name_len, "Name",
+               (int)max_version_len, "Version",
+               (int)max_installed_len, "Installed",
+               (int)max_desc_len, "Description");
+        printf("%-*s  %-*s  %*s  %-*s\n",
+               (int)max_name_len, "----",
+               (int)max_version_len, "-------",
+               (int)max_installed_len, "---------",
+               (int)max_desc_len, "-----------");
+
+        // Print rows
+        if (rows.len == 0) {
+                printf("No packages found in the database.\n");
+        } else {
+                for (size_t i = 0; i < rows.len; ++i) {
+                        pkg_info *info = &rows.data[i];
+                        printf("%s%-*s%s  %s%-*s%s  %s%*d%s  %s%-*s%s\n",
+                               YELLOW,      (int)max_name_len,      info->name,      RESET,
+                               GRAY,        (int)max_version_len,   info->version,   RESET,
+                               BOLD,        (int)max_installed_len, info->installed, RESET,
+                               PINK,        (int)max_desc_len, info->description,    RESET);
+                }
+        }
+
+        // Clean up
+        for (size_t i = 0; i < rows.len; ++i) {
+                free(rows.data[i].name);
+                free(rows.data[i].version);
+                free(rows.data[i].description);
+        }
+        dyn_array_free(rows);
+}
+
+static void
 first_time_reposync(void)
 {
         int choice = forge_chooser_yesno("Would you like to install the default forge repository", NULL, 0);
@@ -840,6 +927,54 @@ first_time_reposync(void)
                         forge_err("failed to clone the repository, aborting...");
                 }
                 g_config.flags |= FT_REBUILD;
+        }
+}
+
+void
+edit_file_in_editor(const char *path)
+{
+        char *cmd = forge_cstr_builder(FORGE_EDITOR, " ", path, NULL);
+        if (system(cmd) == -1) {
+                fprintf(stderr, "Failed to open %s in %s: %s\n", path, FORGE_EDITOR, strerror(errno));
+        }
+        free(cmd);
+}
+
+static void
+new_pkg(forge_context *ctx, str_array names)
+{
+        (void)ctx;
+
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *n = names.data[i];
+                int hitat = 0;
+                for (size_t j = 0; n[j]; ++j) {
+                        if (n[j] == '@') {
+                                if (hitat) {
+                                        forge_err_wargs("only a single '@' is allowed in a package name: %s", n);
+                                } else if (!n[j+1]) {
+                                        forge_err_wargs("'@' is not allowed in the last position of a package name: %s", n);
+                                } else if (j == 0) {
+                                        forge_err_wargs("'@' is not allowed in the first position of a package name: %s", n);
+                                }
+                                hitat = 1;
+                        }
+                }
+                if (!hitat) {
+                        forge_err_wargs("Missing '@'. Expected name in the format of `author@name`, got: %s", n);
+                }
+        }
+
+        for (size_t i = 0; i < names.len; ++i) {
+                char fp[256] = {0};
+                sprintf(fp, C_MODULE_USER_DIR "/%s.c", names.data[i]);
+                if (forge_io_filepath_exists(fp)) {
+                        forge_err_wargs("file %s already exists", fp);
+                }
+                if (!forge_io_write_file(fp, FORGE_C_MODULE_TEMPLATE)) {
+                        forge_err_wargs("failed to write to file %s, %s", fp, strerror(errno));
+                }
+                edit_file_in_editor(fp);
         }
 }
 
@@ -895,9 +1030,14 @@ main(int argc, char **argv)
                         arg = arg->n;
                         if (streq(argcmd, CMD_INSTALL)) {
                                 install_pkg(&ctx, fold_args(&arg), /*is_dep=*/0);
+                        } else if (streq(argcmd, CMD_LIST)) {
+                                list_pkgs(&ctx);
                         } else if (streq(argcmd, CMD_LIB)) {
                                 printf("-lforge\n");
-                        } else {
+                        } else if (streq(argcmd, CMD_NEW)) {
+                                new_pkg(&ctx, fold_args(&arg));
+                        }
+                        else {
                                 forge_err_wargs("unknown command `%s`", argcmd);
                         }
                         break;

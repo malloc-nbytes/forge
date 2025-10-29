@@ -311,7 +311,7 @@ make(const char *type)
 {
         char buf[256] = {0};
         if (type) {
-                sprintf(buf, "make %s -j%s", type, FORGE_PREFERRED_MAKEFILE_JFLAGS);
+                sprintf(buf, "make DESTDIR=%s %s -j%s", g_fakeroot, type, FORGE_PREFERRED_MAKEFILE_JFLAGS);
         } else {
                 sprintf(buf, "make -j%s", FORGE_PREFERRED_MAKEFILE_JFLAGS);
         }
