@@ -554,7 +554,7 @@ register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
         } else {
                 // New package
                 //info_builder(1, "Registered package: ", YELLOW, name, RESET, "\n", NULL);
-                printf("\n" YELLOW "*" RESET "Registered package: " YELLOW "%s\n" RESET, name);
+                printf(YELLOW "*" RESET " Registered package: " YELLOW "%s\n" RESET, name);
 
                 const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed, is_explicit) VALUES (?, ?, ?, 0, ?);";
                 rc = sqlite3_prepare_v2(ctx->db, sql_insert, -1, &stmt, NULL);
@@ -645,7 +645,7 @@ destroy_fakeroot(void)
 
         char command[512];
         snprintf(command, 512, "rm -rf --one-file-system %s", g_fakeroot);
-        if (!cmd(command)) {
+        if (system(command) != 0) {
                 fprintf(stderr, "Failed to remove fakeroot %s: %s\n", g_fakeroot, strerror(errno));
         } else {
                 printf("* Destroyed fakeroot: %s\n", g_fakeroot);
@@ -672,7 +672,7 @@ mount_fakeroot_essentials(void)
         const char *dirs[] = { "/bin", "/lib", "/lib64", "/etc", "/dev", "/sys", "/run" };
         for (size_t i = 0; i < sizeof(dirs)/sizeof(dirs[0]); ++i) {
                 //snprintf(command, 512, "mount --bind %s %s%s", dirs[i], g_fakeroot, dirs[i]);
-                if (!cmd(command)) {
+                if (system(command) != 0) {
                         fprintf(stderr, "mount failed for %s -> %s%s: %s\n",
                                 dirs[i], g_fakeroot, dirs[i], strerror(errno));
                 }
@@ -680,10 +680,12 @@ mount_fakeroot_essentials(void)
 
         /* Mount proc */
         snprintf(command, 512, "mount -t proc proc %s/proc", g_fakeroot);
-        cmd(command);
+        if (system(command) != 0)
+                fprintf(stderr, "failed to mount proc\n");
 
         snprintf(command, 512, "chmod 1777 %s/tmp", g_fakeroot);
-        cmd(command);
+        if (system(command) != 0)
+                fprintf(stderr, "failed to mount tmp\n");
 }
 
 static void
@@ -703,7 +705,9 @@ unmount_fakeroot_essentials(void)
         for (size_t i = 0; i < sizeof(mounts) / sizeof(mounts[0]); ++i) {
                 snprintf(path, sizeof(path), "%s/%s", g_fakeroot, mounts[i]);
                 snprintf(command, sizeof(command), "umount -l %s 2>/dev/null", path);
-                cmd(command);
+                if (system(command) != 0) {
+                        fprintf(stderr, "failed to unmount %s\n", path);
+                }
         }
 }
 
