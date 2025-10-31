@@ -692,10 +692,9 @@ static void
 unmount_fakeroot_essentials(void)
 {
         if (!g_fakeroot) return;
+
         info(0, "Unmounting fakeroot");
-        // const char *mounts[] = {
-        //     "proc", "sys", "dev", "run", "etc", "lib64", "lib", "bin"
-        // };
+
         const char *mounts[] = { "bin", "lib", "lib64", "etc", "dev", "sys", "run" };
         char path[512];
         char command[600];
@@ -705,7 +704,7 @@ unmount_fakeroot_essentials(void)
                 snprintf(path, sizeof(path), "%s/%s", g_fakeroot, mounts[i]);
                 snprintf(command, sizeof(command), "umount -l %s 2>/dev/null", path);
                 if (system(command) != 0)
-                        fprintf(stderr, "could not unmount %s\n", path);
+                        fprintf(stderr, "could not unmount %s: %s\n", path, strerror(errno));
         }
 }
 
@@ -926,6 +925,8 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 chroot_fakeroot(g_fakeroot);
 
                 if (!pkg->install()) {
+                        leave_fakeroot();
+                        unmount_fakeroot_essentials();
                         fprintf(stderr, "failed to install package, aborting...\n");
                         free(pkg_src_loc);
                         goto bad;
@@ -1131,7 +1132,7 @@ fold_args(forge_arg **hd)
 int
 main(int argc, char **argv)
 {
-        atexit(unmount_fakeroot_essentials);
+        //atexit(unmount_fakeroot_essentials);
 
         if (init_env()) {
                 first_time_reposync();
