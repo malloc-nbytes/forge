@@ -177,6 +177,20 @@ init_db(const char *dbname)
         rc = sqlite3_exec(db, create_deps, NULL, NULL, NULL);
         CHECK_SQLITE(rc, db);
 
+        const char *create_files =
+                "CREATE TABLE IF NOT EXISTS Files ("
+                "id      INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "pkg_id  INTEGER NOT NULL,"
+                "path    TEXT    NOT NULL,"
+                "size    INTEGER,"
+                "mode    INTEGER,"
+                "mtime   INTEGER,"
+                "sha256  TEXT,"
+                "FOREIGN KEY (pkg_id) REFERENCES Pkgs(id) ON DELETE CASCADE,"
+                "UNIQUE(pkg_id, path));";
+        rc = sqlite3_exec(db, create_files, NULL, NULL, NULL);
+        CHECK_SQLITE(rc, db);
+
         return db;
 }
 
@@ -313,8 +327,10 @@ create_skeleton(const char *root)
         info(0, "Creating fakeroot skeleton\n");
 
         const char *paths[] = {
-                "bin", "etc", "lib", "usr", "usr/bin", "usr/lib", "usr/include", "usr/lib64",
-                "usr/local", "usr/local/include", "usr/local/bin", "usr/local/lib", "usr/local/lib64"
+                "bin", "etc", "lib",
+                "usr", "usr/bin", "usr/lib", "usr/include", "usr/lib64", "usr/share", "usr/libexec",
+                "usr/local", "usr/local/share", "usr/local/src", "usr/local/include", "usr/local/bin",
+                "usr/local/lib", "usr/local/lib64", "usr/local/sbin",
                 "var", "dev", "proc", "sys", "run", "tmp", "sbin", "lib64", "buildsrc", NULL,
         };
 
@@ -343,7 +359,7 @@ sync(void)
 
         for (size_t i = 0; files[i]; ++i) {
                 if (is_git_dir(files[i])) {
-                        printf(GREEN BOLD "Syncing [%s]\n" RESET, files[i]);
+                        info_builder(0, "Syncing [", YELLOW, files[i], RESET, "]\n", NULL);
                         CD(files[i], fprintf(stderr, "could not change directory: %s\n", strerror(errno)));
                         CMD("git fetch origin && git pull origin main", {
                                 fprintf(stderr, "could not sync directory %s: %s\n",
@@ -555,7 +571,7 @@ register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
         } else {
                 // New package
                 //info_builder(1, "Registered package: ", YELLOW, name, RESET, "\n", NULL);
-                printf("%s\n", name);
+                printf(YELLOW "*" RESET " Registered package: " YELLOW "%s" RESET "\n", name);
 
                 const char *sql_insert = "INSERT INTO Pkgs (name, version, description, installed, is_explicit) VALUES (?, ?, ?, 0, ?);";
                 rc = sqlite3_prepare_v2(ctx->db, sql_insert, -1, &stmt, NULL);
@@ -843,7 +859,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 good(1, succ_msg);
                 free(succ_msg);
 
-                destroy_fakeroot();
+                //destroy_fakeroot();
         }
 
         return 1;
@@ -1021,8 +1037,6 @@ fold_args(forge_arg **hd)
 int
 main(int argc, char **argv)
 {
-        //atexit(unmount_fakeroot_essentials);
-
         if (init_env()) {
                 first_time_reposync();
         }
