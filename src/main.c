@@ -638,6 +638,7 @@ destroy_fakeroot(void)
 {
         if (g_fakeroot) {
                 info(1, "Destroying fakeroot\n\n");
+                unsetenv("DESTDIR");
                 rmrf(g_fakeroot);
                 free(g_fakeroot);
                 g_fakeroot = NULL;
