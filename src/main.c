@@ -136,7 +136,6 @@ struct {
 };
 
 char *g_fakeroot = NULL;
-static int old_root_fd = -1;
 
 void
 assert_sudo(void)
@@ -336,9 +335,9 @@ sync(void)
         assert_sudo();
 
         CD(C_MODULE_DIR_PARENT, {
-                        fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
-                        return;
-                });
+                fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
+                return;
+        });
 
         char **files = ls(".");
 
@@ -347,13 +346,13 @@ sync(void)
                         printf(GREEN BOLD "Syncing [%s]\n" RESET, files[i]);
                         CD(files[i], fprintf(stderr, "could not change directory: %s\n", strerror(errno)));
                         CMD("git fetch origin && git pull origin main", {
-                                        fprintf(stderr, "could not sync directory %s: %s\n",
-                                                files[i], strerror(errno));
-                                });
+                                fprintf(stderr, "could not sync directory %s: %s\n",
+                                        files[i], strerror(errno));
+                        });
                         CD(C_MODULE_DIR_PARENT, {
-                                        fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
-                                        return;
-                                });
+                                fprintf(stderr, "could cd to path: %s, %s\n", C_MODULE_DIR, strerror(errno));
+                                return;
+                        });
                 }
                 free(files[i]);
         }
@@ -618,144 +617,23 @@ sandbox(const char *pkgname)
         create_skeleton(g_fakeroot);
 }
 
-void destroy_fakeroot(const char *root)
-{
-        if (!root) return;
-
-        info(0, "Destroying fakeroot\n");
-        // Ensure no bind mounts remain
-        char check[512] = {0};
-        snprintf(check, sizeof(check), "mount | grep '%s/'", root);
-        int has_mounts = system(check);
-
-        if (has_mounts == 0) {
-                fprintf(stderr, "Cannot destroy fakeroot: mounts still active in %s\n", root);
-                return;
-        }
-
-        char command[512];
-        snprintf(command, 512, "rm -rf --one-file-system %s", root);
-        if (system(command) != 0) {
-                fprintf(stderr, "Failed to remove fakeroot %s: %s\n", root, strerror(errno));
-        } else {
-                printf("* Destroyed fakeroot: %s\n", root);
-        }
-}
-
-// static void
-// destroy_fakeroot(void)
-// {
-//         if (g_fakeroot) {
-//                 info(1, "Destroying fakeroot\n\n");
-//                 rmrf(g_fakeroot);
-//                 free(g_fakeroot);
-//                 g_fakeroot = NULL;
-//         }
-// }
-
-void mount_fakeroot_essentials(const char *root)
-{
-        char command[512] = {0};
-
-        /* Make mounts private (isolated from host) */
-        if (unshare(CLONE_NEWNS) != 0) {
-                perror("unshare(CLONE_NEWNS)");
-                exit(EXIT_FAILURE);
-        }
-
-        if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0) {
-                perror("mount --make-rprivate /");
-                exit(EXIT_FAILURE);
-        }
-
-        /* Bind-mount essential dirs */
-        const char *dirs[] = { "/bin", "/lib", "/lib64", "/etc", "/dev", "/sys", "/run" };
-        for (size_t i = 0; i < sizeof(dirs)/sizeof(dirs[0]); ++i) {
-                snprintf(command, 512, "mount --bind %s %s%s", dirs[i], root, dirs[i]);
-                if (system(command) != 0) {
-                        fprintf(stderr, "mount failed for %s -> %s%s: %s\n",
-                                dirs[i], root, dirs[i], strerror(errno));
-                }
-        }
-
-        /* Mount proc */
-        snprintf(command, 512, "mount -t proc proc %s/proc", root);
-        if (system(command) != 0)
-                fprintf(stderr, "could not mount proc\n");
-
-        snprintf(command, 512, "chmod 1777 %s/tmp", root);
-        if (system(command) != 0)
-                fprintf(stderr, "could not mount tmp\n");
-}
-
 static void
-unmount_fakeroot_essentials(void)
+destroy_fakeroot(void)
 {
-        if (!g_fakeroot) return;
-
-        info(0, "Unmounting fakeroot");
-
-        const char *mounts[] = { "bin", "lib", "lib64", "etc", "dev", "sys", "run" };
-        char path[512];
-        char command[600];
-
-        /* Unmount in reverse order */
-        for (size_t i = 0; i < sizeof(mounts) / sizeof(mounts[0]); ++i) {
-                snprintf(path, sizeof(path), "%s/%s", g_fakeroot, mounts[i]);
-                snprintf(command, sizeof(command), "umount -l %s 2>/dev/null", path);
-                if (system(command) != 0)
-                        fprintf(stderr, "could not unmount %s: %s\n", path, strerror(errno));
+        if (g_fakeroot) {
+                info(1, "Destroying fakeroot\n\n");
+                rmrf(g_fakeroot);
+                free(g_fakeroot);
+                g_fakeroot = NULL;
         }
-}
-
-static void
-chroot_fakeroot(const char *root)
-{
-        info(0, "Entering chroot\n");
-
-        old_root_fd = open("/", O_RDONLY);
-        if (old_root_fd == -1) {
-                perror("open /");
-                exit(EXIT_FAILURE);
-        }
-
-        if (chroot(root) != 0) {
-                perror("chroot");
-                exit(EXIT_FAILURE);
-        }
-
-        if (chdir("/buildsrc") != 0) {
-                perror("chdir /buildsrc");
-                exit(EXIT_FAILURE);
-        }
-}
-
-static void
-leave_fakeroot(void)
-{
-        if (old_root_fd == -1)
-                return;
-
-        info(0, "Leaving chroot\n");
-
-        if (fchdir(old_root_fd) != 0) {
-                perror("fchdir");
-                exit(EXIT_FAILURE);
-        }
-
-        if (chroot(".") != 0) {
-                perror("restore chroot");
-                exit(EXIT_FAILURE);
-        }
-
-        close(old_root_fd);
-        old_root_fd = -1;
 }
 
 static int
 install_pkg(forge_context *ctx, str_array names, int is_dep)
 {
         (void)ctx;
+
+        const char *failed_pkgname = NULL;
 
         for (size_t i = 0; i < names.len; ++i) {
                 const char *name = names.data[i];
@@ -868,6 +746,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 } else {
                         info_builder(1, "(", YELLOW, name, RESET, ")->download()\n\n", NULL);
                         pkgname = pkg->download();
+                        failed_pkgname = pkgname;
                         if (!pkgname) {
                                 fprintf(stderr, "could not download package, aborting...\n");
                                 free(pkg_src_loc);
@@ -921,19 +800,20 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                 info_builder(1, "install(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
 
-                mount_fakeroot_essentials(g_fakeroot);
-                chroot_fakeroot(g_fakeroot);
+                //mount_fakeroot_essentials(g_fakeroot);
+                //chroot_fakeroot(g_fakeroot);
 
+                setenv("DESTDIR", g_fakeroot, 1);
                 if (!pkg->install()) {
-                        leave_fakeroot();
-                        unmount_fakeroot_essentials();
+                        //leave_fakeroot();
+                        //unmount_fakeroot_essentials();
                         fprintf(stderr, "failed to install package, aborting...\n");
                         free(pkg_src_loc);
                         goto bad;
                 }
 
-                leave_fakeroot();
-                unmount_fakeroot_essentials();
+                //leave_fakeroot();
+                //unmount_fakeroot_essentials();
 
                 // Ensure pkg_id is available
                 pkg_id = get_pkg_id(ctx, name);
@@ -963,11 +843,20 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 good(1, succ_msg);
                 free(succ_msg);
 
-                //destroy_fakeroot(g_fakeroot);
+                destroy_fakeroot();
         }
 
         return 1;
  bad:
+        if (failed_pkgname) {
+                if (cd(PKG_SOURCE_DIR)) {
+                        char *rmcmd = forge_cstr_builder("rm -r ", failed_pkgname, NULL);
+                        bad(1, "Removing source due to installation failure\n");
+                        cmd(rmcmd);
+                        free(rmcmd);
+                }
+                destroy_fakeroot();
+        }
         return 0;
 }
 
