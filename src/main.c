@@ -55,6 +55,7 @@
 /*#define _GNU_SOURCE*/
 #define __USE_GNU
 #include <sched.h>
+#include <openssl/sha.h>
 
 #define FORGE_C_MODULE_TEMPLATE                                         \
         "#include <forge/forge.h>\n"                                    \
@@ -185,7 +186,6 @@ init_db(const char *dbname)
                 "size    INTEGER,"
                 "mode    INTEGER,"
                 "mtime   INTEGER,"
-                "sha256  TEXT,"
                 "FOREIGN KEY (pkg_id) REFERENCES Pkgs(id) ON DELETE CASCADE,"
                 "UNIQUE(pkg_id, path));";
         rc = sqlite3_exec(db, create_files, NULL, NULL, NULL);
@@ -327,10 +327,10 @@ create_skeleton(const char *root)
         info(0, "Creating fakeroot skeleton\n");
 
         const char *paths[] = {
-                "bin", "etc", "lib",
+                "bin", "etc", "lib", "opt",
                 "usr", "usr/bin", "usr/lib", "usr/include", "usr/lib64", "usr/share", "usr/libexec",
                 "usr/local", "usr/local/share", "usr/local/src", "usr/local/include", "usr/local/bin",
-                "usr/local/lib", "usr/local/lib64", "usr/local/sbin",
+                "usr/local/lib", "usr/local/lib64", "usr/local/sbin", "usr/local/opt",
                 "var", "dev", "proc", "sys", "run", "tmp", "sbin", "lib64", "buildsrc", NULL,
         };
 
@@ -644,6 +644,197 @@ destroy_fakeroot(void)
         }
 }
 
+static void
+build_manifest(str_array *ar, const char *path)
+{
+        assert(g_fakeroot);
+
+        char **basefiles = ls(path);
+
+        for (size_t i = 0; basefiles[i]; ++i) {
+                char abspath[PATH_MAX] = {0};
+                const char *file = basefiles[i];
+
+                if (!strcmp("buildsrc", file)) continue;
+                if (!strcmp("..", file))       continue;
+                if (!strcmp(".", file))        continue;
+
+                strcpy(abspath, path);
+                strcat(abspath, "/");
+                strcat(abspath, file);
+
+                if (forge_io_is_dir(abspath)) {
+                        build_manifest(ar, abspath);
+                } else {
+                        dyn_array_append(*ar, strdup(abspath));
+                }
+        }
+
+        for (size_t i = 0; basefiles[i]; ++i) {
+                free(basefiles[i]);
+        }
+}
+
+static int
+copy_file_to_root(const char *src_abs,
+                  const char *dst_abs,
+                  sqlite3    *db,
+                  int         pkg_id)
+{
+        struct stat st;
+        if (lstat(src_abs, &st) != 0) {
+                perror("lstat(src)");
+                return 0;
+        }
+
+        // Handle symlinks
+        if (S_ISLNK(st.st_mode)) {
+                char target[PATH_MAX] = {0};
+                ssize_t len = readlink(src_abs, target, sizeof(target) - 1);
+                if (len < 0) {
+                        perror("readlink");
+                        return 0;
+                }
+                target[len] = '\0';
+
+                // Remove existing file/symlink if any
+                unlink(dst_abs);
+
+                if (symlink(target, dst_abs) != 0) {
+                        perror("symlink");
+                        return 0;
+                }
+
+                goto db_insert;
+        }
+
+        // Regular file
+        if (!S_ISREG(st.st_mode)) {
+                fprintf(stderr, "Skipping non-regular file: %s\n", src_abs);
+                return 1; // skip but don't fail
+        }
+
+        // Create destination directory
+        {
+                char *dir = strdup(dst_abs);
+                char *p = strrchr(dir, '/');
+                if (p) {
+                        *p = '\0';
+                        mkdir_p_wmode(dir, 0755);
+                }
+                free(dir);
+        }
+
+        // Open source
+        int fd_src = open(src_abs, O_RDONLY);
+        if (fd_src < 0) {
+                perror("open(src)");
+                return 0;
+        }
+
+        // Open/create destination (regular file)
+        int fd_dst = open(dst_abs,
+                          O_WRONLY | O_CREAT | O_TRUNC,
+                          st.st_mode & 07777);
+        if (fd_dst < 0) {
+                close(fd_src);
+                perror("open(dst)");
+                return 0;
+        }
+
+        // Copy data
+        char buf[8192];
+        ssize_t n;
+        while ((n = read(fd_src, buf, sizeof(buf))) > 0) {
+                if (write(fd_dst, buf, n) != n) {
+                        perror("write");
+                        close(fd_src);
+                        close(fd_dst);
+                        unlink(dst_abs);
+                        return 0;
+                }
+        }
+        close(fd_src);
+        close(fd_dst);
+        if (n < 0) {
+                unlink(dst_abs);
+                return 0;
+        }
+
+        // Restore timestamps and mode
+        struct timespec ts[2] = {
+                { .tv_sec = st.st_atim.tv_sec, .tv_nsec = st.st_atim.tv_nsec },
+                { .tv_sec = st.st_mtim.tv_sec, .tv_nsec = st.st_mtim.tv_nsec }
+        };
+        utimensat(AT_FDCWD, dst_abs, ts, 0);
+        chmod(dst_abs, st.st_mode & 07777);
+
+ db_insert:
+        (void)0; // silence warning
+
+        // Insert into Files
+        sqlite3_stmt *stmt;
+        const char *sql =
+                "INSERT OR REPLACE INTO Files (pkg_id, path, size, mode, mtime) "
+                "VALUES (?, ?, ?, ?, ?);";
+
+        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        if (rc != SQLITE_OK) {
+                fprintf(stderr, "prepare failed: %s\n", sqlite3_errmsg(db));
+                return 0;
+        }
+
+        sqlite3_bind_int(  stmt, 1, pkg_id);
+        sqlite3_bind_text( stmt, 2, dst_abs, -1, SQLITE_STATIC);
+        sqlite3_bind_int64(stmt, 3, st.st_size);  // 0 for symlinks
+        sqlite3_bind_int(  stmt, 4, st.st_mode & 07777);
+        sqlite3_bind_int64(stmt, 5, st.st_mtim.tv_sec);
+
+        rc = sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+
+        if (rc != SQLITE_DONE) {
+                fprintf(stderr, "Files insert error: %s\n", sqlite3_errmsg(db));
+                return 0;
+        }
+
+        return 1;
+}
+
+void
+print_file_progress(const char *realpath, size_t i, size_t total, int add) {
+#define BAR_WIDTH 30
+
+        float progress = (float)(i + 1) / (float)total;
+        int filled = (int)(progress * BAR_WIDTH);
+
+        // Move cursor up one line and clear it (only after the first iteration)
+        if (i > 0) printf("\033[1A\033[2K");
+
+        printf("%s %s\n", add ? "+++" : "---", realpath);
+
+        printf("[");
+        for (int j = 0; j < BAR_WIDTH; j++) {
+                if (j < filled - 1)
+                        printf("=");
+                else if (j == filled - 1)
+                        printf(">");
+                else
+                        printf(" ");
+        }
+
+        printf("] " YELLOW BOLD "%zu" RESET "/" YELLOW BOLD "%zu" RESET "\r\n",
+               i + 1, total);
+
+        fflush(stdout);
+#undef BAR_WIDTH
+}
+
+static int
+uninstall_pkg(forge_context *ctx, str_array names)
+{
+}
+
 static int
 install_pkg(forge_context *ctx, str_array names, int is_dep)
 {
@@ -684,7 +875,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                 // Check current is_explicit status
                 int is_explicit = !is_dep; // Default: 0 for deps, 1 for explicit
-                if (pkg_id != -1) { // Package exists in database
+                if (pkg_id != -1) {
                         sqlite3_stmt *stmt;
                         const char *sql = "SELECT is_explicit FROM Pkgs WHERE name = ?;";
                         int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
@@ -758,6 +949,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 const char *pkgname = NULL;
 
                 if (pkg_src_loc) {
+                        info_builder(1, "Skipping download phase for ", YELLOW, name, RESET, "\n", NULL);
                         pkgname = forge_io_basename(pkg_src_loc);
                 } else {
                         info_builder(1, "(", YELLOW, name, RESET, ")->download()\n\n", NULL);
@@ -794,13 +986,15 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 sprintf(src_loc, PKG_SOURCE_DIR "/%s", pkgname);
 
                 CD(buildsrc, {
-                                fprintf(stderr, "aborting...\n");
-                                free(pkg_src_loc);
-                                goto bad;
-                        });
+                        fprintf(stderr, "aborting...\n");
+                        free(pkg_src_loc);
+                        goto bad;
+                });
 
-                info_builder(1, "build(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
-                if (!pkg->build()) {
+                if (!pkg->build) {
+                        info_builder(1, "Skipping build phase for ", YELLOW, name, RESET, "\n", NULL);
+                } else if (!pkg->build()) {
+                        info_builder(1, "build(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
                         fprintf(stderr, "could not build package, aborting...\n");
                         goto bad;
                 }
@@ -816,20 +1010,12 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                 info_builder(1, "install(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
 
-                //mount_fakeroot_essentials(g_fakeroot);
-                //chroot_fakeroot(g_fakeroot);
-
                 setenv("DESTDIR", g_fakeroot, 1);
                 if (!pkg->install()) {
-                        //leave_fakeroot();
-                        //unmount_fakeroot_essentials();
                         fprintf(stderr, "failed to install package, aborting...\n");
                         free(pkg_src_loc);
                         goto bad;
                 }
-
-                //leave_fakeroot();
-                //unmount_fakeroot_essentials();
 
                 // Ensure pkg_id is available
                 pkg_id = get_pkg_id(ctx, name);
@@ -837,6 +1023,37 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         fprintf(stderr, "Failed to find package ID for %s\n", name);
                         free(pkg_src_loc);
                         goto bad;
+                }
+
+                // Walk through fakeroot and move over files.
+                info(1, "Creating manifest\n");
+                str_array manifest = dyn_array_empty(str_array);
+                build_manifest(&manifest, g_fakeroot);
+
+                // Keep a list of files we successfully installed for possible rollback.
+                str_array installed = dyn_array_empty(str_array);
+
+                info(0, "Installing files\n");
+                for (size_t i = 0; i < manifest.len; ++i) {
+                        char *fakepath = manifest.data[i]; // /tmp/pkg-.../usr/bin/foo
+                        char *realpath = fakepath + strlen(g_fakeroot);   // /usr/bin/foo
+
+                        print_file_progress(realpath, i, manifest.len, /*add=*/1);
+
+                        if (!copy_file_to_root(fakepath, realpath, ctx->db, pkg_id)) {
+                                forge_err_wargs("failed to install %s", realpath);
+                                /* remove everything we already copied */
+                                for (size_t j = 0; j < installed.len; ++j) {
+                                        bad(1, forge_cstr_builder("removing ", installed.data[j], "\n", NULL));
+                                        unlink(installed.data[j]);
+                                        free(installed.data[j]);
+                                }
+                                dyn_array_free(installed);
+                                goto bad;
+
+                        }
+
+                        dyn_array_append(installed, realpath);
                 }
 
                 // Update pkg_src_loc in datasrc_loc
@@ -859,7 +1076,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 good(1, succ_msg);
                 free(succ_msg);
 
-                //destroy_fakeroot();
+                destroy_fakeroot();
         }
 
         return 1;
