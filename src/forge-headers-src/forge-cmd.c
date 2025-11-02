@@ -28,6 +28,7 @@
 #include <string.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <stdarg.h>
 
 #include "forge/cmd.h"
 #include "forge/conf.h"
@@ -413,4 +414,44 @@ rmrf(const char *fp)
         strcat(buf, "rm -rf ");
         strcat(buf, fp);
         return cmd_s(buf);
+}
+
+int
+__cmd_builder(char *fst, ...)
+{
+        va_list ap;
+        va_start(ap, fst);
+
+        size_t total_len = 0;
+        char *arg = fst;
+        while (arg != NULL) {
+                total_len += strlen(arg);
+                if (arg != fst) total_len += 1;
+                arg = va_arg(ap, char *);
+        }
+        va_end(ap);
+
+        // for NULL
+        total_len += 1;
+
+        char *command = (char *)malloc(total_len);
+
+        va_start(ap, fst);
+        command[0] = '\0';
+        arg = fst;
+        int first = 1;
+
+        while (arg != NULL) {
+                if (!first) {
+                        strcat(command, " ");
+                }
+                strcat(command, arg);
+                first = 0;
+                arg = va_arg(ap, char *);
+        }
+
+        va_end(ap);
+        int res = cmd(command);
+        free(command);
+        return res;
 }

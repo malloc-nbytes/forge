@@ -38,6 +38,9 @@ int cd_silent(const char *fp);
  */
 int cmd(const char *cmd);
 
+int __cmd_builder(char *fst, ...);
+#define cmd_builder(fst, ...) __cmd_builder((fst), ##__VA_ARGS__, NULL)
+
 /**
  * Parameter: cmd -> the command to execute
  * Returns: 1 on success, 0 on failure
