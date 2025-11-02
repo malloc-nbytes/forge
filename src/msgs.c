@@ -11,7 +11,7 @@
 static void
 rest(void)
 {
-        usleep(500000);
+        usleep(500000/2);
 }
 
 void

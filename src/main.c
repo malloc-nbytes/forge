@@ -834,6 +834,160 @@ print_file_progress(const char *realpath, size_t i, size_t total, int add) {
 static int
 uninstall_pkg(forge_context *ctx, str_array names)
 {
+        assert_sudo();
+
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *name = names.data[i];
+
+                int pkg_id = get_pkg_id(ctx, name);
+                if (pkg_id == -1) {
+                        forge_err_wargs("package `%s` is not registered", name);
+                        goto fail;
+                }
+
+                if (!pkg_is_installed(ctx, name)) {
+                        info_builder(0, "Package ", YELLOW BOLD, name, RESET, " is not installed\n", NULL);
+                        continue; // Skip, not an error
+                }
+
+                char *pkg_src_loc = NULL;
+                sqlite3_stmt *stmt;
+                const char *sql = "SELECT pkg_src_loc FROM Pkgs WHERE id = ?;";
+                int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+                sqlite3_bind_int(stmt, 1, pkg_id);
+                if (sqlite3_step(stmt) == SQLITE_ROW) {
+                        const char *loc = (const char *)sqlite3_column_text(stmt, 0);
+                        if (loc) pkg_src_loc = strdup(loc);
+                }
+                sqlite3_finalize(stmt);
+
+                // Get all files for this package
+                stmt = NULL;
+                sql = "SELECT path FROM Files WHERE pkg_id = ?;";
+                rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_int(stmt, 1, pkg_id);
+
+                str_array files = dyn_array_empty(str_array);
+                while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+                        const char *path = (const char *)sqlite3_column_text(stmt, 0);
+                        dyn_array_append(files, strdup(path));
+                }
+                if (rc != SQLITE_DONE) {
+                        fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(ctx->db));
+                        sqlite3_finalize(stmt);
+                        goto fail_files;
+                }
+                sqlite3_finalize(stmt);
+
+                char *file_count_str = forge_cstr_of_int(files.len);
+                info_builder(0, "Uninstalling ", YELLOW BOLD, name, RESET, " [", YELLOW, file_count_str, RESET, "] files\n\n", NULL);
+                free(file_count_str);
+
+                // Remove installed files
+                str_array failed = dyn_array_empty(str_array);
+
+                for (size_t j = 0; j < files.len; ++j) {
+                        const char *path = files.data[j];
+
+                        print_file_progress(path, j, files.len, /*add=*/0);
+
+                        struct stat st;
+                        if (lstat(path, &st) != 0) {
+                                if (errno == ENOENT) continue;
+                                perror("lstat");
+                                dyn_array_append(failed, strdup(path));
+                                continue;
+                        }
+
+                        if (S_ISDIR(st.st_mode)) {
+                                continue; // Skip dirs
+                        }
+
+                        if (unlink(path) != 0 && errno != ENOENT) {
+                                perror("unlink");
+                                dyn_array_append(failed, strdup(path));
+                        }
+                }
+
+                // Delete file entries from DB
+                {
+                        const char *del_files = "DELETE FROM Files WHERE pkg_id = ?;";
+                        rc = sqlite3_prepare_v2(ctx->db, del_files, -1, &stmt, NULL);
+                        CHECK_SQLITE(rc, ctx->db);
+                        sqlite3_bind_int(stmt, 1, pkg_id);
+                        rc = sqlite3_step(stmt);
+                        if (rc != SQLITE_DONE) {
+                                fprintf(stderr, "Failed to delete file entries: %s\n", sqlite3_errmsg(ctx->db));
+                        }
+                        sqlite3_finalize(stmt);
+                }
+
+                // Mark as uninstalled and clear source location
+                {
+                        const char *update_pkg = "UPDATE Pkgs SET installed = 0, pkg_src_loc = NULL WHERE id = ?;";
+                        rc = sqlite3_prepare_v2(ctx->db, update_pkg, -1, &stmt, NULL);
+                        CHECK_SQLITE(rc, ctx->db);
+                        sqlite3_bind_int(stmt, 1, pkg_id);
+                        rc = sqlite3_step(stmt);
+                        if (rc != SQLITE_DONE) {
+                                fprintf(stderr, "Failed to update package status: %s\n", sqlite3_errmsg(ctx->db));
+                        }
+                        sqlite3_finalize(stmt);
+                }
+
+                // Remove source directory
+                if (pkg_src_loc) {
+                        char *src_path = forge_cstr_builder(PKG_SOURCE_DIR, "/", forge_io_basename(pkg_src_loc), NULL);
+                        info(1, "Removing source directory\n");
+                        char *rm_cmd = forge_cstr_builder("rm -rf ", src_path, NULL);
+                        if (system(rm_cmd) != 0) {
+                                char msg[PATH_MAX] = {0};
+                                sprintf(msg, "Failed to remove source directory: %s\n", src_path);
+                                bad(1, msg);
+                                // Not fatal — continue
+                        }
+                        free(rm_cmd);
+                        free(src_path);
+                        free(pkg_src_loc);
+                        pkg_src_loc = NULL;
+                }
+
+                if (failed.len > 0) {
+                        bad(1, "Some files could not be removed:\n");
+                        for (size_t j = 0; j < failed.len; ++j) {
+                                fprintf(stderr, "  - %s\n", failed.data[j]);
+                                free(failed.data[j]);
+                        }
+                        dyn_array_free(failed);
+                        goto fail_files;
+                }
+
+                char *succ_msg = forge_cstr_builder("Successfully uninstalled ", YELLOW BOLD, name, RESET, "\n\n", NULL);
+                good(1, succ_msg);
+                free(succ_msg);
+
+                // Cleanup
+                for (size_t j = 0; j < files.len; ++j) {
+                        free(files.data[j]);
+                }
+                dyn_array_free(files);
+                if (pkg_src_loc) free(pkg_src_loc);
+                continue;
+
+        fail_files:
+                for (size_t j = 0; j < files.len; ++j) {
+                        free(files.data[j]);
+                }
+                dyn_array_free(files);
+                if (pkg_src_loc) free(pkg_src_loc);
+        fail:
+                ; // continue to next package
+        }
+
+        return 1;
 }
 
 static int
@@ -950,10 +1104,9 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 const char *pkgname = NULL;
 
                 if (pkg_src_loc) {
-                        info_builder(1, "Skipping download phase for ", YELLOW, name, RESET, "\n", NULL);
                         pkgname = forge_io_basename(pkg_src_loc);
                 } else {
-                        info_builder(1, "(", YELLOW, name, RESET, ")->download()\n\n", NULL);
+                        info_builder(1, "download(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
                         pkgname = pkg->download();
                         failed_pkgname = pkgname;
                         if (!pkgname) {
@@ -964,6 +1117,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 }
 
                 if (!cd_silent(pkgname)) {
+                        info_builder(1, "download(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
                         if (!pkg->download()) {
                                 fprintf(stderr, "could not download package, aborting...\n");
                                 free(pkg_src_loc);
@@ -978,7 +1132,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                 {
                         char *copy = forge_cstr_builder("cp -r ./* ", buildsrc, NULL);
-                        info(0, "Copying build source\n");
+                        info(1, "Copying build source\n");
                         cmd_s(copy);
                         free(copy);
                 }
@@ -992,12 +1146,15 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         goto bad;
                 });
 
-                if (!pkg->build) {
-                        info_builder(1, "Skipping build phase for ", YELLOW, name, RESET, "\n", NULL);
-                } else if (!pkg->build()) {
+                if (pkg->build) {
                         info_builder(1, "build(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
-                        fprintf(stderr, "could not build package, aborting...\n");
-                        goto bad;
+                        int buildres = pkg->build();
+                        if (!buildres) {
+                                fprintf(stderr, "could not build package, aborting...\n");
+                                goto bad;
+                        }
+                } else {
+                        info_builder(1, "Skipping build phase for ", YELLOW, name, RESET, "\n", NULL);
                 }
 
                 // Back to top-level of the package to reset our CWD.
@@ -1036,6 +1193,8 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                 info(0, "Installing files\n");
                 for (size_t i = 0; i < manifest.len; ++i) {
+                        if (i == 0) putchar('\n');
+
                         char *fakepath = manifest.data[i]; // /tmp/pkg-.../usr/bin/foo
                         char *realpath = fakepath + strlen(g_fakeroot);   // /usr/bin/foo
 
@@ -1056,6 +1215,11 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                         dyn_array_append(installed, realpath);
                 }
+
+                // Destroy manifest
+                for (size_t i = 0; i < manifest.len; ++i) {
+                        free(manifest.data[i]);
+                } dyn_array_free(manifest); dyn_array_free(installed);
 
                 // Update pkg_src_loc in datasrc_loc
                 const char *sql_update = "UPDATE Pkgs SET pkg_src_loc = ?, installed = 1 WHERE name = ?;";
@@ -1297,6 +1461,8 @@ main(int argc, char **argv)
                                 printf("-lforge\n");
                         } else if (streq(argcmd, CMD_NEW)) {
                                 new_pkg(&ctx, fold_args(&arg));
+                        } else if (streq(argcmd, CMD_UNINSTALL)) {
+                                uninstall_pkg(&ctx, fold_args(&arg));
                         }
                         else {
                                 forge_err_wargs("unknown command `%s`", argcmd);
