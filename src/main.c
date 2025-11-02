@@ -2760,6 +2760,9 @@ fold_args(forge_arg **hd)
 int
 main(int argc, char **argv)
 {
+        setenv("FORGE_PREFIX", PREFIX, 1);
+        setenv("FORGE_LIBDIR", LIBDIR, 1);
+
         g_saved_argc = argc;
         g_saved_argv = argv;
 
