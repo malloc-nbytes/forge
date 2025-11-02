@@ -2758,6 +2758,15 @@ main(int argc, char **argv)
         g_saved_argc = argc;
         g_saved_argv = argv;
 
+        if (argc > 0 && strcmp(argv[0], "/usr/bin/forge.new") == 0) {
+                if (rename(PREFIX "/bin/forge.new", PREFIX "/bin/forge") != 0) {
+                        perror("rename forge.new -> forge");
+                } else {
+                        info(0, "Activated new forge version\n");
+                        argv[0] = "/usr/bin/forge";
+                }
+        }
+
         if (init_env()) {
                 first_time_reposync();
         }
@@ -2813,7 +2822,7 @@ main(int argc, char **argv)
                                 int install_ok = install_pkg(&ctx, pkgs, /*is_dep=*/0);
 
                                 if (install_ok && pkgs.len == 1 && !strcmp(pkgs.data[0], "forge")) {
-                                        info(0, "forge updated - restarting with the new binary\n");
+                                        info(0, "forge updated restarting with the new binary\n");
 
                                         // Switch to a safe cwd
                                         if (chdir("/") != 0) {
@@ -2821,10 +2830,17 @@ main(int argc, char **argv)
                                                 goto install_cleanup;
                                         }
 
-                                        //execve(PREFIX "/bin/forge.new", (char [])NULL, environ);
+                                        // Build argv for the new binary (forge.new)
+                                        char **new_argv = calloc(g_saved_argc + 1, sizeof(char *));
+                                        new_argv[0] = "/usr/bin/forge.new";        /* <-- NEW binary */
+                                        for (int i = 1; i < g_saved_argc; ++i)
+                                                new_argv[i] = g_saved_argv[i];
+
+                                        execve(new_argv[0], new_argv, environ);
 
                                         // If we are still here, execve failed
-                                        //perror("execve(/usr/bin/forge.new)");
+                                        perror("execve(/usr/bin/forge.new)");
+                                        free(new_argv);
                                         goto install_cleanup;
                                 }
 
