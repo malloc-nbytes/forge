@@ -32,6 +32,7 @@
 #include "forge/viewer.h"
 #include "forge/str.h"
 #include "forge/utils.h"
+#include "forge/str.h"
 
 #include "config.h"
 #include "depgraph.h"
@@ -352,7 +353,7 @@ create_skeleton(const char *root)
         info(0, "Creating fakeroot skeleton\n");
 
         const char *paths[] = {
-                "bin", "etc", "lib", "opt",
+                "bin", "etc", "lib", "opt", "home",
                 "usr", "usr/bin", "usr/lib", "usr/include", "usr/lib64", "usr/share", "usr/libexec",
                 "usr/local", "usr/local/share", "usr/local/src", "usr/local/include", "usr/local/bin",
                 "usr/local/lib", "usr/local/lib64", "usr/local/sbin", "usr/local/opt",
@@ -1373,10 +1374,18 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 }
 
                 {
-                        char *copy = forge_cstr_builder("cp -r ./* ", buildsrc, NULL);
+                        /* char *copy = forge_cstr_builder("cp -v -a . \"", buildsrc, "\"", NULL); */
                         info(1, "Copying build source\n");
-                        cmd_s(copy);
-                        free(copy);
+                        char **cpfiles = ls(".");
+                        for (size_t j = 0; cpfiles[j]; ++j) {
+                                if (!strcmp(cpfiles[j], "..")) continue;
+                                if (!strcmp(cpfiles[j], ".")) continue;
+                                if (!strcmp(cpfiles[j], ".git")) continue;
+                                if (!strcmp(cpfiles[j], ".gitignore")) continue;
+                                char *copy = forge_cstr_builder("cp -rv \"", cpfiles[j], "\" \"", buildsrc, "\"", NULL);
+                                printf("%s\n", cmdout(copy));
+                                free(copy);
+                        }
                 }
 
                 char src_loc[256] = {0};
