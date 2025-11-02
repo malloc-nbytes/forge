@@ -2821,17 +2821,10 @@ main(int argc, char **argv)
                                                 goto install_cleanup;
                                         }
 
-                                        // Build argv for the new binary (forge.new)
-                                        char **new_argv = calloc(g_saved_argc + 1, sizeof(char *));
-                                        new_argv[0] = "/usr/bin/forge.new";        /* <-- NEW binary */
-                                        for (int i = 1; i < g_saved_argc; ++i)
-                                                new_argv[i] = g_saved_argv[i];
-
-                                        execve(new_argv[0], new_argv, environ);
+                                        //execve(PREFIX "/bin/forge.new", (char [])NULL, environ);
 
                                         // If we are still here, execve failed
-                                        perror("execve(/usr/bin/forge.new)");
-                                        free(new_argv);
+                                        //perror("execve(/usr/bin/forge.new)");
                                         goto install_cleanup;
                                 }
 
