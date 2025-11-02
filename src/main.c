@@ -2746,6 +2746,81 @@ show_pkg_files(str_array names)
         sqlite3_close(db);
 }
 
+static void
+apilist(void)
+{
+        char **files = ls(FORGE_API_HEADER_DIR);
+        if (!files) {
+                fprintf(stderr, "could not find FORGE_API_HEADER_DIR\n");
+                return;
+        }
+
+        // Find the longest filename length (excluding .h)
+        size_t max_len = 0;
+        for (size_t i = 0; files[i]; ++i) {
+                if (strcmp(files[i], ".") && strcmp(files[i], "..") && strcmp(files[i], "forge.h")) {
+                        size_t len = 0;
+                        for (size_t j = 0; files[i][j]; ++j) {
+                                if (files[i][j] == '.') {
+                                        len = j; // Length up to the period
+                                        break;
+                                }
+                        }
+                        if (len > max_len) {
+                                max_len = len;
+                        }
+                }
+        }
+
+        for (size_t i = 0; files[i]; ++i) {
+                if (strcmp(files[i], ".") && strcmp(files[i], "..") && strcmp(files[i], "forge.h")) {
+                        forge_str include = forge_str_from("#include <forge/");
+                        forge_str_concat(&include, files[i]);
+                        forge_str_append(&include, '>');
+
+                        int per = 0;
+                        for (size_t j = 0; files[i][j]; ++j) {
+                                if (files[i][j] == '.') {
+                                        per = j;
+                                        break;
+                                }
+                        }
+                        files[i][per] = 0;
+
+                        char format[32] = {0};
+                        snprintf(format, sizeof(format), "API %%-%zus: %%s\n", max_len);
+
+                        printf(format, files[i], forge_str_to_cstr(&include));
+
+                        forge_str_destroy(&include);
+                }
+                free(files[i]);
+        }
+
+        free(files);
+        char format[32] = {0};
+        snprintf(format, sizeof(format), "API %%-%zus: %%s\n", max_len);
+        printf(format, "forge", "#include <forge/forge.h> [includes all headers]");
+}
+
+static void
+editconf(void)
+{
+        assert_sudo();
+
+        if (!forge_io_filepath_exists(FORGE_CONF_HEADER_FP)) {
+                forge_err_wargs("fatal: somehow the path %s does not exist",
+                                FORGE_CONF_HEADER_FP);
+        }
+
+        edit_file_in_editor(FORGE_CONF_HEADER_FP);
+
+        info(0, "Because the configuration file is a C header,\n");
+        info(0, "you must recompile forge.\n");
+        info(0, "To do this, run " YELLOW "forge --force update forge" RESET ".\n");
+        info(0, "This assumes that you have already ran " YELLOW "forge install forge" RESET ".\n");
+}
+
 static str_array
 fold_args(forge_arg **hd)
 {
@@ -2933,6 +3008,10 @@ main(int argc, char **argv)
                                 forge_flags_copying();
                         } else if (streq(argcmd, CMD_FILES)) {
                                 show_pkg_files(fold_args(&arg));
+                        } else if (streq(argcmd, CMD_APILIST)) {
+                                apilist();
+                        } else if (streq(argcmd, CMD_EDITCONF)) {
+                                editconf();
                         }
 
                         // Solely for BASH completion
@@ -2999,6 +3078,9 @@ main(int argc, char **argv)
                         register_pkg(&ctx, pkg, is_explicit);
                 }
         }
+
+        unsetenv("FORGE_PREFIX");
+        unsetenv("FORGE_LIBDIR");
 
         dyn_array_free(indices);
         cleanup_forge_context(&ctx);
