@@ -1519,6 +1519,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         perror("execve");
                         free(restart_cmd);
 
+                        cleanup_forge_context(ctx);
                         exit(0);
                 }
         }
