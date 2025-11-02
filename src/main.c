@@ -2723,7 +2723,12 @@ show_pkg_files(str_array names)
                 free(count_str);
 
                 // Print files
+                int is_forge = !strcmp(pkgname, "forge");
                 for (size_t j = 0; j < files.len; ++j) {
+                        // Hack because of the self-updating nature
+                        // of the PM, we cannot track conf.h.
+                        if (is_forge && !strcmp(files.data[j], PREFIX "/include/forge/arg.h"))
+                                printf(PREFIX "/include/forge/conf.h\n");
                         printf("%s\n", files.data[j]);
                 }
 
@@ -2824,7 +2829,7 @@ main(int argc, char **argv)
                                 int install_ok = install_pkg(&ctx, pkgs, /*is_dep=*/0);
 
                                 if (install_ok && pkgs.len == 1 && !strcmp(pkgs.data[0], "forge")) {
-                                        info(0, "forge updated restarting with the new binary\n");
+                                        info(0, "forge updated - restarting with the new binary\n");
 
                                         // Switch to a safe cwd
                                         if (chdir("/") != 0) {
@@ -2900,7 +2905,7 @@ main(int argc, char **argv)
                                 int install_ok = update_pkgs(&ctx, pkgs);
 
                                 if (install_ok && pkgs.len == 1 && !strcmp(pkgs.data[0], "forge")) {
-                                        info(0, "forge updated restarting with the new binary\n");
+                                        info(0, "forge updated - restarting with the new binary\n");
 
                                         // Switch to a safe cwd
                                         if (chdir("/") != 0) {
