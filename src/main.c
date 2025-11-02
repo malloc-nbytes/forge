@@ -147,6 +147,8 @@ struct {
 extern char **environ;
 
 char *g_fakeroot = NULL;
+static char **g_saved_argv = NULL;
+static int   g_saved_argc = 0;
 
 void
 assert_sudo(void)
@@ -1498,27 +1500,6 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 free(succ_msg);
 
                 destroy_fakeroot();
-
-                if (strcmp(name, "forge@forge") == 0) {
-                        info(0, "Updated forge, bootstrapping\n");
-
-                        char *restart_cmd = forge_cstr_builder(
-                                "sleep 1; "
-                                "mv " PREFIX "/bin/forge.new " PREFIX "/bin/forge && "
-                                "exec /usr/bin/forge \"$@\"",
-                                NULL
-                        );
-
-                        if (chdir("/") != 0) {
-                                perror("chdir(/)");
-                                free(restart_cmd);
-                                exit(1);
-                        }
-
-                        execve("/bin/sh", (char *[]){"sh", "-c", restart_cmd, NULL}, environ);
-                        perror("execve");
-                        free(restart_cmd);
-                }
         }
 
         return 1;
@@ -2774,6 +2755,9 @@ fold_args(forge_arg **hd)
 int
 main(int argc, char **argv)
 {
+        g_saved_argc = argc;
+        g_saved_argv = argv;
+
         if (init_env()) {
                 first_time_reposync();
         }
@@ -2825,7 +2809,35 @@ main(int argc, char **argv)
                         char *argcmd = arg->s;
                         arg = arg->n;
                         if (streq(argcmd, CMD_INSTALL)) {
-                                install_pkg(&ctx, fold_args(&arg), /*is_dep=*/0);
+                                str_array pkgs = fold_args(&arg);
+                                int install_ok = install_pkg(&ctx, pkgs, /*is_dep=*/0);
+
+                                if (install_ok && pkgs.len == 1 && !strcmp(pkgs.data[0], "forge")) {
+                                        info(0, "forge updated - restarting with the new binary\n");
+
+                                        // Switch to a safe cwd
+                                        if (chdir("/") != 0) {
+                                                perror("chdir(/)");
+                                                goto install_cleanup;
+                                        }
+
+                                        // Build argv for the new binary (forge.new)
+                                        char **new_argv = calloc(g_saved_argc + 1, sizeof(char *));
+                                        new_argv[0] = "/usr/bin/forge.new";        /* <-- NEW binary */
+                                        for (int i = 1; i < g_saved_argc; ++i)
+                                                new_argv[i] = g_saved_argv[i];
+
+                                        execve(new_argv[0], new_argv, environ);
+
+                                        // If we are still here, execve failed
+                                        perror("execve(/usr/bin/forge.new)");
+                                        free(new_argv);
+                                        goto install_cleanup;
+                                }
+
+                        install_cleanup:
+                                for (size_t i = 0; i < pkgs.len; ++i) free(pkgs.data[i]);
+                                dyn_array_free(pkgs);
                         } else if (streq(argcmd, CMD_LIST)) {
                                 list_pkgs(&ctx);
                         } else if (streq(argcmd, CMD_LIB)) {
