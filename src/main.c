@@ -1518,9 +1518,6 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         execve("/bin/sh", (char *[]){"sh", "-c", restart_cmd, NULL}, environ);
                         perror("execve");
                         free(restart_cmd);
-
-                        cleanup_forge_context(ctx);
-                        exit(0);
                 }
         }
 
