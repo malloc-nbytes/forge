@@ -2843,6 +2843,288 @@ editconf(void)
         info(0, "This assumes that you have already ran " YELLOW "forge install forge" RESET ".\n");
 }
 
+str_array
+get_files_in_dir(const char *fp)
+{
+        str_array res = dyn_array_empty(str_array);
+        DIR *dir = opendir(fp);
+        if (!dir) {
+                fprintf(stderr, "Failed to open directory %s: %s\n", fp, strerror(errno));
+                return res;
+        }
+
+        struct dirent *entry;
+        struct stat st;
+        char full_path[512] = {0};
+
+        while ((entry = readdir(dir))) {
+                // Skip "." and ".." entries
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                        continue;
+                }
+
+                snprintf(full_path, sizeof(full_path), "%s/%s", fp, entry->d_name);
+
+                if (stat(full_path, &st) == -1) {
+                        fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
+                        continue;
+                }
+
+                // Check if it's a regular file
+                if (S_ISREG(st.st_mode)) {
+                        char *filename = strdup(entry->d_name);
+                        if (!filename) {
+                                fprintf(stderr, "Failed to allocate memory for %s\n", entry->d_name);
+                                continue;
+                        }
+                        dyn_array_append(res, filename);
+                }
+        }
+
+        closedir(dir);
+        return res;
+}
+
+static void
+drop_repo(forge_context *ctx,
+          str_array      repo_names)
+{
+        for (size_t i = 0; i < repo_names.len; ++i) {
+                const char *repo_name = repo_names.data[i];
+
+                // Construct the full path to the repository
+                char *repo_path = forge_cstr_builder(C_MODULE_DIR_PARENT, repo_name, NULL);
+                if (!forge_io_is_dir(repo_path)) {
+                        fprintf(stderr, "Repository %s does not exist at %s\n", repo_name, repo_path);
+                        free(repo_path);
+                        return;
+                }
+
+                // Get list of .c files in the repository
+                str_array pkg_files = get_files_in_dir(repo_path);
+                str_array pkg_names = dyn_array_empty(str_array);
+
+                // Extract package names (without .c extension)
+                for (size_t i = 0; i < pkg_files.len; ++i) {
+                        char *filename = pkg_files.data[i];
+                        size_t len = strlen(filename);
+                        if (len > 2 && strcmp(filename + len - 2, ".c") == 0) {
+                                char *name = strdup(filename);
+                                name[len - 2] = '\0'; // Remove .c extension
+                                dyn_array_append(pkg_names, name);
+                        }
+                }
+
+                for (size_t i = 0; i < pkg_files.len; ++i) {
+                        free(pkg_files.data[i]);
+                }
+                dyn_array_free(pkg_files);
+
+                // Prompt user for uninstalling packages
+                int uninstall = 0;
+                if (pkg_names.len > 0) {
+                        printf(YELLOW "Found %zu package(s) in repository %s:\n" RESET, pkg_names.len, repo_name);
+                        for (size_t i = 0; i < pkg_names.len; ++i) {
+                                printf("  %s\n", pkg_names.data[i]);
+                        }
+                        printf(YELLOW "\nWould you like to uninstall installed packages from this repository? [y/N]: " RESET);
+                        fflush(stdout);
+
+                        char response[10];
+                        if (fgets(response, sizeof(response), stdin) != NULL) {
+                                response[strcspn(response, "\n")] = '\0';
+                                if (response[0] == 'y' || response[0] == 'Y') {
+                                        uninstall = 1;
+                                }
+                        }
+                }
+
+                // Uninstall packages if requested
+                if (uninstall) {
+                        str_array names_to_uninstall = dyn_array_empty(str_array);
+                        for (size_t i = 0; i < pkg_names.len; ++i) {
+                                if (pkg_is_installed(ctx, pkg_names.data[i]) == 1) {
+                                        dyn_array_append(names_to_uninstall, strdup(pkg_names.data[i]));
+                                }
+                        }
+                        if (names_to_uninstall.len > 0) {
+                                printf(GREEN BOLD "*** Uninstalling packages from repository %s\n" RESET, repo_name);
+                                uninstall_pkg(ctx, names_to_uninstall, 1);
+                                for (size_t i = 0; i < names_to_uninstall.len; ++i) {
+                                        free(names_to_uninstall.data[i]);
+                                }
+                                dyn_array_free(names_to_uninstall);
+                        } else {
+                                printf(YELLOW "No installed packages found in repository %s\n" RESET, repo_name);
+                        }
+                }
+
+                printf(GREEN BOLD "*** Dropping packages from repository %s\n" RESET, repo_name);
+                str_array to_be_dropped = dyn_array_empty(str_array);
+                for (size_t i = 0; i < pkg_names.len; ++i) {
+                        if (get_pkg_id(ctx, pkg_names.data[i]) != -1) {
+                                dyn_array_append(to_be_dropped, pkg_names.data[i]);
+                        }
+                }
+                drop_pkg(ctx, to_be_dropped);
+
+                // Remove the repository directory
+                printf(YELLOW "Removing repository directory: %s\n" RESET, repo_path);
+                if (!forge_io_rm_dir(repo_path)) {
+                        fprintf(stderr, "Failed to remove repository directory %s: %s\n", repo_path, strerror(errno));
+                } else {
+                        printf(GREEN BOLD "*** Successfully removed repository %s\n" RESET, repo_name);
+                }
+
+                for (size_t i = 0; i < pkg_names.len; ++i) {
+                        free(pkg_names.data[i]);
+                }
+                dyn_array_free(pkg_names);
+                free(repo_path);
+        }
+}
+
+static void
+add_repo(str_array names)
+{
+        assert_sudo();
+
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *name = names.data[i];
+
+                CD(C_MODULE_DIR_PARENT, goto bad);
+                char *clone = forge_cstr_builder("git clone ", name, NULL);
+                CMD(clone, goto bad);
+                goto ok;
+        bad:
+                printf("aborting...\n");
+        ok:
+                free(clone);
+        }
+}
+
+static void
+create_repo_compile_template(void)
+{
+        char *script = "set -e\n"
+                "\n"
+                "for file in *.c; do\n"
+                "    if [[ -f \"$file\" ]]; then\n"
+                "        echo \"gcc -shared -fPIC -o \\\"${file%.c}.so\\\" \\\"$file\\\"\"\n"
+                "        gcc -shared -fPIC -o \"${file%.c}.so\" \"$file\"\n"
+                "\n"
+                "        if ! [[ $? -eq 0 ]]; then\n"
+                "                echo \"Failed to compile $file\"\n"
+                "                exit 1\n"
+                "        fi\n"
+                "    else\n"
+                "        echo \"No .c files found in the current directory\"\n"
+                "        exit 1\n"
+                "    fi\n"
+                "done\n"
+                "\n"
+                "echo \"Removing all .so files...\"\n"
+                "rm -f *.so\n"
+                "echo \"Done.\"\n";
+        printf("%s\n", script);
+}
+
+static void
+create_repo(const char *repo_name,
+            const char *repo_url)
+{
+        char *new_repo_path = forge_cstr_builder(C_MODULE_DIR_PARENT, "/", repo_name, NULL);
+        char *copy_cmd = forge_cstr_builder("cp ", C_MODULE_USER_DIR, "/*.c ", new_repo_path, " 2>/dev/null || true", NULL); // Handle no .c files
+        char *del_cmd = forge_cstr_builder("rm -f ", C_MODULE_USER_DIR, "/*.c", NULL);
+        char *add_origin_cmd = forge_cstr_builder("git remote add origin ", repo_url, NULL);
+
+        // Create the new repository directory
+        if (mkdir_p_wmode(new_repo_path, 0755) != 0) {
+                fprintf(stderr, "Failed to create directory %s: %s\n", new_repo_path, strerror(errno));
+                goto cleanup;
+        }
+
+        // Copy .c files from user_modules to new repo
+        if (!cmd(copy_cmd)) {
+                fprintf(stderr, "Warning: No .c files found in %s or failed to copy: %s\n", C_MODULE_USER_DIR, strerror(errno));
+        }
+
+        // Remove .c files from user_modules
+        if (!cmd(del_cmd)) {
+                fprintf(stderr, "Warning: Failed to remove .c files from %s: %s\n", C_MODULE_USER_DIR, strerror(errno));
+        }
+
+        if (!cd(new_repo_path)) {
+                fprintf(stderr, "Failed to change to directory %s: %s\n", new_repo_path, strerror(errno));
+                goto cleanup;
+        }
+
+        if (!cmd("git init")) {
+                fprintf(stderr, "Failed to initialize Git repository in %s: %s\n", new_repo_path, strerror(errno));
+                goto cleanup;
+        }
+
+        // Rename default branch to 'main'
+        if (!cmd("git branch -m master main")) {
+                fprintf(stderr, "Failed to rename branch from master to main: %s\n", strerror(errno));
+                goto cleanup;
+        }
+
+        // Set local Git user identity
+        if (!cmd("git config user.name \"Forge User\"")) {
+                fprintf(stderr, "Failed to set Git user.name: %s\n", strerror(errno));
+                goto cleanup;
+        }
+        if (!cmd("git config user.email \"forge@forge.com\"")) {
+                fprintf(stderr, "Failed to set Git user.email: %s\n", strerror(errno));
+                goto cleanup;
+        }
+
+        if (!cmd("git add .")) {
+                fprintf(stderr, "Failed to add files to Git: %s\n", strerror(errno));
+                goto cleanup;
+        }
+
+        if (!cmd("git commit -m 'Initial commit'")) {
+                fprintf(stderr, "Failed to commit changes: %s\n", strerror(errno));
+                goto cleanup;
+        }
+
+        // Add remote origin
+        if (!cmd(add_origin_cmd)) {
+                fprintf(stderr, "Failed to add remote origin %s: %s\n", repo_url, strerror(errno));
+                goto cleanup;
+        }
+
+        // Verify remote
+        if (!cmd("git remote -v")) {
+                fprintf(stderr, "Failed to verify remote: %s\n", strerror(errno));
+                goto cleanup;
+        }
+
+        // Pull with allow-unrelated-histories (in case the remote has history)
+        if (!cmd("git pull origin main --allow-unrelated-histories --no-rebase")) {
+                fprintf(stderr, "Warning: Failed to pull from origin main, repository might be empty or branch mismatch: %s\n", strerror(errno));
+                // Continue even if pull fails, as the remote might be empty
+        }
+
+        // Push to remote
+        if (!cmd("git push -u origin main")) {
+                fprintf(stderr, "Failed to push to %s: %s\n", repo_url, strerror(errno));
+                fprintf(stderr, "Ensure the repository exists, you have write access, and authentication is configured (e.g., SSH key or personal access token).\n");
+                goto cleanup;
+        }
+
+        info_builder(1, "Successfully created and pushed repository ", YELLOW BOLD, repo_name, RESET " to " YELLOW BOLD, repo_url, RESET "\n" RESET, NULL);
+
+ cleanup:
+        info(0, "Cleaning up...\n");
+        free(new_repo_path);
+        free(copy_cmd);
+        free(del_cmd);
+        free(add_origin_cmd);
+}
+
 static str_array
 fold_args(forge_arg **hd)
 {
@@ -3034,6 +3316,19 @@ main(int argc, char **argv)
                                 apilist();
                         } else if (streq(argcmd, CMD_EDITCONF)) {
                                 editconf();
+                        } else if (streq(argcmd, CMD_ADD_REPO)) {
+                                g_config.flags |= FT_REBUILD;
+                                add_repo(fold_args(&arg));
+                        } else if (streq(argcmd, CMD_DROP_REPO)) {
+                                g_config.flags |= FT_REBUILD;
+                                drop_repo(&ctx, fold_args(&arg));
+                        } else if (streq(argcmd, CMD_CREATE_REPO)) {
+                                if (!arg) forge_err_wargs("flag `%s` requires a repo name", CMD_CREATE_REPO);
+                                if (!arg->n) forge_err_wargs("flag `%s` requires a repo url", CMD_CREATE_REPO);
+                                create_repo(arg->s, arg->n->s);
+                                arg = arg->n->n;
+                        } else if (streq(argcmd, CMD_REPO_COMPILE_TEMPLATE)) {
+                                create_repo_compile_template();
                         }
 
                         // Solely for BASH completion
