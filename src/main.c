@@ -1500,7 +1500,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 destroy_fakeroot();
 
                 if (strcmp(name, "forge@forge") == 0) {
-                        info(1, "Updated forge, bootstrapping and restarting...");
+                        info(1, "Updated forge, bootstrapping\n");
 
                         char *restart_cmd = forge_cstr_builder(
                                 "sleep 1; "
@@ -1518,6 +1518,10 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         execve("/bin/sh", (char *[]){"sh", "-c", restart_cmd, NULL}, environ);
                         perror("execve");
                         free(restart_cmd);
+
+                        info(1, "Restarting...\n");
+
+                        exit(0);
                 }
         }
 
