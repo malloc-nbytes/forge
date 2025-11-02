@@ -2416,7 +2416,7 @@ list_deps(const forge_context *ctx)
         dyn_array_free(dep_names);
 }
 
-static void
+static int
 update_pkgs(forge_context *ctx, str_array names)
 {
         assert_sudo();
@@ -2443,7 +2443,7 @@ update_pkgs(forge_context *ctx, str_array names)
         if (to_update.len == 0) {
                 info(0, "No packages to update.\n");
                 dyn_array_free(to_update);
-                return;
+                return 1;
         }
 
         // Process each package
@@ -2539,13 +2539,11 @@ update_pkgs(forge_context *ctx, str_array names)
                 str_array single = dyn_array_empty(str_array);
                 dyn_array_append(single, strdup(name));
 
-                if (strcmp(name, "malloc-nbytes@forge")) {
-                        // We *do not* want to remove files from forge!
-                        uninstall_pkg(ctx, single, 0);
-                }
+                uninstall_pkg(ctx, single, 0);
 
                 if (!install_pkg(ctx, single, /*is_dep=*/0)) {
-                        forge_err_wargs("update failed for %s", name);
+                        //forge_err_wargs("update failed for %s", name);
+                        return 0;
                 } else {
                         good(0, forge_cstr_builder("Updated ", YELLOW BOLD, name, RESET, "\n", NULL));
                 }
@@ -2568,6 +2566,8 @@ update_pkgs(forge_context *ctx, str_array names)
 
         if (!any_updated && skipped.len == 0)
                 info(0, "All checked packages are already up-to-date.\n");
+
+        return 1;
 }
 
 static void
@@ -2829,12 +2829,11 @@ main(int argc, char **argv)
                                         // Switch to a safe cwd
                                         if (chdir("/") != 0) {
                                                 perror("chdir(/)");
-                                                goto install_cleanup;
                                         }
 
                                         // Build argv for the new binary (forge.new)
                                         char **new_argv = calloc(g_saved_argc + 1, sizeof(char *));
-                                        new_argv[0] = "/usr/bin/forge.new";        /* <-- NEW binary */
+                                        new_argv[0] = "/usr/bin/forge.new";
                                         for (int i = 1; i < g_saved_argc; ++i)
                                                 new_argv[i] = g_saved_argv[i];
 
@@ -2843,12 +2842,7 @@ main(int argc, char **argv)
                                         // If we are still here, execve failed
                                         perror("execve(/usr/bin/forge.new)");
                                         free(new_argv);
-                                        goto install_cleanup;
                                 }
-
-                        install_cleanup:
-                                for (size_t i = 0; i < pkgs.len; ++i) free(pkgs.data[i]);
-                                dyn_array_free(pkgs);
                         } else if (streq(argcmd, CMD_LIST)) {
                                 list_pkgs(&ctx);
                         } else if (streq(argcmd, CMD_LIB)) {
@@ -2902,7 +2896,29 @@ main(int argc, char **argv)
                                         arg = arg->n;
                                 }
                         } else if (streq(argcmd, CMD_UPDATE)) {
-                                update_pkgs(&ctx, fold_args(&arg));
+                                str_array pkgs = fold_args(&arg);
+                                int install_ok = update_pkgs(&ctx, pkgs);
+
+                                if (install_ok && pkgs.len == 1 && !strcmp(pkgs.data[0], "forge")) {
+                                        info(0, "forge updated restarting with the new binary\n");
+
+                                        // Switch to a safe cwd
+                                        if (chdir("/") != 0) {
+                                                perror("chdir(/)");
+                                        }
+
+                                        // Build argv for the new binary (forge.new)
+                                        char **new_argv = calloc(g_saved_argc + 1, sizeof(char *));
+                                        new_argv[0] = "/usr/bin/forge.new";
+                                        for (int i = 1; i < g_saved_argc; ++i)
+                                                new_argv[i] = g_saved_argv[i];
+
+                                        execve(new_argv[0], new_argv, environ);
+
+                                        // If we are still here, execve failed
+                                        perror("execve(/usr/bin/forge.new)");
+                                        free(new_argv);
+                                }
                         } else if (streq(argcmd, CMD_SEARCH)) {
                                 pkg_search(fold_args(&arg));
                         } else if (streq(argcmd, CMD_COPYING)) {
