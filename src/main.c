@@ -2889,6 +2889,8 @@ static void
 drop_repo(forge_context *ctx,
           str_array      repo_names)
 {
+        assert_sudo();
+
         for (size_t i = 0; i < repo_names.len; ++i) {
                 const char *repo_name = repo_names.data[i];
 
@@ -3033,6 +3035,8 @@ static void
 create_repo(const char *repo_name,
             const char *repo_url)
 {
+        assert_sudo();
+
         char *new_repo_path = forge_cstr_builder(C_MODULE_DIR_PARENT, "/", repo_name, NULL);
         char *copy_cmd = forge_cstr_builder("cp ", C_MODULE_USER_DIR, "/*.c ", new_repo_path, " 2>/dev/null || true", NULL); // Handle no .c files
         char *del_cmd = forge_cstr_builder("rm -f ", C_MODULE_USER_DIR, "/*.c", NULL);
@@ -3123,6 +3127,63 @@ create_repo(const char *repo_name,
         free(copy_cmd);
         free(del_cmd);
         free(add_origin_cmd);
+}
+
+static void
+list_repos(void)
+{
+        char **dirs = ls(C_MODULE_DIR_PARENT);
+        if (!dirs) {
+                fprintf(stderr, "Failed to list directories in %s: %s\n", C_MODULE_DIR_PARENT, strerror(errno));
+                return;
+        }
+
+        // Collect valid directories and calculate max width for formatting
+        str_array repos = dyn_array_empty(str_array);
+        size_t max_name_len = strlen("Repository");
+
+        for (size_t i = 0; dirs[i]; ++i) {
+                if (!strcmp(dirs[i], ".") || !strcmp(dirs[i], "..")) {
+                        free(dirs[i]);
+                        continue;
+                }
+
+                char *repo_path = forge_cstr_builder(C_MODULE_DIR_PARENT, "/", dirs[i], NULL);
+                if (forge_io_is_dir(repo_path)) {
+                        dyn_array_append(repos, strdup(dirs[i]));
+                        max_name_len = MAX(max_name_len, strlen(dirs[i]));
+                }
+                free(repo_path);
+                free(dirs[i]);
+        }
+        free(dirs);
+
+        printf("%-*s\n", (int)max_name_len, "Repository");
+        printf("%-*s\n", (int)max_name_len, "----------");
+
+        if (repos.len == 0) {
+                printf("No repositories found in %s.\n", C_MODULE_DIR_PARENT);
+        } else {
+                for (size_t i = 0; i < repos.len; ++i) {
+                        //printf("%-*s", (int)max_name_len, repos.data[i]);
+                        if (!strcmp(repos.data[i], "user_modules")) {
+                                printf(BLUE "%-*s" RESET, (int)max_name_len, repos.data[i]);
+                                printf(BLUE " (built-in)" RESET);
+                        } else if (!strcmp(repos.data[i], "forge-modules")) {
+                                printf(GREEN "%-*s" RESET, (int)max_name_len, repos.data[i]);
+                                printf(GREEN " (forge official repository)" RESET);
+                        } else {
+                                printf(YELLOW "%-*s" RESET, (int)max_name_len, repos.data[i]);
+                                printf(YELLOW " (third-party)" RESET);
+                        }
+                        putchar('\n');
+                }
+        }
+
+        for (size_t i = 0; i < repos.len; ++i) {
+                free(repos.data[i]);
+        }
+        dyn_array_free(repos);
 }
 
 static str_array
@@ -3329,6 +3390,8 @@ main(int argc, char **argv)
                                 arg = arg->n->n;
                         } else if (streq(argcmd, CMD_REPO_COMPILE_TEMPLATE)) {
                                 create_repo_compile_template();
+                        } else if (streq(argcmd, CMD_LIST_REPOS)) {
+                                list_repos();
                         }
 
                         // Solely for BASH completion
