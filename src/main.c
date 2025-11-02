@@ -2118,7 +2118,7 @@ new_pkg(forge_context *ctx, str_array names)
 
         for (size_t i = 0; i < names.len; ++i) {
                 char fp[256] = {0};
-                sprintf(fp, C_MODULE_USER_DIR "%s.c", names.data[i]);
+                sprintf(fp, C_MODULE_USER_DIR "/%s.c", names.data[i]);
                 if (forge_io_filepath_exists(fp)) {
                         forge_err_wargs("file %s already exists", fp);
                 }
