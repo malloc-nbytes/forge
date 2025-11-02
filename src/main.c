@@ -2765,6 +2765,8 @@ main(int argc, char **argv)
                         info(0, "Activated new forge version\n");
                         argv[0] = "/usr/bin/forge";
                 }
+
+                exit(0);
         }
 
         if (init_env()) {
