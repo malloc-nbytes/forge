@@ -143,6 +143,9 @@ struct {
         .flags = 0x0000,
 };
 
+// unistd.h
+extern char **environ;
+
 char *g_fakeroot = NULL;
 
 void
@@ -283,8 +286,10 @@ cleanup_forge_context(forge_context *ctx)
 {
         sqlite3_close(ctx->db);
         for (size_t i = 0; i < ctx->dll.handles.len; ++i) {
-                dlclose(ctx->dll.handles.data[i]);
-                free(ctx->dll.paths.data[i]);
+                if (ctx->dll.handles.data[i]) {
+                        dlclose(ctx->dll.handles.data[i]);
+                        free(ctx->dll.paths.data[i]);
+                }
         }
         dyn_array_free(ctx->dll.handles);
         dyn_array_free(ctx->dll.paths);
@@ -1392,10 +1397,10 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 sprintf(src_loc, PKG_SOURCE_DIR "/%s", pkgname);
 
                 CD(buildsrc, {
-                        fprintf(stderr, "aborting...\n");
-                        free(pkg_src_loc);
-                        goto bad;
-                });
+                                fprintf(stderr, "aborting...\n");
+                                free(pkg_src_loc);
+                                goto bad;
+                        });
 
                 if (pkg->build) {
                         info_builder(1, "build(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
@@ -1493,6 +1498,27 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 free(succ_msg);
 
                 destroy_fakeroot();
+
+                if (strcmp(name, "forge@forge") == 0) {
+                        info(1, "Updated forge, bootstrapping and restarting...");
+
+                        char *restart_cmd = forge_cstr_builder(
+                                "sleep 1; "
+                                "mv " PREFIX "/bin/forge.new " PREFIX "/bin/forge && "
+                                "exec /usr/bin/forge \"$@\"",
+                                NULL
+                        );
+
+                        if (chdir("/") != 0) {
+                                perror("chdir(/)");
+                                free(restart_cmd);
+                                exit(1);
+                        }
+
+                        execve("/bin/sh", (char *[]){"sh", "-c", restart_cmd, NULL}, environ);
+                        perror("execve");
+                        free(restart_cmd);
+                }
         }
 
         return 1;
