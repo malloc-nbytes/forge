@@ -14,3 +14,4 @@
   - [X] add --depclean equivalent
   - [X] add new field in Pkg table (=is_dep=)
 - [ ] add =version= data structure to compare versions
+- [ ] have =new= autofill the pkg name into the template.
