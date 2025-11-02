@@ -82,7 +82,7 @@ char *git_clone(char *author, char *name);
  * Returns: the filepath, or NULL on failure
  * Description: Create a directory with the `-p` flag.
  */
-char *mkdirp(char *fp);
+char *mkdirp(const char *path);
 
 /**
  * Parameter: var -> the environment variable
@@ -153,6 +153,8 @@ int is_git_dir(const char *path);
  *              is a superuser.
  */
 int is_sudo(void);
+
+int rmrf(const char *fp);
 
 #ifdef __cplusplus
 }

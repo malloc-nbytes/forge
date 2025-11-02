@@ -7,7 +7,7 @@
 
 #define FORGE_SET_DEFAULT_CAPACITY 256
 
-#define forge_set_type(type, setname) \
+#define FORGE_SET_TYPE(type, setname) \
         typedef unsigned (*forge_##setname##_hash_sig)(type *); \
         typedef int      (*forge_##setname##_cmp_sig)(type *, type *); \
         typedef void     (*forge_##setname##_vfree_sig)(type *); \

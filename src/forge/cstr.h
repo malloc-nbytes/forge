@@ -32,6 +32,13 @@ const char *forge_cstr_first_of(const char *s, char c);
  */
 const char *forge_cstr_last_of(const char *s, char c);
 
+/**
+ * Parameter: i -> the integer to convert
+ * Returns: a string of `i`
+ * Description: Convert integer `i` to a string.
+ */
+char *forge_cstr_of_int(int i);
+
 #ifdef __cplusplus
 }
 #endif

@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <string.h>
 #include <dirent.h>
+#include <fcntl.h>
 
 #include "forge/cmd.h"
 #include "forge/conf.h"
@@ -249,14 +250,31 @@ git_clone(char *author,
 }
 
 char *
-mkdirp(char *fp)
+mkdirp(const char *path)
 {
-        char buf[256] = {0};
-        sprintf(buf, "mkdir -p %s", fp);
-        if (!cmd(buf)) {
+        char tmp[PATH_MAX];
+        const char *p;
+
+        snprintf(tmp, sizeof(tmp), "%s", path);
+        for (p = tmp; *p == '/'; p++) continue;
+
+        for (; *p; p++) {
+                if (*p == '/') {
+                        char c = *p;
+                        *(char *)p = '\0';
+                        if (mkdir(tmp, 0755) && errno != EEXIST) {
+                                perror("mkdir");
+                                return NULL;
+                        }
+                        *(char *)p = c;
+                }
+        }
+        if (mkdir(tmp, 0755) && errno != EEXIST) {
+                perror("mkdir");
                 return NULL;
         }
-        return fp;
+
+        return strdup(tmp);
 }
 
 char *
@@ -386,4 +404,13 @@ int
 is_sudo(void)
 {
         return !geteuid();
+}
+
+int
+rmrf(const char *fp)
+{
+        char buf[PATH_MAX+7+1] = {0};
+        strcat(buf, "rm -rf ");
+        strcat(buf, fp);
+        return cmd_s(buf);
 }

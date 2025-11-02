@@ -20,15 +20,14 @@
 #ifndef FLAGS_H_INCLUDED
 #define FLAGS_H_INCLUDED
 
-#define FLAG_1HY_HELP "h"
+#define FLAG_1HY_HELP    "h"
 #define FLAG_1HY_REBUILD "r"
-#define FLAG_1HY_SYNC "s"
+#define FLAG_1HY_SYNC    "s"
 
-#define FLAG_2HY_HELP "help"
-#define FLAG_2HY_REBUILD "rebuild"
-#define FLAG_2HY_SYNC "sync"
-#define FLAG_2HY_DROP_BROKEN_PKGS "drop-broken-pkgs"
-#define FLAG_2HY_FORCE "force"
+#define FLAG_2HY_HELP             "help"
+#define FLAG_2HY_REBUILD          "rebuild"
+#define FLAG_2HY_SYNC             "sync"
+#define FLAG_2HY_FORCE            "force"
 
 #define CLI_OPTIONS {                           \
                 "-" FLAG_1HY_HELP,              \
@@ -37,40 +36,39 @@
                 "--" FLAG_2HY_HELP,             \
                 "--" FLAG_2HY_REBUILD,          \
                 "--" FLAG_2HY_SYNC,             \
-                "--" FLAG_2HY_DROP_BROKEN_PKGS, \
                 "--" FLAG_2HY_FORCE,            \
         }
 
-#define CMD_LIST "list"
-#define CMD_DEPS "deps"
-#define CMD_INSTALL "install"
-#define CMD_UNINSTALL "uninstall"
-#define CMD_NEW "new"
-#define CMD_EDIT "edit"
-#define CMD_UPDATE "update"
-#define CMD_DUMP "dump"
-#define CMD_DROP "drop"
-#define CMD_FILES "files"
-#define CMD_COPYING "copying"
-#define CMD_DEPGRAPH "depgraph"
-#define CMD_API "api"
-#define CMD_EDITCONF "editconf"
-#define CMD_UPDATEFORGE "updateforge"
-#define CMD_RESTORE "restore"
-#define CMD_APILIST "api-list"
-#define CMD_SEARCH "search"
-#define CMD_ADD_REPO "add-repo"
-#define CMD_DROP_REPO "drop-repo"
-#define CMD_LIST_REPOS "list-repos"
-#define CMD_REPO_COMPILE_TEMPLATE "repo-compile-template"
-#define CMD_CREATE_REPO "create-repo"
-#define CMD_LIB "lib"
-#define CMD_CLEAN "clean"
-#define CMD_SAVE_DEP "save-dep"
-#define CMD_LIST_DEPS "list-deps"
-#define CMD_EDIT_INSTALL "edit-install"
-#define CMD_INT "int"
-#define CMD_INFO "info"
+#define CMD_LIST                   "list"
+#define CMD_DEPS                   "deps"
+#define CMD_INSTALL                "install"
+#define CMD_UNINSTALL              "uninstall"
+#define CMD_NEW                    "new"
+#define CMD_EDIT                   "edit"
+#define CMD_UPDATE                 "update"
+#define CMD_DUMP                   "dump"
+#define CMD_DROP                   "drop"
+#define CMD_FILES                  "files"
+#define CMD_COPYING                "copying"
+#define CMD_DEPGRAPH               "depgraph"
+#define CMD_API                    "api"
+#define CMD_EDITCONF               "editconf"
+#define CMD_UPDATEFORGE            "updateforge"
+#define CMD_RESTORE                "restore"
+#define CMD_APILIST                "api-list"
+#define CMD_SEARCH                 "search"
+#define CMD_ADD_REPO               "add-repo"
+#define CMD_DROP_REPO              "drop-repo"
+#define CMD_LIST_REPOS             "list-repos"
+#define CMD_REPO_COMPILE_TEMPLATE  "repo-compile-template"
+#define CMD_CREATE_REPO            "create-repo"
+#define CMD_LIB                    "lib"
+#define CMD_CLEAN                  "clean"
+#define CMD_SAVE_DEP               "save-dep"
+#define CMD_LIST_DEPS              "list-deps"
+#define CMD_EDIT_INSTALL           "edit-install"
+#define CMD_INT                    "int"
+#define CMD_INFO                   "info"
 
 #define CLI_CMDS {                              \
                 CMD_LIST,                       \
@@ -106,13 +104,12 @@
         }
 
 #define CMD_COMMANDS "COMMANDS" // not included in CLI_COMMANDS (hidden)
-#define CMD_OPTIONS "OPTIONS"   // not included in CLI_COMMANDS (hidden)
+#define CMD_OPTIONS  "OPTIONS"   // not included in CLI_COMMANDS (hidden)
 
 typedef enum {
         FT_REBUILD = 1 << 0,
-        FT_SYNC = 1 << 1,
-        FT_DROP_BROKEN_PKGS = 1 << 2,
-        FT_FORCE = 1 << 3,
+        FT_SYNC    = 1 << 1,
+        FT_FORCE   = 1 << 2,
 } flag_type;
 
 void forge_flags_usage(void);

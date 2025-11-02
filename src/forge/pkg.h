@@ -2,6 +2,7 @@
 #define FORGE_PKG_H_INCLUDED
 
 #include <stddef.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {

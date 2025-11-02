@@ -170,8 +170,7 @@ static void
 __depgraph_gen_order(const depgraph *dg, size_t_array *ar, size_t st, int *visited, int *rec_stack)
 {
         if (rec_stack[st]) {
-                // Cycle detected, but we can skip for topological sort purposes
-                // Optionally, you can handle this differently (report an error)
+                // Cycle detected
                 return;
         }
 
@@ -180,7 +179,6 @@ __depgraph_gen_order(const depgraph *dg, size_t_array *ar, size_t st, int *visit
                 return;
         }
 
-        // Mark node as part of the current recursion stack
         rec_stack[st] = 1;
 
         // Process all dependencies
@@ -198,7 +196,6 @@ __depgraph_gen_order(const depgraph *dg, size_t_array *ar, size_t st, int *visit
         visited[st] = 1;
         rec_stack[st] = 0;
 
-        // Append the current node to the result (post-order)
         dyn_array_append(*ar, st);
 }
 

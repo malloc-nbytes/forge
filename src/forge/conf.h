@@ -9,12 +9,14 @@ extern "C" {
 #define FORGE_PREFERRED_MAKEFILE_JFLAGS "$(nproc)"
 
 // Where to install to
-#define FORGE_PREFERRED_INSTALL_PREFIX "/usr/local"
+#define FORGE_PREFERRED_INSTALL_PREFIX "$DESTDIR/usr/local"
 
 // Where to install libraries to
-#define FORGE_PREFERRED_LIB_PREFIX "/usr/local/lib64"
+#define FORGE_PREFERRED_LIB_PREFIX "$DESTDIR/usr/local/lib64"
 
 #define FORGE_EDITOR "vim"
+
+extern char *g_fakeroot;
 
 #ifdef __cplusplus
 }

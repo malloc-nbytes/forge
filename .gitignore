@@ -1,5 +1,6 @@
 forge.db
 *.so
+src/forge-debug-build
 
 # Autotools generated files
 conf*
