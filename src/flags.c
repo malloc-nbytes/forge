@@ -141,10 +141,25 @@ help_update(void)
         INDENT INDENT printf("1. provide names to update those specific packages\n");
         INDENT INDENT printf("2. leave empty to update all installed packages.\n\n");
 
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("You can use the --force option to force an update\n");
+        INDENT INDENT printf("even when it is up-to-date. This can be used to recompile\n");
+        INDENT INDENT printf("packages, but mostly used for packages that have no way\n");
+        INDENT INDENT printf("of knowing if there is an update available or not\n");
+        INDENT INDENT printf("(when you update, it will tell you when it does not\n");
+        INDENT INDENT printf("know if there is an update available)\n\n");
+
+        INDENT printf("Note:\n");
+        INDENT INDENT printf("If you have the main repository enabled, you can do\n");
+        INDENT INDENT INDENT printf("forge --force update forge\n");
+        INDENT INDENT printf("to update and recompile forge automatically.\n\n");
+
         INDENT printf("Example:\n");
         INDENT INDENT printf("forge update malloc-nbytes@earl\n");
         INDENT INDENT printf("forge update malloc-nbytes@ampire Github@github-cli\n");
         INDENT INDENT printf("forge update\n");
+        INDENT INDENT printf("forge --force update author@this-pkg-has-no-update\n");
+        INDENT INDENT printf("forge --force update forge\n");
 }
 
 static void
@@ -679,7 +694,7 @@ forge_flags_usage(void)
         printf(GREEN BOLD "    %s          " RESET YELLOW BOLD   "           R  " RESET "interactively install/uninstall packages\n", CMD_INT);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "       R "     RESET  " install packages\n", CMD_INSTALL);
         printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "     R "       RESET  " uninstall packages\n", CMD_UNINSTALL);
-        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "        R "    RESET  " update packages or leave empty to update all\n", CMD_UPDATE);
+        printf(GREEN BOLD "    %s <pkg...> " RESET YELLOW BOLD "        RN"    RESET  " update packages or leave empty to update all\n", CMD_UPDATE);
         printf(GREEN BOLD "    %s <pkg>      " RESET YELLOW BOLD "        R "    RESET  " view package information\n", CMD_INFO);
         printf(GREEN BOLD "    %s <name> " RESET YELLOW BOLD "        R "    RESET  " save a dependency package as explictly installed\n", CMD_SAVE_DEP);
         printf(GREEN BOLD "    %s" RESET YELLOW BOLD "                   RN"    RESET  " remove unused dependency packages\n", CMD_CLEAN);

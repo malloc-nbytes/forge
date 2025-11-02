@@ -1243,6 +1243,8 @@ uninstall_pkg(forge_context *ctx, str_array names, int remove_src)
 static int
 install_pkg(forge_context *ctx, str_array names, int is_dep)
 {
+        assert_sudo();
+
         (void)ctx;
 
         const char *failed_pkgname = NULL;
@@ -1757,7 +1759,24 @@ first_time_reposync(void)
 {
         assert_sudo();
 
-        int choice = forge_chooser_yesno("Would you like to install the default forge repository", NULL, 0);
+        info(1, INVERT "IMPORTANT:" RESET " You are about to be asked if you want to install the default repository.\n");
+        info(0, "It contains a module simply called " YELLOW "forge" RESET ", which allows automatic updating of the package manager itself.\n");
+        info(0, "If you choose to install it, wait for the modules compile and do:\n");
+        info(0, "    " YELLOW "forge install forge" RESET "\n");
+        info(0, "Then you can update " YELLOW "forge" RESET " at any point by doing " YELLOW "forge --force update forge" RESET "\n");
+        info(0, "(you can see this update hint again by doing " YELLOW "forge --help=update" RESET ").\n");
+        info(1, YELLOW "forge" RESET " uses a C header as the configuration file. So if you need to change\n");
+        info(0, "something in your config, you " BOLD "must" RESET " recompile " YELLOW "forge" RESET ".\n");
+        info(0, "The main repository auto-magically does this for you, but if you choose to not\n");
+        info(0, "use it then is up to you to save your header config (" YELLOW PREFIX "/include/forge/conf.h" RESET ")\n");
+        info(0, "and recompile " YELLOW "forge" RESET " yourself (maybe you want this if you truly want to manage everything yourself?).\n");
+        info(1, "Press " YELLOW "any key" RESET " to continue...\n");
+        struct termios term;
+        (void)forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term);
+        (void)getchar();
+        (void)forge_ctrl_disable_raw_terminal(STDIN_FILENO, &term);
+
+        int choice = forge_chooser_yesno("Would you like to install the default forge repository", "recommended (yes)", 2);
         if (choice) {
                 CD(C_MODULE_DIR_PARENT,
                    forge_err_wargs("could not `cd` into %s, aborting...", C_MODULE_DIR_PARENT));
@@ -1822,6 +1841,8 @@ interactive(forge_context *ctx)
                 const char *description = (const char *)sqlite3_column_text(stmt, 2);
                 int is_installed = sqlite3_column_int(stmt, 3);
 
+                if (!strcmp(name, "forge")) continue;
+
                 // Update max lengths
                 max_name_len = MAX(max_name_len, strlen(name));
                 max_version_len = MAX(max_version_len, version ? strlen(version) : 0);
@@ -1856,7 +1877,8 @@ interactive(forge_context *ctx)
 
         size_t cpos = 0;
         while (1) {
-                int idx = forge_chooser("Select packages to install/uninstall", (const char **)display_entries.data, display_entries.len, cpos);
+                int idx = forge_chooser("Select packages to install/uninstall",
+                                        (const char **)display_entries.data, display_entries.len, cpos);
                 if (idx == -1) break;
                 status.data[idx] ^= installed_flag;
                 status.data[idx] |= modified_flag;
