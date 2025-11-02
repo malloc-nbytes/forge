@@ -79,20 +79,6 @@ help_sync(void)
 }
 
 static void
-help_drop_broken_packages(void)
-{
-        printf("help(--%s):\n", FLAG_2HY_DROP_BROKEN_PKGS);
-        INDENT printf("Have forge attempt to drop any packages\n");
-        INDENT printf("that are broken (NULL functions, bad names, etc).\n\n");
-
-        INDENT printf("Note:\n");
-        INDENT INDENT printf("This method is not guaranteed to work in every case.\n\n");
-
-        INDENT printf("Example:\n");
-        INDENT INDENT printf("forge --drop-broken-pkgs\n");
-}
-
-static void
 help_list(void)
 {
         printf("help(%s):\n", CMD_LIST);
@@ -506,7 +492,6 @@ forge_flags_help(const char *flag)
                 help_help,
                 help_rebuild,
                 help_sync,
-                help_drop_broken_packages,
                 help_list,
                 help_search,
                 help_install,
@@ -554,91 +539,89 @@ forge_flags_help(const char *flag)
                 hs[2]();
         } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_SYNC)) {
                 hs[2]();
-        } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_DROP_BROKEN_PKGS)) {
-                hs[3]();
         }
 
         // commands
         else if (!strcmp(flag, CMD_LIST)) {
-                hs[4]();
+                hs[3]();
         }
         else if (!strcmp(flag, CMD_SEARCH)) {
-                hs[5]();
+                hs[4]();
         }
         else if (!strcmp(flag, CMD_INSTALL)) {
-                hs[6]();
+                hs[5]();
         }
         else if (!strcmp(flag, CMD_UNINSTALL)) {
-                hs[7]();
+                hs[6]();
         }
         else if (!strcmp(flag, CMD_UPDATE)) {
-                hs[8]();
+                hs[7]();
         }
         else if (!strcmp(flag, CMD_ADD_REPO)) {
-                hs[9]();
+                hs[8]();
         }
         else if (!strcmp(flag, CMD_DROP_REPO)) {
-                hs[10]();
+                hs[9]();
         }
         else if (!strcmp(flag, CMD_LIST_REPOS)) {
-                hs[11]();
+                hs[10]();
         }
         else if (!strcmp(flag, CMD_DEPS)) {
-                hs[12]();
+                hs[11]();
         }
         else if (!strcmp(flag, CMD_NEW)) {
-                hs[13]();
+                hs[12]();
         }
         else if (!strcmp(flag, CMD_EDIT)) {
-                hs[14]();
+                hs[13]();
         }
         else if (!strcmp(flag, CMD_DUMP)) {
-                hs[15]();
+                hs[14]();
         }
         else if (!strcmp(flag, CMD_DROP)) {
-                hs[16]();
+                hs[15]();
         }
         else if (!strcmp(flag, CMD_FILES)) {
-                hs[17]();
+                hs[16]();
         }
         else if (!strcmp(flag, CMD_API)) {
-                hs[18]();
+                hs[17]();
         }
         else if (!strcmp(flag, CMD_RESTORE)) {
-                hs[19]();
+                hs[18]();
         }
         else if (!strcmp(flag, CMD_COPYING)) {
-                hs[20]();
+                hs[19]();
         }
         else if (!strcmp(flag, CMD_DEPGRAPH)) {
-                hs[21]();
+                hs[20]();
         }
         else if (!strcmp(flag, CMD_APILIST)) {
-                hs[22]();
+                hs[21]();
         }
         else if (!strcmp(flag, CMD_EDITCONF)) {
-                hs[23]();
+                hs[22]();
         }
         else if (!strcmp(flag, CMD_UPDATEFORGE)) {
-                hs[24]();
+                hs[23]();
         } else if (!strcmp(flag, CMD_REPO_COMPILE_TEMPLATE)) {
-                hs[25]();
+                hs[24]();
         } else if (!strcmp(flag, CMD_CREATE_REPO)) {
-                hs[26]();
+                hs[25]();
         } else if (!strcmp(flag, CMD_LIB)) {
-                hs[27]();
+                hs[26]();
         } else if (!strcmp(flag, CMD_CLEAN)) {
-                hs[28]();
+                hs[27]();
         } else if (!strcmp(flag, CMD_SAVE_DEP)) {
-                hs[29]();
+                hs[28]();
         } else if (!strcmp(flag, CMD_LIST_DEPS)) {
-                hs[30]();
+                hs[29]();
         } else if (!strcmp(flag, CMD_EDIT_INSTALL)) {
-                hs[31]();
+                hs[30]();
         } else if (!strcmp(flag, CMD_INT)) {
-                hs[32]();
+                hs[31]();
         } else if (!strcmp(flag, CMD_INFO)) {
-                hs[33]();
+                hs[32]();
         }
 
         else if (!strcmp(flag, "*")) {
@@ -690,7 +673,6 @@ forge_flags_usage(void)
         printf(YELLOW BOLD "    -%s, --%s           R"                         RESET  "  rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
         printf(YELLOW BOLD "    -%s, --%s              R"                         RESET "  sync the C modules repository\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
         printf(YELLOW BOLD "        --%s              "                         RESET "  force the action if it can\n", FLAG_2HY_FORCE);
-        printf(YELLOW BOLD "        --%s  R"                         RESET "  remove all broken packages\n", FLAG_2HY_DROP_BROKEN_PKGS);
         printf("\nCommands:\n");
         printf(GREEN BOLD "    %s          " RESET                                "             list available packages\n", CMD_LIST);
         printf(GREEN BOLD "    %s <pkg...> "                         RESET "           search for packages\n", CMD_SEARCH);

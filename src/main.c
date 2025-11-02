@@ -27,6 +27,10 @@
 #include "forge/io.h"
 #include "forge/smap.h"
 #include "forge/conf.h"
+#include "forge/ctrl.h"
+#include "forge/lexer.h"
+#include "forge/viewer.h"
+#include "forge/str.h"
 
 #include "config.h"
 #include "depgraph.h"
@@ -49,13 +53,14 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <termios.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <fcntl.h>
 /*#define _GNU_SOURCE*/
 #define __USE_GNU
 #include <sched.h>
-#include <openssl/sha.h>
+#include <time.h>
 
 #define FORGE_C_MODULE_TEMPLATE                                         \
         "#include <forge/forge.h>\n"                                    \
@@ -144,6 +149,25 @@ assert_sudo(void)
         if (geteuid() != 0) {
                 forge_err(BOLD YELLOW "* " RESET "This action requires " BOLD YELLOW "superuser privileges" RESET);
         }
+}
+
+void
+clear_package_files_from_db(forge_context *ctx,
+                            const char    *name,
+                            int            pkg_id)
+{
+        sqlite3_stmt *stmt;
+        const char *sql = "DELETE FROM Files WHERE pkg_id = ?;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_int(stmt, 1, pkg_id);
+        rc = sqlite3_step(stmt);
+        if (rc != SQLITE_DONE) {
+                fprintf(stderr, "Failed to delete file entries for package %s: %s\n",
+                        name, sqlite3_errmsg(ctx->db));
+        }
+        sqlite3_finalize(stmt);
 }
 
 sqlite3 *
@@ -591,10 +615,222 @@ register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
                 if (pkg->deps) {
                         char **deps = pkg->deps();
                         for (size_t i = 0; deps[i]; ++i) {
-                                //printf(GREEN BOLD "*** Adding dependency %s for %s\n" RESET, deps[i], name);
                                 add_dep_to_db(ctx, get_pkg_id(ctx, name), get_pkg_id(ctx, deps[i]));
                         }
                 }
+        }
+}
+
+static char *
+get_c_module_filepath_from_basic_name(const char *name)
+{
+        char **dirs = ls(C_MODULE_DIR_PARENT);
+        for (size_t i = 0; dirs[i]; ++i) {
+                char *module_dir = forge_cstr_builder(C_MODULE_DIR_PARENT, "/", dirs[i], NULL);
+                if (forge_io_is_dir(module_dir)) {
+                        CD(module_dir, {});
+                        char *path = forge_cstr_builder(module_dir, "/", name, ".c", NULL);
+                        if (forge_io_filepath_exists(path)) {
+                                return path;
+                        }
+                        free(path);
+                }
+                free(module_dir);
+                free(dirs[i]);
+        }
+        free(dirs);
+        return NULL;
+}
+
+static void
+restore_pkg(str_array names)
+{
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *name = names.data[i];
+
+                // Construct the pattern to match backup files: <name>.c-<timestamp>
+                char pattern[256] = {0};
+                snprintf(pattern, sizeof(pattern), "%s.c-", name);
+
+                // Get all directories under C_MODULE_DIR_PARENT
+                char **dirs = ls(C_MODULE_DIR_PARENT);
+                if (!dirs) {
+                        forge_err_wargs("Failed to list directories in %s: %s\n", C_MODULE_DIR_PARENT, strerror(errno));
+                        return;
+                }
+
+                char *latest_file = NULL;
+                time_t latest_mtime = 0;
+                char *target_dir = NULL;
+
+                // Iterate through each directory
+                for (size_t i = 0; dirs[i]; ++i) {
+                        if (!strcmp(dirs[i], ".") || !strcmp(dirs[i], "..")) {
+                                free(dirs[i]);
+                                continue;
+                        }
+
+                        char *module_dir = forge_cstr_builder(C_MODULE_DIR_PARENT, "/", dirs[i], NULL);
+                        if (!forge_io_is_dir(module_dir)) {
+                                free(module_dir);
+                                free(dirs[i]);
+                                continue;
+                        }
+
+                        DIR *dir = opendir(module_dir);
+                        if (!dir) {
+                                fprintf(stderr, "Failed to open directory %s: %s\n", module_dir, strerror(errno));
+                                free(module_dir);
+                                free(dirs[i]);
+                                continue;
+                        }
+
+                        struct dirent *entry;
+                        struct stat st;
+
+                        // Iterate through files in the directory
+                        while ((entry = readdir(dir))) {
+                                // Check if the file matches the pattern
+                                if (strncmp(entry->d_name, pattern, strlen(pattern)) == 0) {
+                                        char full_path[512] = {0};
+                                        snprintf(full_path, sizeof(full_path), "%s/%s", module_dir, entry->d_name);
+
+                                        // Get file modification time
+                                        if (stat(full_path, &st) == -1) {
+                                                fprintf(stderr, "Failed to stat %s: %s\n", full_path, strerror(errno));
+                                                continue;
+                                        }
+
+                                        // Update latest file if this one is newer
+                                        if (st.st_mtime > latest_mtime) {
+                                                latest_mtime = st.st_mtime;
+                                                if (latest_file) {
+                                                        free(latest_file);
+                                                }
+                                                if (target_dir) {
+                                                        free(target_dir);
+                                                }
+                                                latest_file = strdup(full_path);
+                                                target_dir = strdup(module_dir);
+                                        }
+                                }
+                        }
+                        closedir(dir);
+                        free(module_dir);
+                        free(dirs[i]);
+                }
+                free(dirs);
+
+                // Check if a backup file was found
+                if (!latest_file || !target_dir) {
+                        fprintf(stderr, "No backup file found for package %s\n", name);
+                        return;
+                }
+
+                // Construct the original file path
+                char original_path[256] = {0};
+                snprintf(original_path, sizeof(original_path), "%s/%s.c", target_dir, name);
+
+                // Check if the original file already exists
+                if (forge_io_filepath_exists(original_path)) {
+                        fprintf(stderr, "Original file %s already exists, cannot restore\n", original_path);
+                        free(latest_file);
+                        free(target_dir);
+                        return;
+                }
+
+                // Rename the latest backup file to the original name
+                info_builder(0, "Restoring C module: ", YELLOW BOLD, latest_file, RESET " to ", YELLOW BOLD, original_path, RESET "\n", NULL);
+                if (rename(latest_file, original_path) != 0) {
+                        fprintf(stderr, "Failed to restore file %s to %s: %s\n",
+                                latest_file, original_path, strerror(errno));
+                        free(latest_file);
+                        free(target_dir);
+                        return;
+                }
+
+                info_builder(0, "Successfully restored package " YELLOW BOLD, name, RESET, "\n", NULL);
+                free(latest_file);
+                free(target_dir);
+        }
+}
+
+static void
+drop_pkg(forge_context *ctx, str_array names)
+{
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *name = names.data[i];
+
+                // Check if package exists
+                int pkg_id = get_pkg_id(ctx, name);
+                if (pkg_id == -1) {
+                        forge_err_wargs("package `%s` not found in database", name);
+                }
+
+                sqlite3_stmt *stmt;
+
+                // Delete dependencies associated with the package
+                const char *sql_delete_deps = "DELETE FROM Deps WHERE pkg_id = ? OR dep_id = ?;";
+                int rc = sqlite3_prepare_v2(ctx->db, sql_delete_deps, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_int(stmt, 1, pkg_id);
+                sqlite3_bind_int(stmt, 2, pkg_id);
+
+                rc = sqlite3_step(stmt);
+                if (rc != SQLITE_DONE) {
+                        forge_err_wargs("Failed to delete dependencies for %s: %s\n", name, sqlite3_errmsg(ctx->db));
+                }
+                sqlite3_finalize(stmt);
+
+                // Delete the package
+                const char *sql_delete_pkg = "DELETE FROM Pkgs WHERE id = ?;";
+                rc = sqlite3_prepare_v2(ctx->db, sql_delete_pkg, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_int(stmt, 1, pkg_id);
+
+                rc = sqlite3_step(stmt);
+                if (rc != SQLITE_DONE) {
+                        forge_err_wargs("Failed to delete package %s: %s\n", name, sqlite3_errmsg(ctx->db));
+                } else {
+                        info_builder(0, "Successfully dropped package ", YELLOW BOLD, name, RESET, " from database\n", NULL);
+                }
+                sqlite3_finalize(stmt);
+
+                // Remove .c file
+                char *abspath = get_c_module_filepath_from_basic_name(name);
+                forge_str pkg_filename = forge_str_from(abspath);
+                free(abspath);
+
+                forge_str pkg_new_filename = forge_str_from(forge_str_to_cstr(&pkg_filename));
+                char hash[32] = {0};
+                snprintf(hash, 32, "%ld", time(NULL));
+                forge_str_append(&pkg_new_filename, '-');
+                forge_str_concat(&pkg_new_filename, hash);
+
+                info_builder(0, "Creating backup of C module: ", YELLOW BOLD, pkg_new_filename.data, RESET, "\n", NULL);
+                if (rename(forge_str_to_cstr(&pkg_filename), forge_str_to_cstr(&pkg_new_filename)) != 0) {
+                        fprintf(stderr, "failed to rename file: %s to %s: %s\n",
+                                forge_str_to_cstr(&pkg_filename), forge_str_to_cstr(&pkg_new_filename), strerror(errno));
+                }
+
+                forge_str_destroy(&pkg_filename);
+                forge_str_destroy(&pkg_new_filename);
+
+                // Remove .so file
+                forge_str so_path = forge_str_from(MODULE_LIB_DIR);
+                forge_str_concat(&so_path, name);
+                forge_str_concat(&so_path, ".so");
+
+                info_builder(0, "Removing library file: ", YELLOW BOLD, so_path.data, RESET "\n", NULL);
+                if (remove(forge_str_to_cstr(&so_path)) != 0) {
+                        fprintf(stderr, "failed to remove file: %s: %s\n",
+                                forge_str_to_cstr(&so_path), strerror(errno));
+                        //return;
+                }
+
+                forge_str_destroy(&so_path);
         }
 }
 
@@ -1258,6 +1494,157 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
         return 0;
 }
 
+static int
+is_required_dependency(forge_context *ctx,
+                       const char    *name)
+{
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT COUNT(*) FROM Deps d "
+                "JOIN Pkgs p ON d.pkg_id = p.id "
+                "WHERE d.dep_id = (SELECT id FROM Pkgs WHERE name = ?) "
+                "AND p.installed = 1;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+
+        int count = 0;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                count = sqlite3_column_int(stmt, 0);
+        }
+
+        sqlite3_finalize(stmt);
+        return count > 0;
+}
+
+static void
+clean_pkgs(forge_context *ctx)
+{
+        info(0, "Cleaning unneeded dependency packages\n");
+
+        // Get all installed dependency packages
+        str_array pkgs_to_remove = dyn_array_empty(str_array);
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT name FROM Pkgs WHERE installed = 1 AND is_explicit = 0;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                if (!is_required_dependency(ctx, name)) {
+                        dyn_array_append(pkgs_to_remove, strdup(name));
+                }
+        }
+        sqlite3_finalize(stmt);
+
+        if (pkgs_to_remove.len == 0) {
+                info(0, "No unneeded dependency packages found.\n");
+        } else {
+                info_builder(0, "Found ", YELLOW, forge_cstr_of_int(pkgs_to_remove.len), RESET, " unneeded dependency package(s) to remove\n", NULL);
+                for (size_t i = 0; i < pkgs_to_remove.len; ++i) {
+                        printf("* %s\n", pkgs_to_remove.data[i]);
+                }
+                uninstall_pkg(ctx, pkgs_to_remove);
+        }
+
+        for (size_t i = 0; i < pkgs_to_remove.len; ++i) {
+                free(pkgs_to_remove.data[i]);
+        }
+        dyn_array_free(pkgs_to_remove);
+}
+
+static void
+show_pkg_deps(str_array names)
+{
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *pkg_name = names.data[i];
+
+                sqlite3 *db;
+                int rc = sqlite3_open_v2(DATABASE_FP, &db, SQLITE_OPEN_READONLY, NULL);
+                CHECK_SQLITE(rc, db);
+
+                sqlite3_stmt *stmt;
+                const char *sql =
+                        "SELECT Pkgs.name, Pkgs.version, Pkgs.description, Pkgs.installed "
+                        "FROM Deps "
+                        "JOIN Pkgs ON Deps.dep_id = Pkgs.id "
+                        "WHERE Deps.pkg_id = (SELECT id FROM Pkgs WHERE name = ?);";
+                rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, db);
+
+                sqlite3_bind_text(stmt, 1, pkg_name, -1, SQLITE_STATIC);
+
+                // Collect data and calculate max widths
+                pkg_info_array rows = dyn_array_empty(pkg_info_array);
+                size_t max_name_len = strlen("Name");
+                size_t max_version_len = strlen("Version");
+                size_t max_installed_len = strlen("Installed");
+                size_t max_desc_len = strlen("Description");
+
+                while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+                        pkg_info info = {0};
+                        const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                        const char *version = (const char *)sqlite3_column_text(stmt, 1);
+                        const char *description = (const char *)sqlite3_column_text(stmt, 2);
+                        int installed = sqlite3_column_int(stmt, 3);
+
+                        info.name = strdup(name ? name : "");
+                        info.version = strdup(version ? version : "");
+                        info.description = strdup(description ? description : "(none)");
+                        info.installed = installed;
+
+                        max_name_len = MAX(max_name_len, strlen(info.name));
+                        max_version_len = MAX(max_version_len, strlen(info.version));
+                        max_desc_len = MAX(max_desc_len, strlen(info.description));
+                        max_installed_len = MAX((int)max_installed_len, snprintf(NULL, 0, "%d", installed));
+
+                        dyn_array_append(rows, info);
+                }
+
+                if (rc != SQLITE_DONE) {
+                        fprintf(stderr, "Query error: %s\n", sqlite3_errmsg(db));
+                }
+
+                sqlite3_finalize(stmt);
+                sqlite3_close(db);
+
+                // Print header
+                info_builder(0, "Dependencies for package ", YELLOW BOLD, pkg_name, RESET "\n", NULL);
+                printf("%-*s  %-*s  %*s  %-*s\n",
+                       (int)max_name_len, "Name",
+                       (int)max_version_len, "Version",
+                       (int)max_installed_len, "Installed",
+                       (int)max_desc_len, "Description");
+                printf("%-*s  %-*s  %*s  %-*s\n",
+                       (int)max_name_len, "----",
+                       (int)max_version_len, "-------",
+                       (int)max_installed_len, "---------",
+                       (int)max_desc_len, "-----------");
+
+                // Print rows
+                if (rows.len == 0) {
+                        info_builder(0, "No dependencies found for package ", YELLOW BOLD, pkg_name, RESET "\n", NULL);
+                } else {
+                        for (size_t i = 0; i < rows.len; ++i) {
+                                pkg_info *info = &rows.data[i];
+                                printf("%-*s  %-*s  %*d  %-*s\n",
+                                       (int)max_name_len, info->name,
+                                       (int)max_version_len, info->version,
+                                       (int)max_installed_len, info->installed,
+                                       (int)max_desc_len, info->description);
+                        }
+                }
+
+                // Clean up
+                for (size_t i = 0; i < rows.len; ++i) {
+                        free(rows.data[i].name);
+                        free(rows.data[i].version);
+                        free(rows.data[i].description);
+                }
+                dyn_array_free(rows);
+        }
+}
+
 static void
 list_pkgs(const forge_context *ctx)
 {
@@ -1308,7 +1695,7 @@ list_pkgs(const forge_context *ctx)
         sqlite3_close(db);
 
         // Print header
-        printf("Available packages:\n");
+        info(0, "Available packages:\n");
         printf("%-*s  %-*s  %*s  %-*s\n",
                (int)max_name_len, "Name",
                (int)max_version_len, "Version",
@@ -1322,7 +1709,7 @@ list_pkgs(const forge_context *ctx)
 
         // Print rows
         if (rows.len == 0) {
-                printf("No packages found in the database.\n");
+                info(0, "No packages found in the database.\n");
         } else {
                 for (size_t i = 0; i < rows.len; ++i) {
                         pkg_info *info = &rows.data[i];
@@ -1368,6 +1755,335 @@ edit_file_in_editor(const char *path)
 }
 
 static void
+interactive(forge_context *ctx)
+{
+        struct termios term;
+        forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term);
+        forge_ctrl_clear_terminal();
+        printf(YELLOW BOLD "Note:\n" RESET);
+        printf(YELLOW BOLD "*" RESET " You are about to enter interactive mode.\n");
+        printf(YELLOW BOLD "*" RESET " Use up/down arrow keys to select packages.\n");
+        printf(YELLOW BOLD "*" RESET " Press [enter] or [space] to toggle install/uninstall.\n");
+        printf(YELLOW BOLD "*" RESET " Packages prefixed with `<*>` are installed, `< >` are not.\n");
+        printf(YELLOW BOLD "*" RESET " Press `q` to confirm selections or C-c to cancel.\n\n");
+        printf("Press any key to continue...\n");
+        char ch;
+        (void)forge_ctrl_get_input(&ch);
+        forge_ctrl_clear_terminal();
+
+        // Query all packages
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT name, version, description, installed FROM Pkgs ORDER BY name;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        const uint32_t installed_flag = 1 << 0;
+        const uint32_t modified_flag = 1 << 1;
+
+        str_array display_entries = dyn_array_empty(str_array);
+        str_array pkg_names = dyn_array_empty(str_array);
+        int_array status = dyn_array_empty(int_array);
+        str_array names = dyn_array_empty(str_array);
+        str_array versions = dyn_array_empty(str_array);
+        str_array descriptions = dyn_array_empty(str_array);
+        int_array installed = dyn_array_empty(int_array);
+        size_t max_name_len = strlen("Name");
+        size_t max_version_len = strlen("Version");
+        size_t max_desc_len = strlen("Description");
+
+        // Collect package data and calculate max widths
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                const char *version = (const char *)sqlite3_column_text(stmt, 1);
+                const char *description = (const char *)sqlite3_column_text(stmt, 2);
+                int is_installed = sqlite3_column_int(stmt, 3);
+
+                // Update max lengths
+                max_name_len = MAX(max_name_len, strlen(name));
+                max_version_len = MAX(max_version_len, version ? strlen(version) : 0);
+                max_desc_len = MAX(max_desc_len, description ? strlen(description) : strlen("(none)"));
+
+                // Store data for later entry creation
+                dyn_array_append(names, strdup(name));
+                dyn_array_append(versions, version ? strdup(version) : strdup(""));
+                dyn_array_append(descriptions, description ? strdup(description) : strdup("(none)"));
+                dyn_array_append(installed, is_installed);
+                dyn_array_append(pkg_names, strdup(name));
+                dyn_array_append(status, is_installed ? installed_flag : 0);
+        }
+        sqlite3_finalize(stmt);
+
+        if (pkg_names.len == 0) {
+                info(0, "No packages are registered\n");
+                goto dyn_clean;
+        }
+
+        // Create display entries after calculating max lengths
+        for (size_t i = 0; i < names.len; ++i) {
+                char *entry = (char *)malloc(max_name_len + max_version_len + max_desc_len + 20);
+                snprintf(entry, max_name_len + max_version_len + max_desc_len + 20,
+                         "%s %-*s  %-*s  %-*s",
+                         installed.data[i] ? "<*>" : "< >",
+                         (int)max_name_len, names.data[i],
+                         (int)max_version_len, versions.data[i],
+                         (int)max_desc_len, descriptions.data[i]);
+                dyn_array_append(display_entries, entry);
+        }
+
+        size_t cpos = 0;
+        while (1) {
+                int idx = forge_chooser("Select packages to install/uninstall", (const char **)display_entries.data, display_entries.len, cpos);
+                if (idx == -1) break;
+                status.data[idx] ^= installed_flag;
+                status.data[idx] |= modified_flag;
+                // Update display entry
+                display_entries.data[idx][1] = (status.data[idx] & installed_flag) ? '*' : ' ';
+                cpos = (size_t)idx;
+        }
+
+        forge_ctrl_disable_raw_terminal(STDIN_FILENO, &term);
+
+        str_array to_install = dyn_array_empty(str_array);
+        str_array to_uninstall = dyn_array_empty(str_array);
+
+        for (size_t i = 0; i < status.len; ++i) {
+                if (status.data[i] & modified_flag) {
+                        int is_installed = pkg_is_installed(ctx, pkg_names.data[i]);
+                        int target_state = (status.data[i] & installed_flag) ? 1 : 0;
+                        if (is_installed != target_state) {
+                                if (target_state) {
+                                        dyn_array_append(to_install, strdup(pkg_names.data[i]));
+                                } else {
+                                        dyn_array_append(to_uninstall, strdup(pkg_names.data[i]));
+                                }
+                        }
+                }
+        }
+
+        for (size_t i = 0; i < to_install.len; ++i) {
+                if (i == 0) {
+                        info(0, "To be " YELLOW BOLD "installed:" RESET "\n");
+                }
+                printf(GREEN "    %s\n", to_install.data[i]);
+        }
+        for (size_t i = 0; i < to_uninstall.len; ++i) {
+                if (i == 0) {
+                        info(0, "To be " YELLOW BOLD "uninstalled:" RESET "\n");
+                }
+                printf(RED "    %s\n", to_uninstall.data[i]);
+        }
+        printf(RESET);
+
+        if (!to_install.len && !to_uninstall.len) goto clean;
+
+        int proceed = forge_chooser_yesno("Proceed?", NULL, 1);
+        if (proceed <= 0) {
+                goto clean;
+        }
+
+        // Perform uninstallations
+        if (to_uninstall.len > 0) {
+                info(0, "Processing Uninstallations\n");
+                uninstall_pkg(ctx, to_uninstall);
+        }
+
+        // Perform installations
+        if (to_install.len > 0) {
+                info(0, "Processing Installations\n");
+                install_pkg(ctx, to_install, 0);
+        }
+
+ clean:
+        for (size_t i = 0; i < display_entries.len; ++i) free(display_entries.data[i]);
+        for (size_t i = 0; i < pkg_names.len; ++i)       free(pkg_names.data[i]);
+        for (size_t i = 0; i < names.len; ++i)           free(names.data[i]);
+        for (size_t i = 0; i < versions.len; ++i)        free(versions.data[i]);
+        for (size_t i = 0; i < descriptions.len; ++i)    free(descriptions.data[i]);
+        for (size_t i = 0; i < to_install.len; ++i)      free(to_install.data[i]);
+        for (size_t i = 0; i < to_uninstall.len; ++i)    free(to_uninstall.data[i]);
+
+        dyn_array_free(to_install);
+        dyn_array_free(to_uninstall);
+ dyn_clean:
+        dyn_array_free(display_entries);
+        dyn_array_free(pkg_names);
+        dyn_array_free(names);
+        dyn_array_free(versions);
+        dyn_array_free(descriptions);
+        dyn_array_free(status);
+}
+
+void
+edit_install(forge_context *ctx)
+{
+        {
+                struct termios term;
+                forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term);
+                forge_ctrl_clear_terminal();
+                printf(YELLOW BOLD "Note:\n" RESET);
+                printf(YELLOW BOLD "*" RESET " You are about to enter a choice mode.\n");
+                printf(YELLOW BOLD "*" RESET " Use the up/down arrow keys to choose different\n");
+                printf(YELLOW BOLD "*" RESET " packages and use [enter] or [space] to select that package.\n");
+                printf(YELLOW BOLD "*" RESET " Packages prefixed with `<*>` are marked as installed\n");
+                printf(YELLOW BOLD "*" RESET " and ones that are marked with `< >` are uninstalled.\n");
+                printf(YELLOW BOLD "*" RESET " Use `q` to end or C-c to cancel\n\n");
+                printf("Press any key to continue...\n");
+                char ch;
+                (void)forge_ctrl_get_input(&ch);
+                forge_ctrl_clear_terminal();
+                forge_ctrl_disable_raw_terminal(STDIN_FILENO, &term);
+        }
+
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT name, installed FROM Pkgs ORDER BY name;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        const int installed_flag = 1 << 0;
+        const int modified_flag = 1 << 1;
+
+        str_array pkgnames = dyn_array_empty(str_array);
+        int_array installed = dyn_array_empty(int_array);
+
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                int is_installed = sqlite3_column_int(stmt, 1);
+                char *entry = forge_cstr_builder(is_installed ? "<*> " : "< > ", name, NULL);
+                dyn_array_append(pkgnames, entry);
+                dyn_array_append(installed, is_installed ? installed_flag : 0);
+        }
+
+        sqlite3_finalize(stmt);
+
+        assert(pkgnames.len == installed.len);
+
+        if (pkgnames.len == 0) {
+                info(0, "No packages are registered\n");
+                dyn_array_free(pkgnames);
+                dyn_array_free(installed);
+                return;
+        }
+
+        size_t cpos = 0;
+        while (1) {
+                int idx = forge_chooser("Toggle `installed` flag", (const char **)pkgnames.data, pkgnames.len, cpos);
+                if (idx == -1) break;
+                if (installed.data[idx] & installed_flag) {
+                        pkgnames.data[idx][1] = ' ';
+                        installed.data[idx] &= ~installed_flag;
+                        installed.data[idx] |= modified_flag;
+                } else {
+                        pkgnames.data[idx][1] = '*';
+                        installed.data[idx] |= installed_flag;
+                        installed.data[idx] |= modified_flag;
+                }
+                cpos = (size_t)idx;
+        }
+
+        info(0, "Updating installed status...\n");
+
+        // Update database for modified entries
+        const char *sql_update = "UPDATE Pkgs SET installed = ? WHERE name = ?;";
+        rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, ctx->db);
+
+        for (size_t i = 0; i < installed.len; ++i) {
+                if (installed.data[i] & modified_flag) {
+                        // Extract package name (skip the "<*> " or "< > " prefix)
+                        const char *name = pkgnames.data[i] + 4;
+                        int is_installed = (installed.data[i] & installed_flag) ? 1 : 0;
+
+                        sqlite3_bind_int(stmt, 1, is_installed);
+                        sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
+
+                        rc = sqlite3_step(stmt);
+                        if (rc != SQLITE_DONE) {
+                                fprintf(stderr, "Failed to update installed status for %s: %s\n",
+                                        name, sqlite3_errmsg(ctx->db));
+                        }
+                        sqlite3_reset(stmt);
+
+                        info_builder(0, "Updated ", YELLOW BOLD, name, RESET ": ", is_installed ? "Installed" : "Uninstalled", "\n", NULL);
+                }
+        }
+
+        sqlite3_finalize(stmt);
+
+        dyn_array_free(pkgnames);
+        dyn_array_free(installed);
+}
+
+void
+view_pkg_info(const forge_context *ctx,
+              str_array            names)
+{
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *pkgname = names.data[i];
+
+                pkg *pkg = NULL;
+                for (size_t i = 0; i < ctx->pkgs.len; ++i) {
+                        if (!strcmp(ctx->pkgs.data[i]->name(), pkgname)) {
+                                pkg = ctx->pkgs.data[i];
+                                break;
+                        }
+                }
+
+                if (!pkg) {
+                        fprintf(stderr, RED "Package '%s' not found in loaded modules.\n" RESET, pkgname);
+                        return;
+                }
+
+                sqlite3_stmt *stmt;
+                const char *sql = "SELECT installed, is_explicit, pkg_src_loc FROM Pkgs WHERE name = ?;";
+                int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_text(stmt, 1, pkgname, -1, SQLITE_STATIC);
+
+                int installed = 0, is_explicit = 0;
+                char *pkg_src_loc = NULL;
+                if (sqlite3_step(stmt) == SQLITE_ROW) {
+                        installed = sqlite3_column_int(stmt, 0);
+                        is_explicit = sqlite3_column_int(stmt, 1);
+                        const char *src_loc = (const char *)sqlite3_column_text(stmt, 2);
+                        if (src_loc) {
+                                pkg_src_loc = strdup(src_loc);
+                        }
+                } else {
+                        fprintf(stderr, RED "Package '%s' not found in database.\n" RESET, pkgname);
+                        sqlite3_finalize(stmt);
+                        return;
+                }
+                sqlite3_finalize(stmt);
+
+                info_builder(0, "Package Information for ", YELLOW BOLD, pkgname, RESET, "\n", NULL);
+                printf("%-15s %s\n", "Name:", pkg->name());
+                printf("%-15s %s\n", "Version:", pkg->ver());
+                printf("%-15s %s\n", "Description:", pkg->desc());
+                printf("%-15s %s\n", "Website:", pkg->web ? pkg->web() : "(none)");
+                printf("%-15s %s\n", "Installed:", installed ? "Yes" : "No");
+                printf("%-15s %s\n", "Explicit:", is_explicit ? "Yes" : "No");
+                if (pkg_src_loc) {
+                        printf("%-15s %s\n", "Source Location:", pkg_src_loc);
+                        free(pkg_src_loc);
+                } else {
+                        printf("%-15s %s\n", "Source Location:", "(none)");
+                }
+
+                // List dependencies
+                printf("\n" GREEN BOLD "Dependencies:\n" RESET);
+                char **deps = pkg->deps ? pkg->deps() : NULL;
+                if (deps && deps[0]) {
+                        for (size_t i = 0; deps[i]; ++i) {
+                                printf("  - %s\n", deps[i]);
+                        }
+                } else {
+                        printf("  (none)\n");
+                }
+        }
+}
+
+static void
 new_pkg(forge_context *ctx, str_array names)
 {
         (void)ctx;
@@ -1394,7 +2110,7 @@ new_pkg(forge_context *ctx, str_array names)
 
         for (size_t i = 0; i < names.len; ++i) {
                 char fp[256] = {0};
-                sprintf(fp, C_MODULE_USER_DIR "/%s.c", names.data[i]);
+                sprintf(fp, C_MODULE_USER_DIR "%s.c", names.data[i]);
                 if (forge_io_filepath_exists(fp)) {
                         forge_err_wargs("file %s already exists", fp);
                 }
@@ -1403,6 +2119,277 @@ new_pkg(forge_context *ctx, str_array names)
                 }
                 edit_file_in_editor(fp);
         }
+}
+
+static void
+edit_c_module(str_array names)
+{
+        assert_sudo();
+
+        for (size_t i = 0; i < names.len; ++i) {
+                char *path = get_c_module_filepath_from_basic_name(names.data[i]);
+                if (path) {
+                        char *cmd = forge_cstr_builder(FORGE_EDITOR, " ", path, NULL);
+                        if (system(cmd) == -1) {
+                                fprintf(stderr, "Failed to open %s in %s: %s\n", path, FORGE_EDITOR, strerror(errno));
+                        }
+                        free(cmd);
+                } else {
+                        forge_err_wargs("package %s does not exist", names.data[i]);
+                }
+                free(path);
+        }
+}
+
+static void
+api_dump(const char *name, int api)
+{
+        forge_str path = forge_str_create();
+        if (api) {
+                // Handle API header dump
+                forge_str_concat(&path, FORGE_API_HEADER_DIR);
+                forge_str_concat(&path, "/");
+                forge_str_concat(&path, name);
+                forge_str_concat(&path, ".h");
+                if (!forge_io_filepath_exists(forge_str_to_cstr(&path))) {
+                        forge_err_wargs("API `%s` does not exist", name);
+                }
+        } else {
+                char *abspath = get_c_module_filepath_from_basic_name(name);
+                if (!abspath) {
+                        forge_err_wargs("package `%s` does not exist", name);
+                        return;
+                }
+                else { forge_str_concat(&path, abspath); }
+                free(abspath);
+        }
+
+        if (api) {
+                printf(GREEN BOLD "*** API dump of: [ %s ]\n" RESET, forge_str_to_cstr(&path));
+        } else {
+                printf(GREEN BOLD "*** C Module dump of: [ %s ]\n" RESET, forge_str_to_cstr(&path));
+        }
+        char **lines = forge_io_read_file_to_lines(forge_str_to_cstr(&path));
+
+        // Count total lines to determine maximum line number width
+        size_t line_count = 0;
+        for (size_t i = 0; lines[i]; ++i) {
+                line_count++;
+        }
+
+        char **colored_lines = (char**)malloc(sizeof(char*)*line_count);
+        const char *kwds[] = FORGE_LEXER_C_KEYWORDS;
+        for (size_t i = 0; i < line_count; ++i) {
+                colored_lines[i] = forge_colors_code_to_string(lines[i], kwds);
+                free(lines[i]);
+        }
+        free(lines);
+
+        forge_viewer *m = forge_viewer_alloc(colored_lines, line_count, 0);
+        forge_viewer_display(m);
+        forge_viewer_free(m);
+        forge_str_destroy(&path);
+}
+
+static void
+browse_api(void)
+{
+        char **apis = ls(FORGE_API_HEADER_DIR);
+        str_array combined = dyn_array_empty(str_array);
+        const char *kwds[] = FORGE_LEXER_C_KEYWORDS;
+
+        for (size_t i = 0; apis[i]; ++i) {
+                if (!strcmp(apis[i], "..") || !strcmp(apis[i], ".")) {
+                        continue;
+                }
+
+                char *path = forge_cstr_builder(FORGE_API_HEADER_DIR, "/", apis[i], NULL);
+                char **lines = forge_io_read_file_to_lines(path);
+
+                for (size_t j = 0; lines[j]; ++j) {
+                        dyn_array_append(combined, forge_colors_code_to_string(lines[j], kwds));
+                        free(lines[j]);
+                }
+
+                free(lines);
+                free(path);
+                free(apis[i]);
+        }
+
+        forge_viewer *m = forge_viewer_alloc(combined.data, combined.len, 0);
+        forge_viewer_display(m);
+        forge_viewer_free(m);
+
+        for (size_t i = 0; i < combined.len; ++i) {
+                free(combined.data[i]);
+        }
+        dyn_array_free(combined);
+        free(apis);
+}
+
+static void
+savedep(forge_context *ctx,
+        str_array      names)
+{
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *name = names.data[i];
+
+                sqlite3_stmt *stmt;
+                const char *sql = "SELECT installed, is_explicit FROM Pkgs WHERE name = ?;";
+                int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+
+                int installed = 0, is_explicit = 0;
+                if (sqlite3_step(stmt) == SQLITE_ROW) {
+                        installed = sqlite3_column_int(stmt, 0);
+                        is_explicit = sqlite3_column_int(stmt, 1);
+                } else {
+                        fprintf(stderr, RED "Package '%s' not found in database.\n" RESET, name);
+                        sqlite3_finalize(stmt);
+                        return;
+                }
+                sqlite3_finalize(stmt);
+
+                if (!installed) {
+                        fprintf(stderr, YELLOW "Package '%s' is not installed.\n" RESET, name);
+                        return;
+                }
+
+                if (is_explicit) {
+                        printf(GREEN "Package '%s' is already explicitly installed.\n" RESET, name);
+                        return;
+                }
+
+                // Update the package to be explicitly installed
+                const char *update_sql = "UPDATE Pkgs SET is_explicit = 1 WHERE name = ?;";
+                rc = sqlite3_prepare_v2(ctx->db, update_sql, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, ctx->db);
+
+                sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+
+                rc = sqlite3_step(stmt);
+                if (rc == SQLITE_DONE) {
+                        printf(GREEN BOLD "*** Package '%s' has been saved.\n" RESET, name);
+                } else {
+                        fprintf(stderr, RED "Error updating package '%s': %s\n" RESET, name, sqlite3_errmsg(ctx->db));
+                }
+
+                sqlite3_finalize(stmt);
+        }
+}
+
+static void
+list_deps(const forge_context *ctx)
+{
+        sqlite3 *db = ctx->db;
+        sqlite3_stmt *stmt;
+
+        // Query all installed packages with is_explicit = 0
+        const char *sql_deps = "SELECT name FROM Pkgs WHERE installed = 1 AND is_explicit = 0 ORDER BY name;";
+        int rc = sqlite3_prepare_v2(db, sql_deps, -1, &stmt, NULL);
+        CHECK_SQLITE(rc, db);
+
+        typedef struct {
+                char *name;
+                str_array dependents;
+        } dep_info;
+
+        str_array dep_names = dyn_array_empty(str_array);
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                dyn_array_append(dep_names, strdup(name));
+        }
+        sqlite3_finalize(stmt);
+
+        if (dep_names.len == 0) {
+                printf(YELLOW "No dependency packages found.\n" RESET);
+                dyn_array_free(dep_names);
+                return;
+        }
+
+        // Collect dependents for each dependency package
+        dep_info *dep_infos = calloc(dep_names.len, sizeof(dep_info));
+        size_t max_name_len = strlen("Dependency");
+        size_t max_dependents_len = strlen("Required By");
+
+        for (size_t i = 0; i < dep_names.len; ++i) {
+                dep_infos[i].name = dep_names.data[i];
+                dep_infos[i].dependents = dyn_array_empty(str_array);
+                max_name_len = MAX(max_name_len, strlen(dep_infos[i].name));
+
+                const char *sql_dependents =
+                        "SELECT p.name FROM Pkgs p "
+                        "JOIN Deps d ON p.id = d.pkg_id "
+                        "WHERE d.dep_id = (SELECT id FROM Pkgs WHERE name = ?) "
+                        "AND p.installed = 1 ORDER BY p.name;";
+                rc = sqlite3_prepare_v2(db, sql_dependents, -1, &stmt, NULL);
+                CHECK_SQLITE(rc, db);
+
+                sqlite3_bind_text(stmt, 1, dep_infos[i].name, -1, SQLITE_STATIC);
+
+                char dependents_buf[1024] = {0};
+                size_t buf_len = 0;
+                int first = 1;
+                while (sqlite3_step(stmt) == SQLITE_ROW) {
+                        const char *dep_name = (const char *)sqlite3_column_text(stmt, 0);
+                        size_t dep_len = strlen(dep_name);
+                        if (buf_len + dep_len + (first ? 0 : 2) < sizeof(dependents_buf) - 1) {
+                                if (!first) {
+                                        strcat(dependents_buf, ", ");
+                                        buf_len += 2;
+                                }
+                                strcat(dependents_buf, dep_name);
+                                buf_len += dep_len;
+                                dyn_array_append(dep_infos[i].dependents, strdup(dep_name));
+                                first = 0;
+                        }
+                }
+                sqlite3_finalize(stmt);
+
+                if (dep_infos[i].dependents.len == 0) {
+                        strcpy(dependents_buf, "(none)");
+                        buf_len = strlen("(none)");
+                }
+                max_dependents_len = MAX(max_dependents_len, buf_len);
+        }
+
+        printf(GREEN BOLD "Dependency Packages:\n" RESET);
+        printf("%-*s  %-*s\n",
+               (int)max_name_len, "Dependency",
+               (int)max_dependents_len, "Required By");
+        printf("%-*s  %-*s\n",
+               (int)max_name_len, "----------",
+               (int)max_dependents_len, "-----------");
+
+        for (size_t i = 0; i < dep_names.len; ++i) {
+                char dependents_buf[1024] = {0};
+                if (dep_infos[i].dependents.len == 0) {
+                        strcpy(dependents_buf, "(none)");
+                } else {
+                        int first = 1;
+                        for (size_t j = 0; j < dep_infos[i].dependents.len; ++j) {
+                                if (!first) strcat(dependents_buf, ", ");
+                                strcat(dependents_buf, dep_infos[i].dependents.data[j]);
+                                first = 0;
+                        }
+                }
+                printf("%-*s  %-*s\n",
+                       (int)max_name_len, dep_infos[i].name,
+                       (int)max_dependents_len, dependents_buf);
+        }
+
+        // Clean up
+        for (size_t i = 0; i < dep_names.len; ++i) {
+                for (size_t j = 0; j < dep_infos[i].dependents.len; ++j) {
+                        free(dep_infos[i].dependents.data[j]);
+                }
+                dyn_array_free(dep_infos[i].dependents);
+                free(dep_infos[i].name);
+        }
+        free(dep_infos);
+        dyn_array_free(dep_names);
 }
 
 static str_array
@@ -1446,10 +2433,26 @@ main(int argc, char **argv)
                                 char c = arg->s[i];
                                 if      (c == FLAG_1HY_REBUILD[0]) g_config.flags |= FT_REBUILD;
                                 else if (c == FLAG_1HY_SYNC[0])    g_config.flags |= FT_SYNC;
-                                else                               forge_err_wargs("unknown option `%c`", c);
+                                else if (c == FLAG_1HY_HELP[0]) {
+                                        if (arg->eq) forge_flags_help(arg->eq);
+                                        forge_flags_usage();
+                                }
+                                else forge_err_wargs("unknown option `%c`", c);
                         }
                 } else if (arg->h == 2) {
-                        assert(0);
+                        if (streq(arg->s, FLAG_2HY_HELP)) {
+                                if (arg->eq) {
+                                        forge_flags_help(arg->eq);
+                                }
+                                forge_flags_usage();
+                        } else if (streq(arg->s, FLAG_2HY_REBUILD)) {
+                                g_config.flags |= FT_REBUILD;
+                        } else if (streq(arg->s, FLAG_2HY_SYNC)) {
+                                g_config.flags |= FT_SYNC;
+                        } else if (streq(arg->s, FLAG_2HY_FORCE)) {
+                                g_config.flags |= FT_FORCE;
+                        } else {
+                        }
                 } else {
                         char *argcmd = arg->s;
                         arg = arg->n;
@@ -1463,6 +2466,57 @@ main(int argc, char **argv)
                                 new_pkg(&ctx, fold_args(&arg));
                         } else if (streq(argcmd, CMD_UNINSTALL)) {
                                 uninstall_pkg(&ctx, fold_args(&arg));
+                        } else if (streq(argcmd, CMD_INT)) {
+                                interactive(&ctx);
+                        } else if (streq(argcmd, CMD_INFO)) {
+ view_pkg_info(&ctx, fold_args(&arg));
+                        } else if (streq(argcmd, CMD_EDIT_INSTALL)) {
+                                edit_install(&ctx);
+                        } else if (streq(argcmd, CMD_LIST_DEPS)) {
+                                list_deps(&ctx);
+                        } else if (streq(argcmd, CMD_SAVE_DEP)) {
+                                savedep(&ctx, fold_args(&arg));
+                        } else if (streq(argcmd, CMD_API)) {
+                                str_array names = dyn_array_empty(str_array);
+                                while (arg) {
+                                        dyn_array_append(names, strdup(arg->s));
+                                        arg = arg->n;
+                                }
+                                if (names.len == 0) {
+                                        browse_api();
+                                } else {
+                                        for (size_t i = 0; i < names.len; ++i) {
+                                                api_dump(names.data[i], 1);
+                                        }
+                                        for (size_t i = 0; i < names.len; ++i) {
+                                                free(names.data[i]);
+                                        }
+                                        dyn_array_free(names);
+                                }
+                        } else if (streq(argcmd, CMD_EDIT)) {
+                                edit_c_module(fold_args(&arg));
+                        } else if (streq(argcmd, CMD_NEW)) {
+                                new_pkg(&ctx, fold_args(&arg));
+                        } else if (streq(argcmd, CMD_CLEAN)) {
+                                clean_pkgs(&ctx);
+                        } else if (streq(argcmd, CMD_DEPS)) {
+                                show_pkg_deps(fold_args(&arg));
+                        } else if (streq(argcmd, CMD_DROP)) {
+                                drop_pkg(&ctx, fold_args(&arg));
+                        } else if (streq(argcmd, CMD_RESTORE)) {
+                                restore_pkg(fold_args(&arg));
+                        } else if (streq(argcmd, CMD_DUMP)) {
+                                while (arg) {
+                                        api_dump(arg->s, 0);
+                                        arg = arg->n;
+                                }
+                        }
+
+                        // Solely for BASH completion
+                        else if (streq(argcmd, CMD_COMMANDS)) {
+                                show_commands_for_bash_completion();
+                        } else if (streq(argcmd, CMD_OPTIONS)) {
+                                show_options_for_bash_completion();
                         }
                         else {
                                 forge_err_wargs("unknown command `%s`", argcmd);

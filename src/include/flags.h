@@ -27,7 +27,6 @@
 #define FLAG_2HY_HELP             "help"
 #define FLAG_2HY_REBUILD          "rebuild"
 #define FLAG_2HY_SYNC             "sync"
-#define FLAG_2HY_DROP_BROKEN_PKGS "drop-broken-pkgs"
 #define FLAG_2HY_FORCE            "force"
 
 #define CLI_OPTIONS {                           \
@@ -37,7 +36,6 @@
                 "--" FLAG_2HY_HELP,             \
                 "--" FLAG_2HY_REBUILD,          \
                 "--" FLAG_2HY_SYNC,             \
-                "--" FLAG_2HY_DROP_BROKEN_PKGS, \
                 "--" FLAG_2HY_FORCE,            \
         }
 
@@ -109,10 +107,9 @@
 #define CMD_OPTIONS  "OPTIONS"   // not included in CLI_COMMANDS (hidden)
 
 typedef enum {
-        FT_REBUILD = 1 << 0,
-        FT_SYNC = 1 << 1,
-        FT_DROP_BROKEN_PKGS = 1 << 2,
-        FT_FORCE = 1 << 3,
+        FT_REBUILD          = 1 << 0,
+        FT_SYNC             = 1 << 1,
+        FT_FORCE            = 1 << 2,
 } flag_type;
 
 void forge_flags_usage(void);
