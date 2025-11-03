@@ -19,11 +19,11 @@ typedef struct {
         char *(*web)(void);
         char **(*deps)(void);
         char *(*download)(void);
-        int (*build)(void);
+        int (*build)(char **);
         int (*install)(void);
-        int (*uninstall)(void);
         int (*update)(void);
         int (*get_changes)(void);
+        char **flags;
 } pkg;
 
 /**

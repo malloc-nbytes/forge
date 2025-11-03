@@ -33,6 +33,7 @@
 #include "forge/str.h"
 #include "forge/utils.h"
 #include "forge/str.h"
+#include "forge/pair.h"
 
 #include "config.h"
 #include "depgraph.h"
@@ -158,6 +159,82 @@ assert_sudo(void)
         }
 }
 
+static pkg_info
+pkg_info_from_name(forge_context *ctx, const char *id)
+{
+        pkg_info info = {0};
+
+        sqlite3_stmt *stmt;
+        const char *sql = "SELECT name, version, description, installed FROM Pkgs WHERE name = ?;";
+        int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
+        if (rc != SQLITE_OK) {
+                forge_err_wargs("SQL prepare error: %s\n", sqlite3_errmsg(ctx->db));
+        }
+
+        sqlite3_bind_text(stmt, 1, id, -1, SQLITE_STATIC);
+
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *name = (const char *)sqlite3_column_text(stmt, 0);
+                const char *version = (const char *)sqlite3_column_text(stmt, 1);
+                const char *description = (const char *)sqlite3_column_text(stmt, 2);
+                int installed = sqlite3_column_int(stmt, 3);
+
+                info.name = name ? strdup(name) : NULL;
+                info.version = version ? strdup(version) : NULL;
+                info.description = description ? strdup(description) : strdup("(none)");
+                info.installed = installed;
+        } else {
+                forge_err_wargs("unknown package %s", id);
+        }
+
+        sqlite3_finalize(stmt);
+        return info;
+}
+
+static void
+get_flags_from_name(const char  *fullname,
+                    char       **outname,
+                    str_array   *outflags)
+{
+        *outname  = NULL;
+        *outflags = dyn_array_empty(str_array);
+
+        struct {
+                char *data;
+                size_t len;
+                size_t cap;
+        } namebuf = {
+                .data = NULL,
+                .len = 0,
+                .cap = 0,
+        };
+
+        int bracket = 0;
+        for (size_t i = 0; fullname[i]; ++i) {
+                if (fullname[i] == '[') {
+                        bracket = 1;
+                        continue;
+                }
+                if (fullname[i] == ']') break;
+
+                if (!bracket) {
+                        dyn_array_append(namebuf, fullname[i]);
+                } else {
+                        char buf[256] = {0};
+                        size_t buf_n = 0;
+                        while (fullname[i] && (fullname[i] != ',' && fullname[i] != ']')) {
+                                buf[buf_n++] = fullname[i];
+                                ++i;
+                        }
+                        dyn_array_append(*outflags, strdup(buf));
+                }
+        }
+
+        dyn_array_append(*outflags, NULL);
+        dyn_array_append(namebuf, 0);
+        *outname = strdup(namebuf.data);
+}
+
 void
 clear_package_files_from_db(forge_context *ctx,
                             const char    *name,
@@ -186,6 +263,30 @@ init_db(const char *dbname)
 
         rc = sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
         CHECK_SQLITE(rc, db);
+
+        /* Table that holds every possible flag (global pool) */
+        const char *create_useflags =
+                "CREATE TABLE IF NOT EXISTS UseFlags ("
+                "  id   INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "  name TEXT    NOT NULL UNIQUE);";
+
+        /* Junction table: which flags are *available* for a package */
+        const char *create_pkg_useflags =
+                "CREATE TABLE IF NOT EXISTS PkgUseFlags ("
+                "  pkg_id  INTEGER NOT NULL,"
+                "  flag_id INTEGER NOT NULL,"
+                "  PRIMARY KEY (pkg_id, flag_id),"
+                "  FOREIGN KEY (pkg_id)  REFERENCES Pkgs(id)     ON DELETE CASCADE,"
+                "  FOREIGN KEY (flag_id) REFERENCES UseFlags(id) ON DELETE CASCADE);";
+
+        /* Junction table: which of the available flags are *enabled* when the package is installed */
+        const char *create_pkg_enabled_useflags =
+                "CREATE TABLE IF NOT EXISTS PkgEnabledUseFlags ("
+                "  pkg_id  INTEGER NOT NULL,"
+                "  flag_id INTEGER NOT NULL,"
+                "  PRIMARY KEY (pkg_id, flag_id),"
+                "  FOREIGN KEY (pkg_id)  REFERENCES Pkgs(id)     ON DELETE CASCADE,"
+                "  FOREIGN KEY (flag_id) REFERENCES UseFlags(id) ON DELETE CASCADE);";
 
         const char *create_pkgs =
                 "CREATE TABLE IF NOT EXISTS Pkgs ("
@@ -222,7 +323,103 @@ init_db(const char *dbname)
         rc = sqlite3_exec(db, create_files, NULL, NULL, NULL);
         CHECK_SQLITE(rc, db);
 
+        // Flags tables
+        rc = sqlite3_exec(db, create_useflags, NULL, NULL, NULL);
+        CHECK_SQLITE(rc, db);
+        rc = sqlite3_exec(db, create_pkg_useflags, NULL, NULL, NULL);
+        CHECK_SQLITE(rc, db);
+        rc = sqlite3_exec(db, create_pkg_enabled_useflags, NULL, NULL, NULL);
+        CHECK_SQLITE(rc, db);
+
         return db;
+}
+
+static int
+ensure_useflag(sqlite3 *db, const char *name)
+{
+        // Insert a flag if it does not exist yet – returns its id.
+
+        sqlite3_stmt *stmt;
+        int id = -1;
+
+        sqlite3_prepare_v2(db,
+                           "INSERT OR IGNORE INTO UseFlags(name) VALUES(?);", -1, &stmt, NULL);
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+
+        sqlite3_prepare_v2(db,
+                           "SELECT id FROM UseFlags WHERE name = ?;", -1, &stmt, NULL);
+        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+        if (sqlite3_step(stmt) == SQLITE_ROW)
+                id = sqlite3_column_int(stmt, 0);
+        sqlite3_finalize(stmt);
+
+        return id;
+}
+
+static void
+pkg_set_available_useflags(sqlite3     *db,
+                           int          pkg_id,
+                           const char **flags,
+                           size_t       n)
+{
+        sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL);
+
+        sqlite3_stmt *del;
+        sqlite3_prepare_v2(db, "DELETE FROM PkgUseFlags WHERE pkg_id = ?;",
+                           -1, &del, NULL);
+        sqlite3_bind_int(del, 1, pkg_id);
+        sqlite3_step(del);
+        sqlite3_finalize(del);
+
+        sqlite3_stmt *ins;
+        sqlite3_prepare_v2(db, "INSERT INTO PkgUseFlags(pkg_id, flag_id) VALUES(?, ?);",
+                           -1, &ins, NULL);
+
+        for (size_t i = 0; i < n; ++i) {
+                int fid = ensure_useflag(db, flags[i]);
+                sqlite3_bind_int(ins, 1, pkg_id);
+                sqlite3_bind_int(ins, 2, fid);
+                sqlite3_step(ins);
+                sqlite3_reset(ins);
+        }
+
+        sqlite3_finalize(ins);
+        sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
+}
+
+void
+pkg_set_enabled_useflags(sqlite3     *db,
+                         int          pkg_id,
+                         const char **flags,
+                         size_t       n)
+{
+        /* Enabled flags must be a subset of the available ones – we enforce that
+           in the application logic. */
+        sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL);
+
+        sqlite3_stmt *del;
+        sqlite3_prepare_v2(db,
+                           "DELETE FROM PkgEnabledUseFlags WHERE pkg_id = ?;", -1, &del, NULL);
+        sqlite3_bind_int(del, 1, pkg_id);
+        sqlite3_step(del);
+        sqlite3_finalize(del);
+
+        sqlite3_stmt *ins;
+        sqlite3_prepare_v2(db,
+                           "INSERT INTO PkgEnabledUseFlags(pkg_id, flag_id) VALUES(?, ?);",
+                           -1, &ins, NULL);
+
+        for (size_t i = 0; i < n; ++i) {
+                int fid = ensure_useflag(db, flags[i]);
+                sqlite3_bind_int(ins, 1, pkg_id);
+                sqlite3_bind_int(ins, 2, fid);
+                sqlite3_step(ins);
+                sqlite3_reset(ins);
+        }
+        sqlite3_finalize(ins);
+        sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
 }
 
 void
@@ -1250,7 +1447,9 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
         const char *failed_pkgname = NULL;
 
         for (size_t i = 0; i < names.len; ++i) {
-                const char *name = names.data[i];
+                char *name;
+                str_array flags;
+                get_flags_from_name(names.data[i], &name, &flags);
 
                 // Printing
                 char *current = forge_cstr_of_int(i+1);
@@ -1274,6 +1473,35 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         }
                 }
                 assert(pkg);
+
+                // Verify flags
+                for (size_t j = 0; flags.data[j]; ++j) {
+                        int ok = 0;
+                        for (size_t k = 0; pkg->flags[k]; ++k) {
+                                if (!strcmp(pkg->flags[k], flags.data[j])) {
+                                        ok = 1;
+                                        break;
+                                }
+                        }
+                        if (!ok) {
+                                forge_err_wargs("package %s has no flag named %s", name, flags.data[j]);
+                        }
+                }
+
+                // Register the *available* flags for this package.
+                if (pkg->flags) {
+                        const char **avail = (const char **)pkg->flags;
+                        size_t n = 0;
+                        while (avail[n]) ++n;
+                        pkg_set_available_useflags(ctx->db, pkg_id, avail, n);
+                }
+
+                // Register the *enabled* flags that the user asked for.
+                if (flags.len > 1) {
+                        pkg_set_enabled_useflags(ctx->db, pkg_id,
+                                                 (const char **)flags.data,
+                                                 flags.len - 1);
+                }
 
                 if (pkg_is_installed(ctx, name) && is_dep) {
                         info_builder(0, "Dependency ", YELLOW BOLD, name, RESET, " is already installed\n", NULL);
@@ -1302,6 +1530,14 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                 // Register package with the determined is_explicit value
                 register_pkg(ctx, pkg, is_explicit);
+
+                // Final chance to store enabled flags, useful when the package
+                // was re-installed (e.g. after a forced update).
+                if (flags.len > 1) {
+                        pkg_set_enabled_useflags(ctx->db, pkg_id,
+                                                 (const char **)flags.data,
+                                                 flags.len - 1);
+                }
 
                 char *orig_fakeroot = g_fakeroot;
 
@@ -1401,14 +1637,14 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 sprintf(src_loc, PKG_SOURCE_DIR "/%s", pkgname);
 
                 CD(buildsrc, {
-                                fprintf(stderr, "aborting...\n");
-                                free(pkg_src_loc);
-                                goto bad;
-                        });
+                        fprintf(stderr, "aborting...\n");
+                        free(pkg_src_loc);
+                        goto bad;
+                });
 
                 if (pkg->build) {
                         info_builder(1, "build(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
-                        int buildres = pkg->build();
+                        int buildres = pkg->build(flags.data);
                         if (!buildres) {
                                 fprintf(stderr, "could not build package, aborting...\n");
                                 goto bad;
@@ -1429,6 +1665,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 info_builder(1, "install(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
 
                 setenv("DESTDIR", g_fakeroot, 1);
+
                 if (!pkg->install()) {
                         fprintf(stderr, "failed to install package, aborting...\n");
                         free(pkg_src_loc);
@@ -1502,6 +1739,11 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 free(succ_msg);
 
                 destroy_fakeroot();
+
+                free(name);
+                for (size_t i = 0; i < flags.len-1; ++i) {
+                        free(flags.data[i]);
+                } dyn_array_free(flags);
         }
 
         return 1;
@@ -2059,7 +2301,7 @@ edit_install(forge_context *ctx)
         dyn_array_free(installed);
 }
 
-void
+static void
 view_pkg_info(const forge_context *ctx,
               str_array            names)
 {
@@ -2067,48 +2309,46 @@ view_pkg_info(const forge_context *ctx,
                 const char *pkgname = names.data[i];
 
                 pkg *pkg = NULL;
-                for (size_t i = 0; i < ctx->pkgs.len; ++i) {
-                        if (!strcmp(ctx->pkgs.data[i]->name(), pkgname)) {
-                                pkg = ctx->pkgs.data[i];
+                for (size_t j = 0; j < ctx->pkgs.len; ++j) {
+                        if (!strcmp(ctx->pkgs.data[j]->name(), pkgname)) {
+                                pkg = ctx->pkgs.data[j];
                                 break;
                         }
                 }
-
                 if (!pkg) {
                         fprintf(stderr, RED "Package '%s' not found in loaded modules.\n" RESET, pkgname);
-                        return;
+                        continue;
                 }
 
+                // DB data
                 sqlite3_stmt *stmt;
                 const char *sql = "SELECT installed, is_explicit, pkg_src_loc FROM Pkgs WHERE name = ?;";
                 int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
                 CHECK_SQLITE(rc, ctx->db);
-
                 sqlite3_bind_text(stmt, 1, pkgname, -1, SQLITE_STATIC);
 
                 int installed = 0, is_explicit = 0;
                 char *pkg_src_loc = NULL;
                 if (sqlite3_step(stmt) == SQLITE_ROW) {
-                        installed = sqlite3_column_int(stmt, 0);
+                        installed   = sqlite3_column_int(stmt, 0);
                         is_explicit = sqlite3_column_int(stmt, 1);
-                        const char *src_loc = (const char *)sqlite3_column_text(stmt, 2);
-                        if (src_loc) {
-                                pkg_src_loc = strdup(src_loc);
-                        }
+                        const char *src = (const char *)sqlite3_column_text(stmt, 2);
+                        if (src) pkg_src_loc = strdup(src);
                 } else {
                         fprintf(stderr, RED "Package '%s' not found in database.\n" RESET, pkgname);
                         sqlite3_finalize(stmt);
-                        return;
+                        continue;
                 }
                 sqlite3_finalize(stmt);
 
+                // Header
                 info_builder(0, "Package Information for ", YELLOW BOLD, pkgname, RESET, "\n", NULL);
-                printf("%-15s %s\n", "Name:", pkg->name());
-                printf("%-15s %s\n", "Version:", pkg->ver());
+                printf("%-15s %s\n", "Name:",        pkg->name());
+                printf("%-15s %s\n", "Version:",     pkg->ver());
                 printf("%-15s %s\n", "Description:", pkg->desc());
-                printf("%-15s %s\n", "Website:", pkg->web ? pkg->web() : "(none)");
-                printf("%-15s %s\n", "Installed:", installed ? "Yes" : "No");
-                printf("%-15s %s\n", "Explicit:", is_explicit ? "Yes" : "No");
+                printf("%-15s %s\n", "Website:",     pkg->web ? pkg->web() : "(none)");
+                printf("%-15s %s\n", "Installed:",   installed ? "Yes" : "No");
+                printf("%-15s %s\n", "Explicit:",    is_explicit ? "Yes" : "No");
                 if (pkg_src_loc) {
                         printf("%-15s %s\n", "Source Location:", pkg_src_loc);
                         free(pkg_src_loc);
@@ -2116,16 +2356,52 @@ view_pkg_info(const forge_context *ctx,
                         printf("%-15s %s\n", "Source Location:", "(none)");
                 }
 
-                // List dependencies
+                // Dependencies
                 printf("\n" GREEN BOLD "Dependencies:\n" RESET);
                 char **deps = pkg->deps ? pkg->deps() : NULL;
                 if (deps && deps[0]) {
-                        for (size_t i = 0; deps[i]; ++i) {
-                                printf("  - %s\n", deps[i]);
+                        for (size_t j = 0; deps[j]; ++j) printf("  - %s\n", deps[j]);
+                } else {
+                        printf("  (none)\n");
+                }
+
+                // Flags available
+                printf("\n" CYAN BOLD "Available flags:\n" RESET);
+                if (pkg->flags && pkg->flags[0]) {
+                        for (size_t j = 0; pkg->flags[j]; ++j) {
+                                printf("  %s%s%s\n",
+                                       YELLOW, pkg->flags[j], RESET);
                         }
                 } else {
                         printf("  (none)\n");
                 }
+
+                // Flags enabled
+                if (installed) {
+                        printf("\n" CYAN BOLD "Enabled flags:\n" RESET);
+
+                        /* query PkgEnabledUseFlags */
+                        const char *sql_enabled =
+                                "SELECT uf.name FROM PkgEnabledUseFlags pef "
+                                "JOIN UseFlags uf ON pef.flag_id = uf.id "
+                                "WHERE pef.pkg_id = (SELECT id FROM Pkgs WHERE name = ?) "
+                                "ORDER BY uf.name;";
+
+                        rc = sqlite3_prepare_v2(ctx->db, sql_enabled, -1, &stmt, NULL);
+                        CHECK_SQLITE(rc, ctx->db);
+                        sqlite3_bind_text(stmt, 1, pkgname, -1, SQLITE_STATIC);
+
+                        int has_enabled = 0;
+                        while (sqlite3_step(stmt) == SQLITE_ROW) {
+                                const char *flag = (const char *)sqlite3_column_text(stmt, 0);
+                                printf("  %s%s%s\n", GREEN, flag, RESET);
+                                has_enabled = 1;
+                        }
+                        sqlite3_finalize(stmt);
+
+                        if (!has_enabled) printf("  (none)\n");
+                }
+                putchar('\n');
         }
 }
 
