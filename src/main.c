@@ -334,10 +334,19 @@ init_db(const char *dbname)
         return db;
 }
 
+<<<<<<< Updated upstream
 static int
 ensure_useflag(sqlite3 *db, const char *name)
 {
         // Insert a flag if it does not exist yet – returns its id.
+=======
+<<<<<<< Updated upstream
+=======
+static int
+ensure_useflag(sqlite3 *db, const char *name)
+{
+        // Insert a flag if it does not exist yet
+>>>>>>> Stashed changes
 
         sqlite3_stmt *stmt;
         int id = -1;
@@ -358,6 +367,65 @@ ensure_useflag(sqlite3 *db, const char *name)
         return id;
 }
 
+<<<<<<< Updated upstream
+=======
+static char **
+pkg_get_enabled_useflags(sqlite3 *db, const char *pkg_name)
+{
+        str_array result = dyn_array_empty(str_array);
+        sqlite3_stmt *stmt = NULL;
+        int rc;
+
+        rc = sqlite3_prepare_v2(db,
+                                "SELECT id FROM Pkgs WHERE name = ?1 AND installed = 1;",
+                                -1, &stmt, NULL);
+        if (rc != SQLITE_OK) goto err;
+
+        sqlite3_bind_text(stmt, 1, pkg_name, -1, SQLITE_STATIC);
+
+        int pkg_id = -1;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+                pkg_id = sqlite3_column_int(stmt, 0);
+        }
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+
+        if (pkg_id == -1) {
+                forge_err_wargs("pkg_get_enabled_useflags(): could not find pkg of id %s", pkg_name);
+                goto err;
+        }
+
+        rc = sqlite3_prepare_v2(db,
+                                "SELECT uf.name "
+                                "FROM PkgEnabledUseFlags pef "
+                                "JOIN UseFlags uf ON uf.id = pef.flag_id "
+                                "WHERE pef.pkg_id = ?1 "
+                                "ORDER BY uf.name;",
+                                -1, &stmt, NULL);
+        if (rc != SQLITE_OK) goto err;
+
+        sqlite3_bind_int(stmt, 1, pkg_id);
+
+        while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+                const char *flag = (const char *)sqlite3_column_text(stmt, 0);
+                if (flag) {
+                        dyn_array_append(result, strdup(flag));
+                }
+        }
+
+        if (rc != SQLITE_DONE) {
+                forge_err("pkg_get_enabled_useflags(): something went wrong");
+                goto err;
+        }
+
+        dyn_array_append(result, NULL);
+
+ err:
+        if (stmt) sqlite3_finalize(stmt);
+        return result.data;
+}
+
+>>>>>>> Stashed changes
 static void
 pkg_set_available_useflags(sqlite3     *db,
                            int          pkg_id,
@@ -389,6 +457,7 @@ pkg_set_available_useflags(sqlite3     *db,
         sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
 }
 
+<<<<<<< Updated upstream
 void
 pkg_set_enabled_useflags(sqlite3     *db,
                          int          pkg_id,
@@ -396,6 +465,14 @@ pkg_set_enabled_useflags(sqlite3     *db,
                          size_t       n)
 {
         /* Enabled flags must be a subset of the available ones – we enforce that
+=======
+static void
+pkg_set_enabled_useflags(sqlite3     *db,
+                         int          pkg_id,
+                         str_array   *flags)
+{
+        /* Enabled flags must be a subset of the available ones - we enforce that
+>>>>>>> Stashed changes
            in the application logic. */
         sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL);
 
@@ -411,8 +488,13 @@ pkg_set_enabled_useflags(sqlite3     *db,
                            "INSERT INTO PkgEnabledUseFlags(pkg_id, flag_id) VALUES(?, ?);",
                            -1, &ins, NULL);
 
+<<<<<<< Updated upstream
         for (size_t i = 0; i < n; ++i) {
                 int fid = ensure_useflag(db, flags[i]);
+=======
+        for (size_t i = 0; flags->data[i]; ++i) {
+                int fid = ensure_useflag(db, flags->data[i]);
+>>>>>>> Stashed changes
                 sqlite3_bind_int(ins, 1, pkg_id);
                 sqlite3_bind_int(ins, 2, fid);
                 sqlite3_step(ins);
@@ -422,6 +504,22 @@ pkg_set_enabled_useflags(sqlite3     *db,
         sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
 }
 
+<<<<<<< Updated upstream
+=======
+static void
+pkg_unset_all_flags(sqlite3 *db, int pkg_id)
+{
+        sqlite3_stmt *del;
+        sqlite3_prepare_v2(db,
+                           "DELETE FROM PkgEnabledUseFlags WHERE pkg_id = ?;",
+                           -1, &del, NULL);
+        sqlite3_bind_int(del, 1, pkg_id);
+        sqlite3_step(del);
+        sqlite3_finalize(del);
+}
+
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 void
 construct_depgraph(forge_context *ctx)
 {
@@ -1474,11 +1572,21 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 }
                 assert(pkg);
 
+<<<<<<< Updated upstream
                 // Verify flags
                 for (size_t j = 0; flags.data[j]; ++j) {
                         int ok = 0;
                         for (size_t k = 0; pkg->flags[k]; ++k) {
                                 if (!strcmp(pkg->flags[k], flags.data[j])) {
+=======
+<<<<<<< Updated upstream
+=======
+                // Verify flags
+                for (size_t j = 0; flags.data[j]; ++j) {
+                        int ok = 0;
+                        for (size_t k = 0; pkg->mods[k]; ++k) {
+                                if (!strcmp(pkg->mods[k], flags.data[j])) {
+>>>>>>> Stashed changes
                                         ok = 1;
                                         break;
                                 }
@@ -1489,8 +1597,13 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 }
 
                 // Register the *available* flags for this package.
+<<<<<<< Updated upstream
                 if (pkg->flags) {
                         const char **avail = (const char **)pkg->flags;
+=======
+                if (pkg->mods && pkg->mods[0]) {
+                        const char **avail = (const char **)pkg->mods;
+>>>>>>> Stashed changes
                         size_t n = 0;
                         while (avail[n]) ++n;
                         pkg_set_available_useflags(ctx->db, pkg_id, avail, n);
@@ -1498,11 +1611,18 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                 // Register the *enabled* flags that the user asked for.
                 if (flags.len > 1) {
+<<<<<<< Updated upstream
                         pkg_set_enabled_useflags(ctx->db, pkg_id,
                                                  (const char **)flags.data,
                                                  flags.len - 1);
                 }
 
+=======
+                        pkg_set_enabled_useflags(ctx->db, pkg_id, &flags);
+                }
+
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
                 if (pkg_is_installed(ctx, name) && is_dep) {
                         info_builder(0, "Dependency ", YELLOW BOLD, name, RESET, " is already installed\n", NULL);
                         continue; // Skip to next package
@@ -1531,6 +1651,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 // Register package with the determined is_explicit value
                 register_pkg(ctx, pkg, is_explicit);
 
+<<<<<<< Updated upstream
                 // Final chance to store enabled flags, useful when the package
                 // was re-installed (e.g. after a forced update).
                 if (flags.len > 1) {
@@ -1539,6 +1660,23 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                                                  flags.len - 1);
                 }
 
+=======
+<<<<<<< Updated upstream
+=======
+                // If we are re-installing the package, unset all
+                // currently enabled flags.
+                if (pkg_is_installed(ctx, name)) {
+                        pkg_unset_all_flags(ctx->db, pkg_id);
+                }
+
+                // Final chance to store enabled flags, useful when the package
+                // was re-installed (e.g. after a forced update).
+                if (flags.len > 1) {
+                        pkg_set_enabled_useflags(ctx->db, pkg_id, &flags);
+                }
+
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
                 char *orig_fakeroot = g_fakeroot;
 
                 // Install deps
@@ -1595,7 +1733,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         pkgname = forge_io_basename(pkg_src_loc);
                 } else {
                         info_builder(1, "download(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
-                        pkgname = pkg->download();
+                        pkgname = pkg->download((const char **)flags.data);
                         failed_pkgname = pkgname;
                         if (!pkgname) {
                                 fprintf(stderr, "could not download package, aborting...\n");
@@ -1606,7 +1744,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                 if (!cd_silent(pkgname)) {
                         info_builder(1, "download(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
-                        if (!pkg->download()) {
+                        if (!pkg->download((const char **)flags.data)) {
                                 fprintf(stderr, "could not download package, aborting...\n");
                                 free(pkg_src_loc);
                                 goto bad;
@@ -1644,7 +1782,15 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
 
                 if (pkg->build) {
                         info_builder(1, "build(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
+<<<<<<< Updated upstream
                         int buildres = pkg->build(flags.data);
+=======
+<<<<<<< Updated upstream
+                        int buildres = pkg->build();
+=======
+                        int buildres = pkg->build((const char **)flags.data);
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
                         if (!buildres) {
                                 fprintf(stderr, "could not build package, aborting...\n");
                                 goto bad;
@@ -1665,8 +1811,16 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                 info_builder(1, "install(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
 
                 setenv("DESTDIR", g_fakeroot, 1);
+<<<<<<< Updated upstream
 
+=======
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
                 if (!pkg->install()) {
+=======
+
+                if (!pkg->install((const char **)flags.data)) {
+>>>>>>> Stashed changes
                         fprintf(stderr, "failed to install package, aborting...\n");
                         free(pkg_src_loc);
                         goto bad;
@@ -2360,6 +2514,13 @@ view_pkg_info(const forge_context *ctx,
                 printf("\n" GREEN BOLD "Dependencies:\n" RESET);
                 char **deps = pkg->deps ? pkg->deps() : NULL;
                 if (deps && deps[0]) {
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+                        for (size_t i = 0; deps[i]; ++i) {
+                                printf("  - %s\n", deps[i]);
+=======
+>>>>>>> Stashed changes
                         for (size_t j = 0; deps[j]; ++j) printf("  - %s\n", deps[j]);
                 } else {
                         printf("  (none)\n");
@@ -2367,10 +2528,18 @@ view_pkg_info(const forge_context *ctx,
 
                 // Flags available
                 printf("\n" CYAN BOLD "Available flags:\n" RESET);
+<<<<<<< Updated upstream
                 if (pkg->flags && pkg->flags[0]) {
                         for (size_t j = 0; pkg->flags[j]; ++j) {
                                 printf("  %s%s%s\n",
                                        YELLOW, pkg->flags[j], RESET);
+=======
+                if (pkg->mods && pkg->mods[0]) {
+                        for (size_t j = 0; pkg->mods[j]; ++j) {
+                                printf("  %s%s%s\n",
+                                       YELLOW, pkg->mods[j], RESET);
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
                         }
                 } else {
                         printf("  (none)\n");
@@ -2721,6 +2890,7 @@ update_pkgs(forge_context *ctx, str_array names)
 
         str_array to_update = dyn_array_empty(str_array);
         str_array skipped   = dyn_array_empty(str_array);
+        char **mods         = NULL;
 
         // Build the list of packages we have to examine
         if (names.len == 0) {
@@ -2747,6 +2917,12 @@ update_pkgs(forge_context *ctx, str_array names)
         // Process each package
         int any_updated = 0;
         for (size_t i = 0; i < to_update.len; ++i) {
+                if (mods) {
+                        for (size_t j = 0; mods[j]; ++j) free(mods[j]);
+                        free(mods);
+                        mods = NULL;
+                }
+
                 const char *name = to_update.data[i];
                 pkg *p = NULL;
 
@@ -2766,6 +2942,8 @@ update_pkgs(forge_context *ctx, str_array names)
                                      RESET, " is not installed – skipping\n", NULL);
                         continue;
                 }
+
+                mods = pkg_get_enabled_useflags(ctx->db, name);
 
                 // Skip if no update() and not forced
                 if (!p->update && !(g_config.flags & FT_FORCE)) {
@@ -2801,7 +2979,7 @@ update_pkgs(forge_context *ctx, str_array names)
                 int needs_rebuild = 0;
                 if (p->update && (g_config.flags & FT_FORCE) == 0) {
                         info_builder(1, "Checking update for ", YELLOW BOLD, name, RESET, "\n", NULL);
-                        needs_rebuild = p->update();
+                        needs_rebuild = p->update((const char **)mods);
                 } else {
                         needs_rebuild = 1;   /* forced */
                 }
@@ -2819,7 +2997,7 @@ update_pkgs(forge_context *ctx, str_array names)
                 int pull_ok = 1;
                 if (p->get_changes) {
                         info_builder(1, "Pulling changes for ", YELLOW BOLD, name, RESET, "\n", NULL);
-                        pull_ok = p->get_changes();
+                        pull_ok = p->get_changes((const char **)mods);
                 } else {
                         pull_ok = 0;   /* force re-download */
                 }

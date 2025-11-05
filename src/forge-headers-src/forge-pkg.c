@@ -25,8 +25,10 @@
 #include "forge/cmd.h"
 
 int
-forge_pkg_git_update(void)
+forge_pkg_git_update(const char **_unused)
 {
+        (void)_unused;
+
         char buf[256] = {0};
 
         char *current_branch = cmdout("git rev-parse --abbrev-ref HEAD");
@@ -60,7 +62,8 @@ forge_pkg_git_update(void)
 }
 
 int
-forge_pkg_git_pull(void)
+forge_pkg_git_pull(const char **_unused)
 {
+        (void)_unused;
         return cmd("git pull");
 }

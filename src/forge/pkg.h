@@ -18,12 +18,24 @@ typedef struct {
         char *(*desc)(void);
         char *(*web)(void);
         char **(*deps)(void);
+<<<<<<< Updated upstream
         char *(*download)(void);
         int (*build)(char **);
         int (*install)(void);
         int (*update)(void);
         int (*get_changes)(void);
+<<<<<<< Updated upstream
         char **flags;
+=======
+=======
+        char *(*download)(const char **);
+        int (*build)(const char **);
+        int (*install)(const char **);
+        int (*update)(const char **);
+        int (*get_changes)(const char **);
+        const char **mods;
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 } pkg;
 
 /**
@@ -32,13 +44,13 @@ typedef struct {
  * Description: Performs the built-in way of doing
  *              an update if the package uses git.
  */
-int forge_pkg_git_update(void);
+int forge_pkg_git_update(const char **_unused);
 
 /**
  * Description: Performs the built-in way of pulling
  *              changes if a package uses git.
  */
-int forge_pkg_git_pull(void);
+int forge_pkg_git_pull(const char **_unused);
 
 /**
  * Description: Used in the .update part of the pkg struct.
