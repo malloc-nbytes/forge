@@ -828,7 +828,7 @@ drop_pkg(forge_context *ctx, str_array names)
                 forge_str_destroy(&pkg_new_filename);
 
                 // Remove .so file
-                forge_str so_path = forge_str_from(MODULE_LIB_DIR);
+                forge_str so_path = forge_str_from(MODULE_LIB_DIR "/");
                 forge_str_concat(&so_path, name);
                 forge_str_concat(&so_path, ".so");
 
