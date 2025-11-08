@@ -1240,12 +1240,62 @@ uninstall_pkg(forge_context *ctx, str_array names, int remove_src)
         return 1;
 }
 
+static void
+list_to_be_installed(forge_context *ctx,
+                     str_array      names)
+{
+        info(0, "To be installed:\n");
+
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *name = names.data[i];
+
+                pkg  *pkg         = NULL;
+                int   pkg_id      = get_pkg_id(ctx, name);
+
+                if (pkg_id == -1) {
+                        forge_err_wargs("unregistered package `%s`", name);
+                }
+
+                for (size_t j = 0; j < ctx->pkgs.len; ++j) {
+                        if (!strcmp(ctx->pkgs.data[j]->name(), name)) {
+                                pkg = ctx->pkgs.data[j];
+                                break;
+                        }
+                }
+
+                assert(pkg);
+
+                if (pkg->deps) {
+                        if (pkg_is_installed(ctx, name)) continue;
+                        str_array ar = dyn_array_empty(str_array);
+                        char **deps = pkg->deps();
+                        for (size_t i = 0; deps[i]; ++i) dyn_array_append(ar, deps[i]);
+                        list_to_be_installed(ctx, ar);
+                        dyn_array_free(ar);
+                }
+
+                //info_builder(0, "    ", name, "\n", NULL);
+                printf(YELLOW BOLD "*" RESET YELLOW "    %s" RESET "\n", name);
+        }
+
+        int choice = forge_chooser_yesno("\n" PINK BOLD "Continue?" RESET, NULL, 1);
+        if (!choice) {
+                info(0, "Canceling...\n");
+                exit(0);
+        }
+}
+
 static int
-install_pkg(forge_context *ctx, str_array names, int is_dep)
+install_pkg(forge_context *ctx,
+            str_array      names,
+            int            is_dep,
+            int            skip_ask)
 {
         assert_sudo();
 
-        (void)ctx;
+        if (!skip_ask) {
+                list_to_be_installed(ctx, names);
+        }
 
         const char *failed_pkgname = NULL;
 
@@ -1314,7 +1364,7 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         for (size_t j = 0; deps[j]; ++j) {
                                 dyn_array_append(depnames, strdup(deps[j]));
                         }
-                        if (!install_pkg(ctx, depnames, /*is_dep=*/1)) {
+                        if (!install_pkg(ctx, depnames, /*is_dep=*/1, /*skip_ask=*/1)) {
                                 forge_err_wargs("could not install package %s, stopping...\n", names.data[i]);
                                 for (size_t j = 0; j < depnames.len; ++j) {
                                         free(depnames.data[j]);
@@ -1907,16 +1957,10 @@ interactive(forge_context *ctx)
         }
 
         for (size_t i = 0; i < to_install.len; ++i) {
-                if (i == 0) {
-                        info(0, "To be " YELLOW BOLD "installed:" RESET "\n");
-                }
-                printf(GREEN "    %s\n", to_install.data[i]);
+                printf(GREEN "+++ %s\n", to_install.data[i]);
         }
         for (size_t i = 0; i < to_uninstall.len; ++i) {
-                if (i == 0) {
-                        info(0, "To be " YELLOW BOLD "uninstalled:" RESET "\n");
-                }
-                printf(RED "    %s\n", to_uninstall.data[i]);
+                printf(RED "--- %s\n", to_uninstall.data[i]);
         }
         printf(RESET);
 
@@ -1936,7 +1980,7 @@ interactive(forge_context *ctx)
         // Perform installations
         if (to_install.len > 0) {
                 info(0, "Processing Installations\n");
-                install_pkg(ctx, to_install, 0);
+                install_pkg(ctx, to_install, 0, /*skip_ask=*/1);
         }
 
  clean:
@@ -2563,7 +2607,7 @@ update_pkgs(forge_context *ctx, str_array names)
 
                 uninstall_pkg(ctx, single, 0);
 
-                if (!install_pkg(ctx, single, /*is_dep=*/0)) {
+                if (!install_pkg(ctx, single, /*is_dep=*/0, /*skip_ask=*/1)) {
                         //forge_err_wargs("update failed for %s", name);
                         return 0;
                 } else {
@@ -3269,7 +3313,7 @@ main(int argc, char **argv)
                         arg = arg->n;
                         if (streq(argcmd, CMD_INSTALL)) {
                                 str_array pkgs = fold_args(&arg);
-                                int install_ok = install_pkg(&ctx, pkgs, /*is_dep=*/0);
+                                int install_ok = install_pkg(&ctx, pkgs, /*is_dep=*/0, /*skip_ask=*/0);
 
                                 if (install_ok && pkgs.len == 1 && !strcmp(pkgs.data[0], "forge")) {
                                         info(0, "forge updated - restarting with the new binary\n");
