@@ -1047,7 +1047,7 @@ copy_file_to_root(const char *src_abs,
         return 1;
 }
 
-void
+static void
 print_file_progress(const char *realpath, size_t i, size_t total, int add) {
 #define BAR_WIDTH 30
 
@@ -1240,12 +1240,69 @@ uninstall_pkg(forge_context *ctx, str_array names, int remove_src)
         return 1;
 }
 
+static void
+__list_to_be_installed(forge_context *ctx,
+                       str_array      names)
+{
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *name = names.data[i];
+
+                pkg  *pkg         = NULL;
+                int   pkg_id      = get_pkg_id(ctx, name);
+
+                if (pkg_id == -1) {
+                        forge_err_wargs("unregistered package `%s`", name);
+                }
+
+                for (size_t j = 0; j < ctx->pkgs.len; ++j) {
+                        if (!strcmp(ctx->pkgs.data[j]->name(), name)) {
+                                pkg = ctx->pkgs.data[j];
+                                break;
+                        }
+                }
+
+                assert(pkg);
+
+                if (pkg->deps) {
+                        if (!pkg_is_installed(ctx, name)) {
+                                str_array ar = dyn_array_empty(str_array);
+                                char **deps = pkg->deps();
+                                for (size_t i = 0; deps[i]; ++i) {
+                                        dyn_array_append(ar, deps[i]);
+                                }
+                                __list_to_be_installed(ctx, ar);
+                                dyn_array_free(ar);
+                        }
+                }
+
+                printf(YELLOW BOLD "*" RESET YELLOW "    %s" RESET "\n", name);
+        }
+}
+
+static void
+list_to_be_installed(forge_context *ctx,
+                     str_array      names)
+{
+        __list_to_be_installed(ctx, names);
+        int choice = forge_chooser_yesno("\n" PINK BOLD "Continue?" RESET, NULL, 1);
+        if (!choice) {
+                info(0, "Canceling...\n");
+                exit(0);
+        }
+}
+
 static int
-install_pkg(forge_context *ctx, str_array names, int is_dep)
+install_pkg(forge_context *ctx,
+            str_array      names,
+            int            is_dep,
+            int            skip_ask)
 {
         assert_sudo();
 
-        (void)ctx;
+        if (!skip_ask) {
+                info(0, "To be installed:\n");
+                list_to_be_installed(ctx, names);
+        }
 
         const char *failed_pkgname = NULL;
 
@@ -1289,14 +1346,14 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         CHECK_SQLITE(rc, ctx->db);
 
                         sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
-                        if (sqlite3_step(stmt) == SQLITE_ROW) {
-                                int existing_is_explicit = sqlite3_column_int(stmt, 0);
-                                if (!is_dep) { // For explicit installations, preserve is_explicit = 1
-                                        is_explicit = existing_is_explicit || 1; // Keep 1 if already 1, else set to 1
-                                } else { // For dependencies, keep existing is_explicit
-                                        is_explicit = existing_is_explicit;
-                                }
-                        }
+                        /* if (sqlite3_step(stmt) == SQLITE_ROW) { */
+                        /*         int existing_is_explicit = sqlite3_column_int(stmt, 0); */
+                        /*         if (!is_dep) { // For explicit installations, preserve is_explicit = 1 */
+                        /*                 is_explicit = existing_is_explicit || 1; // Keep 1 if already 1, else set to 1 */
+                        /*         } else { // For dependencies, keep existing is_explicit */
+                        /*                 is_explicit = existing_is_explicit; */
+                        /*         } */
+                        /* } */
                         sqlite3_finalize(stmt);
                 }
 
@@ -1314,17 +1371,55 @@ install_pkg(forge_context *ctx, str_array names, int is_dep)
                         for (size_t j = 0; deps[j]; ++j) {
                                 dyn_array_append(depnames, strdup(deps[j]));
                         }
-                        if (!install_pkg(ctx, depnames, /*is_dep=*/1)) {
+
+                        // Install dependencies
+                        if (!install_pkg(ctx, depnames, /*is_dep=*/1, /*skip_ask=*/1)) {
                                 forge_err_wargs("could not install package %s, stopping...\n", names.data[i]);
-                                for (size_t j = 0; j < depnames.len; ++j) {
-                                        free(depnames.data[j]);
-                                }
+                                for (size_t j = 0; j < depnames.len; ++j) free(depnames.data[j]);
                                 dyn_array_free(depnames);
                                 goto bad;
                         }
-                        for (size_t j = 0; j < depnames.len; ++j) {
-                                free(depnames.data[j]);
+
+                        // Record dependency relationships in Deps table
+                        int pkg_id = get_pkg_id(ctx, name);
+                        if (pkg_id == -1) {
+                                forge_err_wargs("package `%s` not registered after install", name);
+                                for (size_t j = 0; j < depnames.len; ++j) free(depnames.data[j]);
+                                dyn_array_free(depnames);
+                                goto bad;
                         }
+
+                        sqlite3_stmt *stmt;
+                        const char *sql_insert_dep = ""
+                                "INSERT OR IGNORE INTO Deps (pkg_id, dep_id) "
+                                "SELECT ?1, id FROM Pkgs WHERE name = ?2;";
+
+                        int rc = sqlite3_prepare_v2(ctx->db, sql_insert_dep, -1, &stmt, NULL);
+                        CHECK_SQLITE(rc, ctx->db);
+
+                        for (size_t j = 0; j < depnames.len; ++j) {
+                                const char *dep_name = depnames.data[j];
+                                int dep_id = get_pkg_id(ctx, dep_name);
+                                if (dep_id == -1) {
+                                        info_builder(1, "Warning: dependency `", dep_name, "` not found in DB (should be registered)\n", NULL);
+                                        continue;
+                                }
+
+                                sqlite3_bind_int(stmt, 1, pkg_id);
+                                sqlite3_bind_text(stmt, 2, dep_name, -1, SQLITE_STATIC);
+
+                                rc = sqlite3_step(stmt);
+                                if (rc != SQLITE_DONE) {
+                                        fprintf(stderr, "Failed to record dependency %s -> %s: %s\n",
+                                                name, dep_name, sqlite3_errmsg(ctx->db));
+                                }
+                                sqlite3_reset(stmt);
+                        }
+
+                        sqlite3_finalize(stmt);
+
+                        // Cleanup
+                        for (size_t j = 0; j < depnames.len; ++j) free(depnames.data[j]);
                         dyn_array_free(depnames);
                 }
 
@@ -1907,16 +2002,10 @@ interactive(forge_context *ctx)
         }
 
         for (size_t i = 0; i < to_install.len; ++i) {
-                if (i == 0) {
-                        info(0, "To be " YELLOW BOLD "installed:" RESET "\n");
-                }
-                printf(GREEN "    %s\n", to_install.data[i]);
+                printf(GREEN "+++ %s\n", to_install.data[i]);
         }
         for (size_t i = 0; i < to_uninstall.len; ++i) {
-                if (i == 0) {
-                        info(0, "To be " YELLOW BOLD "uninstalled:" RESET "\n");
-                }
-                printf(RED "    %s\n", to_uninstall.data[i]);
+                printf(RED "--- %s\n", to_uninstall.data[i]);
         }
         printf(RESET);
 
@@ -1936,7 +2025,7 @@ interactive(forge_context *ctx)
         // Perform installations
         if (to_install.len > 0) {
                 info(0, "Processing Installations\n");
-                install_pkg(ctx, to_install, 0);
+                install_pkg(ctx, to_install, 0, /*skip_ask=*/1);
         }
 
  clean:
@@ -2563,7 +2652,7 @@ update_pkgs(forge_context *ctx, str_array names)
 
                 uninstall_pkg(ctx, single, 0);
 
-                if (!install_pkg(ctx, single, /*is_dep=*/0)) {
+                if (!install_pkg(ctx, single, /*is_dep=*/0, /*skip_ask=*/1)) {
                         //forge_err_wargs("update failed for %s", name);
                         return 0;
                 } else {
@@ -3269,7 +3358,7 @@ main(int argc, char **argv)
                         arg = arg->n;
                         if (streq(argcmd, CMD_INSTALL)) {
                                 str_array pkgs = fold_args(&arg);
-                                int install_ok = install_pkg(&ctx, pkgs, /*is_dep=*/0);
+                                int install_ok = install_pkg(&ctx, pkgs, /*is_dep=*/0, /*skip_ask=*/0);
 
                                 if (install_ok && pkgs.len == 1 && !strcmp(pkgs.data[0], "forge")) {
                                         info(0, "forge updated - restarting with the new binary\n");
