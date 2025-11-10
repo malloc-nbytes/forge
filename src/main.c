@@ -1292,6 +1292,46 @@ list_to_be_installed(forge_context *ctx,
 }
 
 static int
+parse_pkg_name(const char *fullname,
+               const char **name,
+               str_array   *mods)
+{
+        *name = NULL;
+        *mods = dyn_array_empty(str_array);
+
+        forge_str namebuf = forge_str_create();
+
+        int hit_mods = 0;
+
+        while (*fullname) {
+                char c = *fullname;
+                if (c == '[') {
+                        hit_mods = 1;
+                } else if (c == ']') {
+                        break;
+                } else if (hit_mods) {
+                        forge_str mod = forge_str_create();
+                        while (*fullname && *fullname != ']' && *fullname != ',') {
+                                forge_str_append(&mod, *fullname);
+                                ++fullname;
+                        }
+                        dyn_array_append(*mods, strdup(mod.data));
+                        forge_str_destroy(&mod);
+                } else {
+                        forge_str_append(&namebuf, c);
+                }
+
+                ++fullname;
+        }
+
+        *name = namebuf.data;
+
+        dyn_array_append(*mods, NULL);
+
+        return 1;
+}
+
+static int
 install_pkg(forge_context *ctx,
             str_array      names,
             int            is_dep,
@@ -1307,7 +1347,11 @@ install_pkg(forge_context *ctx,
         const char *failed_pkgname = NULL;
 
         for (size_t i = 0; i < names.len; ++i) {
-                const char *name = names.data[i];
+                const char *name;
+                str_array mods;
+                if (!parse_pkg_name(names.data[i], &name, &mods)) {
+                        forge_err_wargs("failed to parse package name `%s`", names.data[i]);
+                }
 
                 // Printing
                 char *current = forge_cstr_of_int(i+1);
@@ -1454,7 +1498,7 @@ install_pkg(forge_context *ctx,
                         pkgname = forge_io_basename(pkg_src_loc);
                 } else {
                         info_builder(1, "download(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
-                        pkgname = pkg->download();
+                        pkgname = pkg->download((const char **)mods.data);
                         failed_pkgname = pkgname;
                         if (!pkgname) {
                                 fprintf(stderr, "could not download package, aborting...\n");
@@ -1465,7 +1509,7 @@ install_pkg(forge_context *ctx,
 
                 if (!cd_silent(pkgname)) {
                         info_builder(1, "download(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
-                        if (!pkg->download()) {
+                        if (!pkg->download((const char **)mods.data)) {
                                 fprintf(stderr, "could not download package, aborting...\n");
                                 free(pkg_src_loc);
                                 goto bad;
@@ -1503,7 +1547,7 @@ install_pkg(forge_context *ctx,
 
                 if (pkg->build) {
                         info_builder(1, "build(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
-                        int buildres = pkg->build();
+                        int buildres = pkg->build((const char **)mods.data);
                         if (!buildres) {
                                 fprintf(stderr, "could not build package, aborting...\n");
                                 goto bad;
@@ -1524,7 +1568,7 @@ install_pkg(forge_context *ctx,
                 info_builder(1, "install(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
 
                 setenv("DESTDIR", g_fakeroot, 1);
-                if (!pkg->install()) {
+                if (!pkg->install((const char **)mods.data)) {
                         fprintf(stderr, "failed to install package, aborting...\n");
                         free(pkg_src_loc);
                         goto bad;

@@ -18,12 +18,13 @@ typedef struct {
         char *(*desc)(void);
         char *(*web)(void);
         char **(*deps)(void);
-        char *(*download)(void);
-        int (*build)(void);
-        int (*install)(void);
-        int (*uninstall)(void);
-        int (*update)(void);
-        int (*get_changes)(void);
+        char *(*download)(const char *const *);
+        int (*build)(const char *const *);
+        int (*install)(const char *const *);
+        int (*uninstall)(const char *const *);
+        int (*update)(const char *const *);
+        int (*get_changes)(const char *const *);
+        const char **mods;
 } pkg;
 
 /**
