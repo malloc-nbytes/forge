@@ -18,6 +18,8 @@ typedef struct {
         char *(*desc)(void);
         char *(*web)(void);
         char **(*deps)(void);
+        char **(*msgs)(void);
+        char **(*suggested)(void);
         char *(*download)(void);
         int (*build)(void);
         int (*install)(void);
