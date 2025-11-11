@@ -68,6 +68,8 @@
         "#include <forge/forge.h>\n"                                    \
         "\n"                                                            \
         "char *deps[] = {NULL}; // Must be NULL terminated\n"           \
+        "char *msgs[] = {NULL}; // Must be NULL terminated\n"           \
+        "char *sugg[] = {NULL}; // Must be NULL terminated\n"           \
         "\n"                                                            \
         "char *getname(void) { /*return \"author@pkg_name\";*/ }\n"     \
         "char *getver(void) { return \"1.0.0\"; }\n"                    \
@@ -94,6 +96,8 @@
         "        .desc = getdesc,\n"                                    \
         "        .web = getweb,\n"                                      \
         "        .deps = NULL,\n"                                       \
+        "        .msgs = NULL,\n"                                       \
+        "        .suggested = NULL,\n"                                  \
         "        .download = download,\n"                               \
         "        .build = build,\n"                                     \
         "        .install = install,\n"                                 \
