@@ -1291,6 +1291,64 @@ list_to_be_installed(forge_context *ctx,
         }
 }
 
+static void
+display_pkg_suggested(forge_context *ctx,
+                      str_array      names)
+{
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *name = names.data[i];
+                pkg *pkg = NULL;
+                int pkg_id = get_pkg_id(ctx, name);
+                if (pkg_id == -1) {
+                        forge_err_wargs("unregistered package `%s`", name);
+                }
+                for (size_t j = 0; j < ctx->pkgs.len; ++j) {
+                        if (!strcmp(ctx->pkgs.data[j]->name(), name)) {
+                                pkg = ctx->pkgs.data[j];
+                                break;
+                        }
+                }
+                assert(pkg);
+
+                if (pkg->suggested) {
+                        printf(YELLOW "*" RESET " Suggested packages for package " YELLOW BOLD "%s" RESET "\n", name);
+                        char **sugg = pkg->suggested();
+                        for (size_t k = 0; sugg[k]; ++k) {
+                                printf(YELLOW "*" RESET "    %s\n", sugg[k]);
+                        }
+                }
+        }
+}
+
+static void
+display_pkg_msgs(forge_context *ctx,
+                 str_array      names)
+{
+        for (size_t i = 0; i < names.len; ++i) {
+                const char *name = names.data[i];
+                pkg *pkg = NULL;
+                int pkg_id = get_pkg_id(ctx, name);
+                if (pkg_id == -1) {
+                        forge_err_wargs("unregistered package `%s`", name);
+                }
+                for (size_t j = 0; j < ctx->pkgs.len; ++j) {
+                        if (!strcmp(ctx->pkgs.data[j]->name(), name)) {
+                                pkg = ctx->pkgs.data[j];
+                                break;
+                        }
+                }
+                assert(pkg);
+
+                if (pkg->msgs) {
+                        printf(YELLOW "*" RESET " Messages for package " YELLOW BOLD "%s" RESET "\n", name);
+                        char **msgs = pkg->msgs();
+                        for (size_t k = 0; msgs[k]; ++k) {
+                                printf(YELLOW "*" RESET "    %s\n", msgs[k]);
+                        }
+                }
+        }
+}
+
 static int
 install_pkg(forge_context *ctx,
             str_array      names,
@@ -1599,8 +1657,15 @@ install_pkg(forge_context *ctx,
                 destroy_fakeroot();
         }
 
+        display_pkg_msgs(ctx, names);
+        display_pkg_suggested(ctx, names);
+
         return 1;
  bad:
+        // TODO: display pkg msgs and suggested *only up until* the failed one.
+        display_pkg_msgs(ctx, names);
+        display_pkg_suggested(ctx, names);
+
         if (failed_pkgname) {
                 if (cd(PKG_SOURCE_DIR)) {
                         char *rmcmd = forge_cstr_builder("rm -r ", failed_pkgname, NULL);
