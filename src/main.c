@@ -17,6 +17,9 @@
  * with this program; if not, see <https://www.gnu.org/licenses/>.
  */
 
+// TODO:
+//   If upgrading a dependency package, recompile everything that depends on it
+
 #include "forge/pkg.h"
 #include "forge/colors.h"
 #include "forge/chooser.h"

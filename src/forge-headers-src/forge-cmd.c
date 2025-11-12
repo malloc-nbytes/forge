@@ -32,6 +32,7 @@
 
 #include "forge/cmd.h"
 #include "forge/conf.h"
+#include "forge/cstr.h"
 
 char *
 cwd(void)
@@ -454,4 +455,27 @@ __cmd_builder(char *fst, ...)
         int res = cmd(command);
         free(command);
         return res;
+}
+
+char *
+download_tarball(const char *link,
+                 const char *dst)
+{
+        if (!cmd_builder("wget", "-O", dst, link)) return NULL;
+        char **files = ls(dst);
+        if (!files) return NULL;
+        char *res = NULL;
+
+        for (size_t i = 0; files[i]; ++i) {
+                if (strcmp(files[i], "..") != 0 && strcmp(files[i], ".") != 0) {
+                        res = files[i];
+                }
+                free(files[i]);
+        }
+
+        free(files);
+
+        if (!res) return NULL;
+
+        return forge_cstr_builder(dst, "/", res, NULL);
 }

@@ -159,6 +159,13 @@ int is_sudo(void);
 
 int rmrf(const char *fp);
 
+/**
+ * Parameter: link -> The tarball link
+ * Parameter: dst  -> Where to extract the link to
+ * Returns: The filename of dst/<tarball_extract> or NULL on failure.
+ */
+char *download_tarball(const char *link, const char *dst);
+
 #ifdef __cplusplus
 }
 #endif
