@@ -12,6 +12,8 @@ AC_CHECK_LIB([pthread], [pthread_create], [], [AC_MSG_ERROR([pthread library not
 AC_CHECK_LIB([dl], [dlopen], [], [AC_MSG_ERROR([dl library not found])])
 AC_CHECK_LIB([sqlite3], [sqlite3_open], [], [AC_MSG_ERROR([sqlite3 library not found])])
 
+AC_CHECK_HEADER([sys/ttydefaults.h])
+
 AC_DEFINE_UNQUOTED([COMPILER_NAME], ["$CC"], [Name of the C compiler])
 AC_DEFINE_UNQUOTED([COMPILER_VERSION], ["`$CC --version | head -n1`"], [Version of the C compiler])
 AC_DEFINE_UNQUOTED([COMPILER_PATH], ["`which $CC`"], [Full path to the C compiler])
