@@ -3553,6 +3553,8 @@ main(int argc, char **argv)
                                 create_repo_compile_template();
                         } else if (streq(argcmd, CMD_LIST_REPOS)) {
                                 list_repos();
+                        } else if (streq(argcmd, CMD_DEPGRAPH)) {
+                                depgraph_dump(&ctx.dg);
                         }
 
                         // Solely for BASH completion
