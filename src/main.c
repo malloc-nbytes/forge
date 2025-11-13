@@ -1543,18 +1543,14 @@ install_pkg(forge_context *ctx,
                 }
 
                 {
-                        /* char *copy = forge_cstr_builder("cp -v -a . \"", buildsrc, "\"", NULL); */
                         info(1, "Copying build source\n");
-                        char **cpfiles = ls(".");
-                        for (size_t j = 0; cpfiles[j]; ++j) {
-                                if (!strcmp(cpfiles[j], "..")) continue;
-                                if (!strcmp(cpfiles[j], ".")) continue;
-                                if (!strcmp(cpfiles[j], ".git")) continue;
-                                if (!strcmp(cpfiles[j], ".gitignore")) continue;
-                                char *copy = forge_cstr_builder("cp -rv \"", cpfiles[j], "\" \"", buildsrc, "\"", NULL);
-                                printf("%s\n", cmdout(copy));
-                                free(copy);
-                        }
+
+                        // Use rsync to copy everything except dangerous autotools scripts
+                        char *rsync_cmd = forge_cstr_builder("rsync -av --exclude='.git' --exclude='.gitignore' ",
+                                                             "\"./\" \"", buildsrc, "/\"", NULL);
+
+                        printf("%s\n", cmdout(rsync_cmd));
+                        free(rsync_cmd);
                 }
 
                 char src_loc[256] = {0};
@@ -2283,6 +2279,28 @@ view_pkg_info(const forge_context *ctx,
                 if (deps && deps[0]) {
                         for (size_t i = 0; deps[i]; ++i) {
                                 printf("  - %s\n", deps[i]);
+                        }
+                } else {
+                        printf("  (none)\n");
+                }
+
+                // Show package messages
+                printf("\n" GREEN BOLD "Messages:\n" RESET);
+                char **msgs = pkg->msgs ? pkg->msgs() : NULL;
+                if (msgs && msgs[0]) {
+                        for (size_t i = 0; msgs[i]; ++i) {
+                                printf("  - %s\n", msgs[i]);
+                        }
+                } else {
+                        printf("  (none)\n");
+                }
+
+                // Show package suggested
+                printf("\n" GREEN BOLD "Suggested Packages:\n" RESET);
+                char **suggested = pkg->suggested ? pkg->suggested() : NULL;
+                if (suggested && suggested[0]) {
+                        for (size_t i = 0; suggested[i]; ++i) {
+                                printf("  - %s\n", suggested[i]);
                         }
                 } else {
                         printf("  (none)\n");
