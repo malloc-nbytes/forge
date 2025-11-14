@@ -1639,7 +1639,7 @@ install_pkg(forge_context *ctx,
                                 usleep(500000);
                                 /* remove everything we already copied */
                                 for (size_t j = 0; j < installed.len; ++j) {
-                                        bad(1, forge_cstr_builder("removing ", installed.data[j], "\n", NULL));
+                                        print_file_progress(installed.data[j], j, installed.len, /*add=*/0);
                                         unlink(installed.data[j]);
                                         free(installed.data[j]);
                                 }
