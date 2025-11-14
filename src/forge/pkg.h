@@ -20,6 +20,7 @@ typedef struct {
         char **(*deps)(void);
         char **(*msgs)(void);
         char **(*suggested)(void);
+        char **(*rebuild)(void);
         char *(*download)(void);
         int (*build)(void);
         int (*install)(void);

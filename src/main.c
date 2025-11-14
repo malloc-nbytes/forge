@@ -73,12 +73,12 @@
         "char *deps[] = {NULL}; // Must be NULL terminated\n"           \
         "char *msgs[] = {NULL}; // Must be NULL terminated\n"           \
         "char *sugg[] = {NULL}; // Must be NULL terminated\n"           \
+        "char *rebuild[] = {NULL}; // Must be NULL terminated\n"        \
         "\n"                                                            \
         "char *getname(void) { /*return \"author@pkg_name\";*/ }\n"     \
         "char *getver(void) { return \"1.0.0\"; }\n"                    \
         "char *getdesc(void) { return \"My Description\"; }\n"          \
         "char *getweb(void) { return \"Package Website\"; }\n"          \
-        "char **getdeps(void) { return deps; }\n"                       \
         "char *download(void) {\n"                                      \
         "        return NULL; // should return the name of the final directory!\n" \
         "}\n"                                                           \
@@ -101,6 +101,7 @@
         "        .deps = NULL,\n"                                       \
         "        .msgs = NULL,\n"                                       \
         "        .suggested = NULL,\n"                                  \
+        "        .rebuild = NULL,\n"                                    \
         "        .download = download,\n"                               \
         "        .build = build,\n"                                     \
         "        .install = install,\n"                                 \
@@ -2765,6 +2766,22 @@ update_pkgs(forge_context *ctx, str_array names)
                         return 0;
                 } else {
                         good(0, forge_cstr_builder("Updated ", YELLOW BOLD, name, RESET, "\n", NULL));
+                }
+
+                if (p->rebuild) {
+                        info_builder(1, "rebuild(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
+                        char **rebuilds = p->rebuild();
+                        str_array rebuilds_ar = dyn_array_empty(str_array);
+                        for (size_t j = 0; rebuilds[j]; ++j) {
+                                if (pkg_is_installed(ctx, rebuilds[j])) {
+                                        info_builder(0, "Package " YELLOW, rebuilds[j], RESET " needs to be rebuilt...\n", NULL);
+                                        dyn_array_append(rebuilds_ar, rebuilds[j]);
+                                }
+                        }
+                        if (!install_pkg(ctx, rebuilds_ar, /*is_dep=*/0, /*skip_ask=*/1)) {
+                                bad(1, "Failed to rebuild\n");
+                        }
+                        dyn_array_free(rebuilds_ar);
                 }
 
                 free(single.data[0]);
