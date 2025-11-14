@@ -1651,7 +1651,7 @@ install_pkg(forge_context *ctx,
 
                         }
 
-                        dyn_array_append(installed, realpath);
+                        dyn_array_append(installed, strdup(realpath));
                 }
 
                 // Destroy manifest
