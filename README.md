@@ -26,6 +26,12 @@ Along with `forge`, it will also compile and install a tool called `fviewer`. It
 - Gentoo: dev-db/sqlite
 - Debian: libsqlite3-dev
 
+It is also required that you have the following programs installed:
+- git
+- rsync
+- wget
+- cURL
+
 ### Compiling
 ```
 autoreconf -iv
