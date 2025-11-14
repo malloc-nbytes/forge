@@ -501,6 +501,20 @@ help_int(void)
 }
 
 void
+help_only(void)
+{
+        printf("help(-%s, --%s):\n", FLAG_1HY_ONLY, FLAG_2HY_ONLY);
+        INDENT printf("This option will install only the selected packages\n");
+        INDENT printf("and will ignore all dependencies. Use this option\n");
+        INDENT printf("when " YELLOW "forge" RESET " is not your main package\n");
+        INDENT printf("manager and you know that you already have the dependencies installed.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge -o malloc-nbytes@earl\n");
+        INDENT INDENT printf("forge --only malloc-nbytes@earl malloc-nbytes@AnimX\n");
+}
+
+void
 forge_flags_help(const char *flag)
 {
         void (*hs[])(void) = {
@@ -537,6 +551,7 @@ forge_flags_help(const char *flag)
                 help_edit_install,
                 help_int,
                 help_info,
+                help_only,
         };
 
         size_t n = strlen(flag);
@@ -554,6 +569,10 @@ forge_flags_help(const char *flag)
                 hs[2]();
         } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_SYNC)) {
                 hs[2]();
+        } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_ONLY)) {
+                hs[33]();
+        } else if (n == 2 && flag[0] == '-' && flag[1] == FLAG_1HY_ONLY[0]) {
+                hs[33]();
         }
 
         // commands
@@ -687,6 +706,7 @@ forge_flags_usage(void)
         printf(YELLOW BOLD "    -%s, --%s[=<flag>|*]" RESET "      display this message or view help on a command or option\n", FLAG_1HY_HELP, FLAG_2HY_HELP);
         printf(YELLOW BOLD "    -%s, --%s           R"                         RESET  "  rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
         printf(YELLOW BOLD "    -%s, --%s              R"                         RESET "  sync the C modules repository\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
+        printf(YELLOW BOLD "    -%s, --%s              R"                         RESET "  only install the package(s) without dependencies\n", FLAG_1HY_ONLY, FLAG_2HY_ONLY);
         printf(YELLOW BOLD "        --%s              "                         RESET "  force the action if it can\n", FLAG_2HY_FORCE);
         printf("\nCommands:\n");
         printf(GREEN BOLD "    %s          " RESET                                "             list available packages\n", CMD_LIST);

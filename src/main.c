@@ -1249,7 +1249,8 @@ uninstall_pkg(forge_context *ctx, str_array names, int remove_src)
 
 static void
 __list_to_be_installed(forge_context *ctx,
-                       str_array      names)
+                       str_array      names,
+                       str_array     *displayed)
 {
         for (size_t i = 0; i < names.len; ++i) {
                 const char *name = names.data[i];
@@ -1270,19 +1271,30 @@ __list_to_be_installed(forge_context *ctx,
 
                 assert(pkg);
 
-                if (pkg->deps) {
+                if (pkg->deps && (g_config.flags & FT_ONLY) == 0) {
                         if (!pkg_is_installed(ctx, name)) {
                                 str_array ar = dyn_array_empty(str_array);
                                 char **deps = pkg->deps();
                                 for (size_t i = 0; deps[i]; ++i) {
                                         dyn_array_append(ar, deps[i]);
                                 }
-                                __list_to_be_installed(ctx, ar);
+                                __list_to_be_installed(ctx, ar, displayed);
                                 dyn_array_free(ar);
                         }
                 }
 
-                printf(YELLOW BOLD "*" RESET YELLOW "    %s" RESET "\n", name);
+                int printed = 0;
+                for (size_t j = 0; j < displayed->len; ++j) {
+                        if (!strcmp(displayed->data[j], name)) {
+                                printed = 1;
+                                break;
+                        }
+                }
+
+                if (!printed) {
+                        printf(YELLOW BOLD "*" RESET YELLOW "    %s" RESET "\n", name);
+                        dyn_array_append(*displayed, strdup(name));
+                }
         }
 }
 
@@ -1290,7 +1302,11 @@ static void
 list_to_be_installed(forge_context *ctx,
                      str_array      names)
 {
-        __list_to_be_installed(ctx, names);
+        str_array displayed = dyn_array_empty(str_array);
+        __list_to_be_installed(ctx, names, &displayed);
+        FOREACH(s, displayed.data, displayed.len, { free(s); });
+        dyn_array_free(displayed);
+
         int choice = forge_chooser_yesno("\n" PINK BOLD "Continue?" RESET, NULL, 1);
         if (!choice) {
                 info(0, "Canceling...\n");
@@ -1428,7 +1444,7 @@ install_pkg(forge_context *ctx,
                 char *orig_fakeroot = g_fakeroot;
 
                 // Install deps
-                if (pkg->deps) {
+                if (pkg->deps && (g_config.flags & FT_ONLY) == 0) {
                         info(0, "Installing Dependencies\n");
                         info_builder(0, "deps(", YELLOW BOLD, name, RESET, ")\n", NULL);
                         char **deps = pkg->deps();
@@ -1963,6 +1979,8 @@ edit_file_in_editor(const char *path)
 static void
 interactive(forge_context *ctx)
 {
+        assert_sudo();
+
         struct termios term;
         forge_ctrl_enable_raw_terminal(STDIN_FILENO, &term);
         forge_ctrl_clear_terminal();
@@ -3427,6 +3445,7 @@ main(int argc, char **argv)
                                         if (arg->eq) forge_flags_help(arg->eq);
                                         forge_flags_usage();
                                 }
+                                else if (c == FLAG_1HY_ONLY[0]) g_config.flags |= FT_ONLY;
                                 else forge_err_wargs("unknown option `%c`", c);
                         }
                 } else if (arg->h == 2) {
@@ -3441,7 +3460,11 @@ main(int argc, char **argv)
                                 g_config.flags |= FT_SYNC;
                         } else if (streq(arg->s, FLAG_2HY_FORCE)) {
                                 g_config.flags |= FT_FORCE;
-                        } else {
+                        } else if (streq(arg->s, FLAG_2HY_ONLY)) {
+                                g_config.flags |= FT_ONLY;
+                        }
+                        else {
+                                forge_err_wargs("unknown option `%s`", arg->s);
                         }
                 } else {
                         char *argcmd = arg->s;

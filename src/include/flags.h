@@ -23,11 +23,13 @@
 #define FLAG_1HY_HELP    "h"
 #define FLAG_1HY_REBUILD "r"
 #define FLAG_1HY_SYNC    "s"
+#define FLAG_1HY_ONLY    "o"
 
-#define FLAG_2HY_HELP             "help"
-#define FLAG_2HY_REBUILD          "rebuild"
-#define FLAG_2HY_SYNC             "sync"
-#define FLAG_2HY_FORCE            "force"
+#define FLAG_2HY_HELP    "help"
+#define FLAG_2HY_REBUILD "rebuild"
+#define FLAG_2HY_SYNC    "sync"
+#define FLAG_2HY_FORCE   "force"
+#define FLAG_2HY_ONLY    "only"
 
 #define CLI_OPTIONS {                           \
                 "-" FLAG_1HY_HELP,              \
@@ -37,6 +39,7 @@
                 "--" FLAG_2HY_REBUILD,          \
                 "--" FLAG_2HY_SYNC,             \
                 "--" FLAG_2HY_FORCE,            \
+                "--" FLAG_2HY_ONLY,             \
         }
 
 #define CMD_LIST                   "list"
@@ -103,13 +106,14 @@
                 CMD_INFO,                       \
         }
 
-#define CMD_COMMANDS "COMMANDS" // not included in CLI_COMMANDS (hidden)
+#define CMD_COMMANDS "COMMANDS"  // not included in CLI_COMMANDS (hidden)
 #define CMD_OPTIONS  "OPTIONS"   // not included in CLI_COMMANDS (hidden)
 
 typedef enum {
         FT_REBUILD = 1 << 0,
         FT_SYNC    = 1 << 1,
         FT_FORCE   = 1 << 2,
+        FT_ONLY    = 1 << 3,
 } flag_type;
 
 void forge_flags_usage(void);
