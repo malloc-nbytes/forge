@@ -1634,7 +1634,9 @@ install_pkg(forge_context *ctx,
                         print_file_progress(realpath, i, manifest.len, /*add=*/1);
 
                         if (!copy_file_to_root(fakepath, realpath, ctx->db, pkg_id)) {
-                                forge_err_wargs("failed to install %s", realpath);
+                                char *msg = forge_cstr_builder("copy_file_to_root(", fakepath, ", ", realpath, ", db, pkg_id) FAILURE\n", NULL);
+                                bad(1, msg);
+                                usleep(500000);
                                 /* remove everything we already copied */
                                 for (size_t j = 0; j < installed.len; ++j) {
                                         bad(1, forge_cstr_builder("removing ", installed.data[j], "\n", NULL));
@@ -1642,6 +1644,9 @@ install_pkg(forge_context *ctx,
                                         free(installed.data[j]);
                                 }
                                 dyn_array_free(installed);
+                                free(msg); msg = forge_cstr_builder("failed to install ", realpath, "\n", NULL);
+                                bad(1, msg);
+                                free(msg);
                                 goto bad;
 
                         }
