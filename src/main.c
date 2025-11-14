@@ -1284,15 +1284,15 @@ __list_to_be_installed(forge_context *ctx,
                         }
                 }
 
-                int printed = 0;
-                for (size_t j = 0; j < displayed->len; ++j) {
+                int show = 0;
+                if (pkg_is_installed(ctx, name)) show = 1;
+                for (size_t j = 0; !show && j < displayed->len; ++j) {
                         if (!strcmp(displayed->data[j], name)) {
-                                printed = 1;
-                                break;
+                                show = 1;
                         }
                 }
 
-                if (!printed) {
+                if (!show) {
                         printf(YELLOW BOLD "*" RESET YELLOW "    %s" RESET "\n", name);
                         dyn_array_append(*displayed, strdup(name));
                 }
