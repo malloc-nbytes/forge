@@ -941,90 +941,12 @@ copy_file_to_root(const char *src_abs,
                 return 0;
         }
 
-        // Handle symlinks
-        if (S_ISLNK(st.st_mode)) {
-                char target[PATH_MAX] = {0};
-                ssize_t len = readlink(src_abs, target, sizeof(target) - 1);
-                if (len < 0) {
-                        perror("readlink");
-                        return 0;
-                }
-                target[len] = '\0';
-
-                // Remove existing file/symlink if any
-                unlink(dst_abs);
-
-                if (symlink(target, dst_abs) != 0) {
-                        perror("symlink");
-                        return 0;
-                }
-
-                goto db_insert;
-        }
-
-        // Regular file
-        if (!S_ISREG(st.st_mode)) {
-                fprintf(stderr, "Skipping non-regular file: %s\n", src_abs);
-                return 1; // skip but don't fail
-        }
-
-        // Create destination directory
-        {
-                char *dir = strdup(dst_abs);
-                char *p = strrchr(dir, '/');
-                if (p) {
-                        *p = '\0';
-                        mkdir_p_wmode(dir, 0755);
-                }
-                free(dir);
-        }
-
-        // Open source
-        int fd_src = open(src_abs, O_RDONLY);
-        if (fd_src < 0) {
-                perror("open(src)");
+        char *install = forge_cstr_builder("install -D \"", src_abs, "\" \"", dst_abs, "\"", NULL);
+        if (!cmd_s(install)) {
+                free(install);
                 return 0;
         }
-
-        // Open/create destination (regular file)
-        int fd_dst = open(dst_abs,
-                          O_WRONLY | O_CREAT | O_TRUNC,
-                          st.st_mode & 07777);
-        if (fd_dst < 0) {
-                close(fd_src);
-                perror("open(dst)");
-                return 0;
-        }
-
-        // Copy data
-        char buf[8192];
-        ssize_t n;
-        while ((n = read(fd_src, buf, sizeof(buf))) > 0) {
-                if (write(fd_dst, buf, n) != n) {
-                        perror("write");
-                        close(fd_src);
-                        close(fd_dst);
-                        unlink(dst_abs);
-                        return 0;
-                }
-        }
-        close(fd_src);
-        close(fd_dst);
-        if (n < 0) {
-                unlink(dst_abs);
-                return 0;
-        }
-
-        // Restore timestamps and mode
-        struct timespec ts[2] = {
-                { .tv_sec = st.st_atim.tv_sec, .tv_nsec = st.st_atim.tv_nsec },
-                { .tv_sec = st.st_mtim.tv_sec, .tv_nsec = st.st_mtim.tv_nsec }
-        };
-        utimensat(AT_FDCWD, dst_abs, ts, 0);
-        chmod(dst_abs, st.st_mode & 07777);
-
- db_insert:
-        (void)0; // silence warning
+        free(install);
 
         // Insert into Files
         sqlite3_stmt *stmt;
@@ -1630,9 +1552,7 @@ install_pkg(forge_context *ctx,
 
                         print_file_progress(realpath, i, manifest.len, /*add=*/1);
 
-                        char *install = forge_cstr_builder("install -D \"", fakepath, "\" \"", realpath, "\"", NULL);
-                        if (!cmd(install)) {
-                                free(install);
+                        if (!copy_file_to_root(fakepath, realpath, ctx->db, pkg_id)) {
                                 /* remove everything we already copied */
                                 for (size_t j = 0; j < installed.len; ++j) {
                                         print_file_progress(installed.data[j], j, installed.len, /*add=*/0);
@@ -1647,7 +1567,6 @@ install_pkg(forge_context *ctx,
                                 bad(0, msg); free(msg);
                                 goto bad;
                         }
-                        free(install);
                         dyn_array_append(installed, strdup(realpath));
                 }
 
