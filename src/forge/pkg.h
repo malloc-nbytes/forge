@@ -30,6 +30,14 @@ typedef struct {
 } pkg;
 
 /**
+ * Parameter: name -> the package to check
+ * Returns: 1 if installed, and zero if not.
+ * Description: Check if the package `name` is installed
+ *              through forge.
+ */
+int forge_pkg_is_installed(const char *name);
+
+/**
  * Returns: 1 if it should re-download the package,
  *          or 0 if it shouldn't.
  * Description: Performs the built-in way of doing
