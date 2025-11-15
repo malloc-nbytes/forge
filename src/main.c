@@ -1562,7 +1562,6 @@ install_pkg(forge_context *ctx,
                 {
                         info(1, "Copying build source\n");
 
-                        // Use rsync to copy everything except dangerous autotools scripts
                         char *rsync_cmd = forge_cstr_builder("rsync -av --exclude='.git' --exclude='.gitignore' ",
                                                              "\"./\" \"", buildsrc, "/\"", NULL);
 
@@ -1625,33 +1624,42 @@ install_pkg(forge_context *ctx,
                 str_array installed = dyn_array_empty(str_array);
 
                 info(0, "Installing files\n");
-                for (size_t i = 0; i < manifest.len; ++i) {
-                        if (i == 0) putchar('\n');
-
-                        char *fakepath = manifest.data[i]; // /tmp/pkg-.../usr/bin/foo
-                        char *realpath = fakepath + strlen(g_fakeroot);   // /usr/bin/foo
-
-                        print_file_progress(realpath, i, manifest.len, /*add=*/1);
-
-                        if (!copy_file_to_root(fakepath, realpath, ctx->db, pkg_id)) {
-                                /* remove everything we already copied */
-                                for (size_t j = 0; j < installed.len; ++j) {
-                                        print_file_progress(installed.data[j], j, installed.len, /*add=*/0);
-                                        unlink(installed.data[j]);
-                                        free(installed.data[j]);
-                                }
-                                dyn_array_free(installed);
-                                char *msg = forge_cstr_builder("copy_file_to_root(", fakepath, ", ", realpath, ", db, pkg_id) FAILURE\n", NULL);
-                                bad(1, msg); free(msg);
-                                bad(0, "removed installed files\n");
-                                msg = forge_cstr_builder("failed to install ", realpath, "\n", NULL);
-                                bad(0, msg); free(msg);
-                                goto bad;
-
-                        }
-
-                        dyn_array_append(installed, strdup(realpath));
+                char *rsync_cmd = forge_cstr_builder("rsync -av --no-perms --no-owner --no-group --exclude='buildsrc'",
+                                                     g_fakeroot, "/ /", NULL);
+                info(1, "Installing via rsync\n");
+                if (!cmd(rsync_cmd)) {
+                        bad(1, "rsync install failed\n");
+                        free(rsync_cmd);
+                        goto bad;
                 }
+                free(rsync_cmd);
+                /* for (size_t i = 0; i < manifest.len; ++i) { */
+                /*         if (i == 0) putchar('\n'); */
+
+                /*         char *fakepath = manifest.data[i]; // /tmp/pkg-.../usr/bin/foo */
+                /*         char *realpath = fakepath + strlen(g_fakeroot);   // /usr/bin/foo */
+
+                /*         print_file_progress(realpath, i, manifest.len, /\*add=*\/1); */
+
+                /*         if (!copy_file_to_root(fakepath, realpath, ctx->db, pkg_id)) { */
+                /*                 /\* remove everything we already copied *\/ */
+                /*                 for (size_t j = 0; j < installed.len; ++j) { */
+                /*                         print_file_progress(installed.data[j], j, installed.len, /\*add=*\/0); */
+                /*                         unlink(installed.data[j]); */
+                /*                         free(installed.data[j]); */
+                /*                 } */
+                /*                 dyn_array_free(installed); */
+                /*                 char *msg = forge_cstr_builder("copy_file_to_root(", fakepath, ", ", realpath, ", db, pkg_id) FAILURE\n", NULL); */
+                /*                 bad(1, msg); free(msg); */
+                /*                 bad(0, "removed installed files\n"); */
+                /*                 msg = forge_cstr_builder("failed to install ", realpath, "\n", NULL); */
+                /*                 bad(0, msg); free(msg); */
+                /*                 goto bad; */
+
+                /*         } */
+
+                /*         dyn_array_append(installed, strdup(realpath)); */
+                /* } */
 
                 // Destroy manifest
                 for (size_t i = 0; i < manifest.len; ++i) {
