@@ -500,7 +500,7 @@ help_int(void)
         INDENT INDENT printf("forge int\n");
 }
 
-void
+static void
 help_only(void)
 {
         printf("help(-%s, --%s):\n", FLAG_1HY_ONLY, FLAG_2HY_ONLY);
@@ -512,6 +512,17 @@ help_only(void)
         INDENT printf("Example:\n");
         INDENT INDENT printf("forge -o malloc-nbytes@earl\n");
         INDENT INDENT printf("forge --only malloc-nbytes@earl malloc-nbytes@AnimX\n");
+}
+
+static void
+help_keep_fakeroot(void)
+{
+        printf("help(--%s):\n", FLAG_2HY_KEEP_FAKEROOT);
+        INDENT printf("This option allows you to keep the generated\n");
+        INDENT printf("fakeroots for each package stored in /tmp.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge --keep-fakeroot install malloc-nbytes@earl\n");
 }
 
 void
@@ -552,6 +563,7 @@ forge_flags_help(const char *flag)
                 help_int,
                 help_info,
                 help_only,
+                help_keep_fakeroot,
         };
 
         size_t n = strlen(flag);
@@ -573,6 +585,8 @@ forge_flags_help(const char *flag)
                 hs[33]();
         } else if (n == 2 && flag[0] == '-' && flag[1] == FLAG_1HY_ONLY[0]) {
                 hs[33]();
+        } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_KEEP_FAKEROOT)) {
+                hs[34]();
         }
 
         // commands
@@ -708,6 +722,7 @@ forge_flags_usage(void)
         printf(YELLOW BOLD "    -%s, --%s              R"                         RESET "  sync the C modules repository\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
         printf(YELLOW BOLD "    -%s, --%s              R"                         RESET "  only install the package(s) without dependencies\n", FLAG_1HY_ONLY, FLAG_2HY_ONLY);
         printf(YELLOW BOLD "        --%s              "                         RESET "  force the action if it can\n", FLAG_2HY_FORCE);
+        printf(YELLOW BOLD "        --%s              "                         RESET "  keep the generated fakeroot\n", FLAG_2HY_KEEP_FAKEROOT);
         printf("\nCommands:\n");
         printf(GREEN BOLD "    %s          " RESET                                "             list available packages\n", CMD_LIST);
         printf(GREEN BOLD "    %s <pkg...> "                         RESET "           search for packages\n", CMD_SEARCH);

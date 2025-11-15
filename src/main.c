@@ -889,13 +889,13 @@ sandbox(const char *pkgname)
 static void
 destroy_fakeroot(void)
 {
-        if (g_fakeroot) {
+        if (g_fakeroot && (g_config.flags & FT_KEEP_FAKEROOT) == 0) {
                 info(1, "Destroying fakeroot\n\n");
-                unsetenv("DESTDIR");
                 rmrf(g_fakeroot);
                 free(g_fakeroot);
-                g_fakeroot = NULL;
         }
+        unsetenv("DESTDIR");
+        g_fakeroot = NULL;
 }
 
 static void
@@ -3483,6 +3483,8 @@ main(int argc, char **argv)
                                 g_config.flags |= FT_FORCE;
                         } else if (streq(arg->s, FLAG_2HY_ONLY)) {
                                 g_config.flags |= FT_ONLY;
+                        } else if (streq(arg->s, FLAG_2HY_KEEP_FAKEROOT)) {
+                                g_config.flags |= FT_KEEP_FAKEROOT;
                         }
                         else {
                                 forge_err_wargs("unknown option `%s`", arg->s);
