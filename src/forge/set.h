@@ -35,6 +35,7 @@
         int     setname##_contains(const setname *s, type v); \
         void    setname##_destroy(setname *s); \
         void    setname##_print(const setname *s, void (*show)(type *t)); \
+        size_t  setname##_size(const setname *s); \
         \
         setname \
         setname##_create(forge_##setname##_hash_sig hash, \
@@ -140,6 +141,11 @@
                                 it = it->n; \
                         } \
                 } \
+        } \
+        size_t \
+        setname##_size(const setname *s) \
+        { \
+                return s->tbl.sz; \
         } \
 
 #endif // FORGE_SET_H_INCLUDED
