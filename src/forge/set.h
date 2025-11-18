@@ -36,6 +36,7 @@
         void    setname##_destroy(setname *s); \
         void    setname##_print(const setname *s, void (*show)(type *t)); \
         size_t  setname##_size(const setname *s); \
+        type  **setname##_iter(const setname *s); \
         \
         setname \
         setname##_create(forge_##setname##_hash_sig hash, \
@@ -142,10 +143,27 @@
                         } \
                 } \
         } \
+        \
         size_t \
         setname##_size(const setname *s) \
         { \
                 return s->tbl.sz; \
+        } \
+        \
+        type ** \
+        setname##_iter(const setname *s) \
+        { \
+                type **ar = (type **)malloc(sizeof(type *) * s->tbl.sz + 1); \
+                size_t ar_n = 0; \
+                for (size_t i = 0; i < s->tbl.cap; ++i) { \
+                        __##setname##_node *it = s->tbl.data[i]; \
+                        while (it) { \
+                                ar[ar_n++] = &it->v; \
+                                it = it->n; \
+                        } \
+                } \
+                ar[ar_n] = NULL; \
+                return ar; \
         } \
 
 #endif // FORGE_SET_H_INCLUDED
