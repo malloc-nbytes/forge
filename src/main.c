@@ -46,6 +46,7 @@
 
 #include "sqlite3.h"
 
+#include <string.h>
 #include <sys/mount.h>
 #include <sys/types.h>
 #include <assert.h>
@@ -53,7 +54,6 @@
 #include <stdlib.h>
 #include <dlfcn.h>
 #include <dirent.h>
-#include <string.h>
 #include <sys/wait.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -66,6 +66,7 @@
 #define __USE_GNU
 #include <sched.h>
 #include <time.h>
+#include <libgen.h>
 
 #define FORGE_C_MODULE_TEMPLATE                                         \
         "#include <forge/forge.h>\n"                                    \
@@ -219,14 +220,16 @@ init_db(const char *dbname)
 
         const char *create_files =
                 "CREATE TABLE IF NOT EXISTS Files ("
-                "id      INTEGER PRIMARY KEY AUTOINCREMENT,"
-                "pkg_id  INTEGER NOT NULL,"
-                "path    TEXT    NOT NULL,"
-                "size    INTEGER,"
-                "mode    INTEGER,"
-                "mtime   INTEGER,"
+                "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                "pkg_id INTEGER NOT NULL,"
+                "path TEXT NOT NULL,"
+                "size INTEGER,"
+                "mode INTEGER," // permissions only: 0755, etc.
+                "mtime INTEGER,"
+                "type TEXT NOT NULL DEFAULT 'file',"
                 "FOREIGN KEY (pkg_id) REFERENCES Pkgs(id) ON DELETE CASCADE,"
                 "UNIQUE(pkg_id, path));";
+
         rc = sqlite3_exec(db, create_files, NULL, NULL, NULL);
         CHECK_SQLITE(rc, db);
 
@@ -931,46 +934,88 @@ build_manifest(str_array *ar, const char *path)
 
 static int
 copy_file_to_root(const char *src_abs,
-                  const char *dst_abs,
-                  sqlite3    *db,
-                  int         pkg_id)
+                const char *dst_abs,
+                sqlite3 *db,
+                int pkg_id)
 {
         struct stat st;
         if (lstat(src_abs, &st) != 0) {
-                perror("lstat(src)");
+                perror("lstat");
                 return 0;
         }
 
-        char *install = forge_cstr_builder("install -D \"", src_abs, "\" \"", dst_abs, "\"", NULL);
-        if (!cmd_s(install)) {
-                free(install);
-                return 0;
-        }
-        free(install);
+        // Make sure parent directory exists
+        char *dst_abs_cpy = strdup(dst_abs);
+        char *dir = dirname(dst_abs_cpy);
+        char *mkdir_cmd = forge_cstr_builder("install -d \"", dir, "\"", NULL);
+        cmd_s(mkdir_cmd);
+        free(mkdir_cmd);
+        free(dst_abs_cpy);
 
-        // Insert into Files
-        sqlite3_stmt *stmt;
+        const char *type_str;
+        int copied = 1;
+
+        if (S_ISLNK(st.st_mode)) {
+                char target[PATH_MAX + 1];
+                ssize_t len = readlink(src_abs, target, sizeof(target) - 1);
+                if (len < 0) {
+                        perror("readlink");
+                        return 0;
+                }
+                target[len] = '\0';
+
+                if (symlink(target, dst_abs) == -1) {
+                        if (errno == EEXIST) unlink(dst_abs);
+                        if (symlink(target, dst_abs) == -1) {
+                                perror("symlink");
+                                return 0;
+                        }
+                }
+                type_str = "symlink";
+
+        } else if (S_ISDIR(st.st_mode)) {
+                if (mkdir(dst_abs, st.st_mode & 07777) == -1 && errno != EEXIST) {
+                        perror("mkdir");
+                        return 0;
+                }
+                type_str = "dir";
+
+        } else if (S_ISREG(st.st_mode)) {
+                char *cmd = forge_cstr_builder("install -D \"", src_abs, "\" \"", dst_abs, "\"", NULL);
+                copied = cmd_s(cmd);
+                free(cmd);
+                if (!copied) return 0;
+                type_str = "file";
+
+        } else {
+                fprintf(stderr, "Skipping special file: %s (type %o)\n", src_abs, st.st_mode & S_IFMT);
+                return 0;  // block device, fifo, socket, etc.
+        }
+
         const char *sql =
-                "INSERT OR REPLACE INTO Files (pkg_id, path, size, mode, mtime) "
-                "VALUES (?, ?, ?, ?, ?);";
+                "INSERT OR REPLACE INTO Files "
+                "(pkg_id, path, size, mode, mtime, type) "
+                "VALUES (?, ?, ?, ?, ?, ?);";
 
+        sqlite3_stmt *stmt;
         int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
         if (rc != SQLITE_OK) {
-                fprintf(stderr, "prepare failed: %s\n", sqlite3_errmsg(db));
+                fprintf(stderr, "SQL prepare failed: %s\n", sqlite3_errmsg(db));
                 return 0;
         }
 
-        sqlite3_bind_int(  stmt, 1, pkg_id);
-        sqlite3_bind_text( stmt, 2, dst_abs, -1, SQLITE_STATIC);
-        sqlite3_bind_int64(stmt, 3, st.st_size);  // 0 for symlinks
-        sqlite3_bind_int(  stmt, 4, st.st_mode & 07777);
+        sqlite3_bind_int(stmt, 1, pkg_id);
+        sqlite3_bind_text(stmt, 2, dst_abs, -1, SQLITE_STATIC);
+        sqlite3_bind_int64(stmt, 3, S_ISLNK(st.st_mode) ? 0 : st.st_size);
+        sqlite3_bind_int(stmt, 4, st.st_mode & 07777); // permissions only
         sqlite3_bind_int64(stmt, 5, st.st_mtim.tv_sec);
+        sqlite3_bind_text(stmt, 6, type_str, -1, SQLITE_STATIC);
 
         rc = sqlite3_step(stmt);
         sqlite3_finalize(stmt);
 
         if (rc != SQLITE_DONE) {
-                fprintf(stderr, "Files insert error: %s\n", sqlite3_errmsg(db));
+                fprintf(stderr, "Insert failed: %s\n", sqlite3_errmsg(db));
                 return 0;
         }
 
@@ -1127,7 +1172,7 @@ uninstall_pkg(forge_context *ctx, str_array names, int remove_src)
                                 char msg[PATH_MAX] = {0};
                                 sprintf(msg, "Failed to remove source directory: %s\n", src_path);
                                 bad(1, msg);
-                                // Not fatal — continue
+                                // Not fatal - continue
                         }
                         free(rm_cmd);
                         free(src_path);
