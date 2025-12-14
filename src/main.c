@@ -419,7 +419,7 @@ sync(void)
         free(files);
 }
 
-void
+static void
 rebuild_pkgs(void)
 {
         assert_sudo();
@@ -1540,10 +1540,10 @@ install_pkg(forge_context *ctx,
                 sprintf(src_loc, PKG_SOURCE_DIR "/%s", pkgname);
 
                 CD(buildsrc, {
-                                fprintf(stderr, "aborting...\n");
-                                free(pkg_src_loc);
-                                goto bad;
-                        });
+                        fprintf(stderr, "aborting...\n");
+                        free(pkg_src_loc);
+                        goto bad;
+                });
 
                 if (pkg->build) {
                         info_builder(1, "build(", YELLOW BOLD, name, RESET, ")\n\n", NULL);
@@ -3377,6 +3377,91 @@ fold_args(forge_arg **hd)
         return args;
 }
 
+static void
+forgebuild(void)
+{
+        char **files            = ls(".");
+        int    found_build_file = 0;
+
+        for (size_t i = 0; files && files[i]; ++i) {
+                if (!strcmp(files[i], "forgebuild.c")) {
+                        found_build_file = 1;
+                }
+                free(files[i]);
+        }
+        if (files) free(files);
+        if (!found_build_file) assert(0 && "unimplemented: create file template");
+
+        const char *buf = "gcc -Wextra -Wall -Werror -shared -fPIC forgebuild.c -lforge -L/usr/local/lib -o forgebuild.so";
+        printf(YELLOW BOLD "*" RESET " Compiling forgebuild...\n");
+        printf("%s\n", buf);
+
+        int status = system(buf);
+        if (status == -1) {
+                perror("system");
+                exit(1);
+        } else {
+                if (WIFEXITED(status)) {
+                        int exit_status = WEXITSTATUS(status);
+                        if (exit_status != 0) {
+                                bad(0, "forgebuild failed!\n");
+                                exit(1);
+                        } else {
+                                good(0, "forgebuild succeeded!\n");
+                        }
+                } else {
+                        fprintf(stdout, INVERT BOLD RED "program did not exit normally\n" RESET);
+                        exit(1);
+                }
+        }
+
+        void *handle = dlopen(forge_io_resolve_absolute_path("forgebuild.so"), RTLD_NOW);
+        if (!handle) {
+                fprintf(stderr, "Error loading dll path `forgebuild`: %s\n", dlerror());
+                exit(1);
+        }
+
+        dlerror();
+        pkg *pkg = dlsym(handle, "package");
+        char *error = dlerror();
+        if (error != NULL) {
+                fprintf(stderr, "Error finding 'package' symbol in `forgebuild`: %s\n", error);
+                dlclose(handle);
+                exit(1);
+        }
+
+        sandbox("forgebuild");
+        setenv("DESTDIR", g_fakeroot, 1);
+
+        info(1, "Copying build source\n");
+        char *buildsrc = forge_cstr_builder(g_fakeroot, "/buildsrc", NULL);
+        char *rsync_cmd = forge_cstr_builder("rsync -av --exclude='.git' --exclude='.gitignore' ",
+                                             "\"./\" \"", buildsrc, "/\"", NULL);
+        printf("%s\n", cmdout(rsync_cmd));
+        free(rsync_cmd);
+
+        CD(buildsrc, {
+                fprintf(stderr, "aborting...\n");
+                exit(1);
+        });
+
+        if (pkg->build) {
+                info(1, "pkg->build()\n");
+                if (!pkg->build()) {
+                        bad(1, "pkg->build() failed");
+                        exit(1);
+                }
+        }
+
+        if (pkg->install) {
+                info(1, "pkg->install()\n");
+                if (!pkg->install()) {
+                        bad(1, "pkg->install() failed\n");
+                        exit(1);
+                }
+        }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -3581,6 +3666,8 @@ main(int argc, char **argv)
                                 list_repos();
                         } else if (streq(argcmd, CMD_DEPGRAPH)) {
                                 depgraph_dump(&ctx.dg);
+                        } else if (streq(argcmd, CMD_BUILD)) {
+                                forgebuild();
                         }
 
                         // Solely for BASH completion
