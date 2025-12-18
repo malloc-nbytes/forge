@@ -3075,7 +3075,7 @@ drop_repo(forge_context *ctx,
                 const char *repo_name = repo_names.data[i];
 
                 // Construct the full path to the repository
-                char *repo_path = forge_cstr_builder(C_MODULE_DIR_PARENT, repo_name, NULL);
+                char *repo_path = forge_cstr_builder(C_MODULE_DIR_PARENT, "/", repo_name, NULL);
                 if (!forge_io_is_dir(repo_path)) {
                         fprintf(stderr, "Repository %s does not exist at %s\n", repo_name, repo_path);
                         free(repo_path);
