@@ -167,6 +167,33 @@ assert_sudo(void)
         }
 }
 
+static pkg *
+get_pkg_from_rname(const forge_context  *ctx,
+                   char                **pattern)
+{
+        str_array dups = dyn_array_empty(str_array);
+        pkg *pkg = NULL;
+        for (size_t i = 0; i < ctx->pkgs.len; ++i) {
+                char *id = ctx->pkgs.data[i]->name();
+                if (forge_utils_regex(*pattern, id)) {
+                        pkg = ctx->pkgs.data[i];
+                        dyn_array_append(dups, id);
+                }
+        }
+        if (dups.len > 1) {
+                info_builder(0, "Name ", pattern, " is ambiguous:\n", NULL);
+                for (size_t i = 0; i < dups.len; ++i) {
+                        printf(YELLOW "*" RESET "  %s\n", dups.data[i]);
+                }
+                exit(1);
+        }
+        if (dups.len > 0) {
+                *pattern = strdup(dups.data[0]);
+        }
+        dyn_array_free(dups);
+        return pkg;
+}
+
 void
 clear_package_files_from_db(forge_context *ctx,
                             const char    *name,
@@ -549,14 +576,37 @@ add_dep_to_db(forge_context *ctx,
 }
 
 int
-get_pkg_id(forge_context *ctx, const char *name)
+get_pkg_id(forge_context *ctx, char **name)
 {
+        str_array name_conflicts = dyn_array_empty(str_array);
+
+        for (size_t i = 0; i < ctx->pkgs.len; ++i) {
+                char *pkg_id = ctx->pkgs.data[i]->name();
+                if (forge_utils_regex(*name, pkg_id)) {
+                        dyn_array_append(name_conflicts, pkg_id);
+                }
+        }
+
+        if (name_conflicts.len > 1) {
+                info_builder(0, "Name ", name, " is ambigious:\n", NULL);
+                for (size_t i = 0; i < name_conflicts.len; ++i) {
+                        printf(YELLOW "*" RESET "   %s\n", name_conflicts.data[i]);
+                }
+                exit(1);
+        }
+
+        if (name_conflicts.len > 0) {
+                *name = strdup(name_conflicts.data[0]);
+        }
+
+        //dyn_array_free(name_conflicts);
+
         sqlite3_stmt *stmt;
         const char *sql = "SELECT id FROM Pkgs WHERE name = ?;";
         int rc = sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL);
         CHECK_SQLITE(rc, ctx->db);
 
-        sqlite3_bind_text(stmt, 1, name, -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, 1, *name, -1, SQLITE_STATIC);
 
         int id = -1;
         if (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -564,6 +614,7 @@ get_pkg_id(forge_context *ctx, const char *name)
         }
 
         sqlite3_finalize(stmt);
+
         return id;
 }
 
@@ -580,8 +631,8 @@ register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
                 forge_err_wargs("register_pkg(): pkg %s does not have a description", pkg->name());
         }
 
-        const char *name = pkg->name();
-        const char *ver = pkg->ver();
+        char       *name = pkg->name();
+        const char *ver  = pkg->ver();
         const char *desc = pkg->desc();
 
         sqlite3_stmt *stmt;
@@ -635,7 +686,7 @@ register_pkg(forge_context *ctx, pkg *pkg, int is_explicit)
                 if (pkg->deps) {
                         char **deps = pkg->deps();
                         for (size_t i = 0; deps[i]; ++i) {
-                                add_dep_to_db(ctx, get_pkg_id(ctx, name), get_pkg_id(ctx, deps[i]));
+                                add_dep_to_db(ctx, get_pkg_id(ctx, &name), get_pkg_id(ctx, &deps[i]));
                         }
                 }
         }
@@ -779,10 +830,10 @@ static void
 drop_pkg(forge_context *ctx, str_array names)
 {
         for (size_t i = 0; i < names.len; ++i) {
-                const char *name = names.data[i];
+                char *name = names.data[i];
 
                 // Check if package exists
-                int pkg_id = get_pkg_id(ctx, name);
+                int pkg_id = get_pkg_id(ctx, &name);
                 if (pkg_id == -1) {
                         forge_err_wargs("package `%s` not found in database", name);
                 }
@@ -1057,9 +1108,9 @@ uninstall_pkg(forge_context *ctx, str_array names, int remove_src)
         assert_sudo();
 
         for (size_t i = 0; i < names.len; ++i) {
-                const char *name = names.data[i];
+                char *name = names.data[i];
 
-                int pkg_id = get_pkg_id(ctx, name);
+                int pkg_id = get_pkg_id(ctx, &name);
                 if (pkg_id == -1) {
                         forge_err_wargs("package `%s` is not registered", name);
                         goto fail;
@@ -1221,21 +1272,16 @@ __list_to_be_installed(forge_context *ctx,
                        str_array     *displayed)
 {
         for (size_t i = 0; i < names.len; ++i) {
-                const char *name = names.data[i];
+                char *name = names.data[i];
 
                 pkg  *pkg         = NULL;
-                int   pkg_id      = get_pkg_id(ctx, name);
+                int   pkg_id      = get_pkg_id(ctx, &name);
 
                 if (pkg_id == -1) {
                         forge_err_wargs("unregistered package `%s`", name);
                 }
 
-                for (size_t j = 0; j < ctx->pkgs.len; ++j) {
-                        if (!strcmp(ctx->pkgs.data[j]->name(), name)) {
-                                pkg = ctx->pkgs.data[j];
-                                break;
-                        }
-                }
+                pkg = get_pkg_from_rname(ctx, &name);
 
                 assert(pkg);
 
@@ -1287,18 +1333,14 @@ display_pkg_suggested(forge_context *ctx,
                       str_array      names)
 {
         for (size_t i = 0; i < names.len; ++i) {
-                const char *name = names.data[i];
+                char *name = names.data[i];
                 pkg *pkg = NULL;
-                int pkg_id = get_pkg_id(ctx, name);
+                int pkg_id = get_pkg_id(ctx, &name);
                 if (pkg_id == -1) {
                         forge_err_wargs("unregistered package `%s`", name);
                 }
-                for (size_t j = 0; j < ctx->pkgs.len; ++j) {
-                        if (!strcmp(ctx->pkgs.data[j]->name(), name)) {
-                                pkg = ctx->pkgs.data[j];
-                                break;
-                        }
-                }
+
+                pkg = get_pkg_from_rname(ctx, &name);
                 assert(pkg);
 
                 if (pkg->suggested) {
@@ -1316,18 +1358,13 @@ display_pkg_msgs(forge_context *ctx,
                  str_array      names)
 {
         for (size_t i = 0; i < names.len; ++i) {
-                const char *name = names.data[i];
+                char *name = names.data[i];
                 pkg *pkg = NULL;
-                int pkg_id = get_pkg_id(ctx, name);
+                int pkg_id = get_pkg_id(ctx, &name);
                 if (pkg_id == -1) {
                         forge_err_wargs("unregistered package `%s`", name);
                 }
-                for (size_t j = 0; j < ctx->pkgs.len; ++j) {
-                        if (!strcmp(ctx->pkgs.data[j]->name(), name)) {
-                                pkg = ctx->pkgs.data[j];
-                                break;
-                        }
-                }
+                get_pkg_from_rname(ctx, &name);
                 assert(pkg);
 
                 if (pkg->msgs) {
@@ -1356,7 +1393,7 @@ install_pkg(forge_context *ctx,
         const char *failed_pkgname = NULL;
 
         for (size_t i = 0; i < names.len; ++i) {
-                const char *name = names.data[i];
+                char *name = names.data[i];
 
                 // Printing
                 char *current = forge_cstr_of_int(i+1);
@@ -1369,16 +1406,11 @@ install_pkg(forge_context *ctx,
 
                 pkg *pkg = NULL;
                 char *pkg_src_loc = NULL;
-                int pkg_id = get_pkg_id(ctx, name);
+                int pkg_id = get_pkg_id(ctx, &name);
                 if (pkg_id == -1) {
                         forge_err_wargs("unregistered package `%s`", name);
                 }
-                for (size_t j = 0; j < ctx->pkgs.len; ++j) {
-                        if (!strcmp(ctx->pkgs.data[j]->name(), name)) {
-                                pkg = ctx->pkgs.data[j];
-                                break;
-                        }
-                }
+                get_pkg_from_rname(ctx, &name);
                 assert(pkg);
 
                 if (pkg_is_installed(ctx, name) && is_dep) {
@@ -1430,7 +1462,7 @@ install_pkg(forge_context *ctx,
                         }
 
                         // Record dependency relationships in Deps table
-                        int pkg_id = get_pkg_id(ctx, name);
+                        int pkg_id = get_pkg_id(ctx, &name);
                         if (pkg_id == -1) {
                                 forge_err_wargs("package `%s` not registered after install", name);
                                 for (size_t j = 0; j < depnames.len; ++j) free(depnames.data[j]);
@@ -1447,8 +1479,8 @@ install_pkg(forge_context *ctx,
                         CHECK_SQLITE(rc, ctx->db);
 
                         for (size_t j = 0; j < depnames.len; ++j) {
-                                const char *dep_name = depnames.data[j];
-                                int dep_id = get_pkg_id(ctx, dep_name);
+                                char *dep_name = depnames.data[j];
+                                int dep_id = get_pkg_id(ctx, &dep_name);
                                 if (dep_id == -1) {
                                         info_builder(1, "Warning: dependency `", dep_name, "` not found in DB (should be registered)\n", NULL);
                                         continue;
@@ -1575,7 +1607,7 @@ install_pkg(forge_context *ctx,
                 }
 
                 // Ensure pkg_id is available
-                pkg_id = get_pkg_id(ctx, name);
+                pkg_id = get_pkg_id(ctx, &name);
                 if (pkg_id == -1) {
                         fprintf(stderr, "Failed to find package ID for %s\n", name);
                         free(pkg_src_loc);
@@ -2206,15 +2238,9 @@ view_pkg_info(const forge_context *ctx,
               str_array            names)
 {
         for (size_t i = 0; i < names.len; ++i) {
-                const char *pkgname = names.data[i];
+                char *pkgname = names.data[i];
 
-                pkg *pkg = NULL;
-                for (size_t i = 0; i < ctx->pkgs.len; ++i) {
-                        if (!strcmp(ctx->pkgs.data[i]->name(), pkgname)) {
-                                pkg = ctx->pkgs.data[i];
-                                break;
-                        }
-                }
+                pkg *pkg = get_pkg_from_rname(ctx, &pkgname);
 
                 if (!pkg) {
                         fprintf(stderr, RED "Package '%s' not found in loaded modules.\n" RESET, pkgname);
@@ -2878,10 +2904,10 @@ show_pkg_files(str_array names)
         }
 
         for (size_t i = 0; i < names.len; ++i) {
-                const char *pkgname = names.data[i];
+                char *pkgname = names.data[i];
 
                 // Check if package exists
-                int pkg_id = get_pkg_id(&(forge_context){.db = db}, pkgname);
+                int pkg_id = get_pkg_id(&(forge_context){.db = db}, &pkgname);
                 if (pkg_id == -1) {
                         fprintf(stderr, RED "Package '%s' not found in database.\n" RESET, pkgname);
                         continue;
@@ -3144,7 +3170,7 @@ drop_repo(forge_context *ctx,
                 printf(GREEN BOLD "*** Dropping packages from repository %s\n" RESET, repo_name);
                 str_array to_be_dropped = dyn_array_empty(str_array);
                 for (size_t i = 0; i < pkg_names.len; ++i) {
-                        if (get_pkg_id(ctx, pkg_names.data[i]) != -1) {
+                        if (get_pkg_id(ctx, &pkg_names.data[i]) != -1) {
                                 dyn_array_append(to_be_dropped, pkg_names.data[i]);
                         }
                 }
