@@ -113,6 +113,13 @@ const char *forge_io_file_ext(const char *path);
  */
 int forge_io_truncate_file(const char *path);
 
+/**
+ * Returns: realpath of the user's home directory
+ * Description: Get the user's home directory as a static
+ *              buffer, or NULL on failure.
+ */
+const char *forge_io_get_home(void);
+
 #ifdef __cplusplus
 }
 #endif
