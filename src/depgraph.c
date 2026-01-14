@@ -186,7 +186,13 @@ __depgraph_gen_order(const depgraph *dg, size_t_array *ar, size_t st, int *visit
         while (it) {
                 ssize_t index = get_index_of_pkg(dg, it->name);
                 if (index == -1) {
-                        assert(0 && "Package not found in graph");
+                        //assert(0 && "Package not found in graph");
+                        fprintf(stderr,
+                                "WARN: package %s was not found when constructing the dependency graph\n"
+                                "Continuing...\n",
+                                it->name);
+                        it = it->next;
+                        continue;
                 }
                 __depgraph_gen_order(dg, ar, (size_t)index, visited, rec_stack);
                 it = it->next;
