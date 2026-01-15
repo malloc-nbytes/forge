@@ -1224,9 +1224,10 @@ uninstall_pkg(forge_context *ctx, str_array names, int remove_src)
 }
 
 static void
-__list_to_be_installed(forge_context *ctx,
-                       str_array      names,
-                       str_array     *displayed)
+__list_to_be_installed(forge_context   *ctx,
+                       str_array        names,
+                       str_array       *displayed,
+                       const str_array *orig_names)
 {
         for (size_t i = 0; i < names.len; ++i) {
                 const char *name = names.data[i];
@@ -1254,7 +1255,7 @@ __list_to_be_installed(forge_context *ctx,
                                 for (size_t i = 0; deps[i]; ++i) {
                                         dyn_array_append(ar, deps[i]);
                                 }
-                                __list_to_be_installed(ctx, ar, displayed);
+                                __list_to_be_installed(ctx, ar, displayed, orig_names);
                                 dyn_array_free(ar);
                         }
                 }
@@ -1264,6 +1265,13 @@ __list_to_be_installed(forge_context *ctx,
                 for (size_t j = 0; !show && j < displayed->len; ++j) {
                         if (!strcmp(displayed->data[j], name)) {
                                 show = 1;
+                        }
+                }
+
+                for (size_t j = 0; show && j < orig_names->len; ++j) {
+                        if (!strcmp(orig_names->data[j], name)) {
+                                printf(YELLOW BOLD "*" RESET PINK "    %s" RESET " " YELLOW BOLD "R" RESET "\n", name);
+                                break;
                         }
                 }
 
@@ -1279,7 +1287,7 @@ list_to_be_installed(forge_context *ctx,
                      str_array      names)
 {
         str_array displayed = dyn_array_empty(str_array);
-        __list_to_be_installed(ctx, names, &displayed);
+        __list_to_be_installed(ctx, names, &displayed, &names);
         FOREACH(s, displayed.data, displayed.len, { free(s); });
         dyn_array_free(displayed);
 

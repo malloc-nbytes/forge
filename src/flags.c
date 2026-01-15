@@ -525,6 +525,22 @@ help_keep_fakeroot(void)
         INDENT INDENT printf("forge --keep-fakeroot install malloc-nbytes@earl\n");
 }
 
+static void
+help_pretend(void)
+{
+        printf("help(-%s, --%s):\n", FLAG_1HY_PRETEND, FLAG_2HY_PRETEND);
+        INDENT printf("This option allows you to download and install a package,\n");
+        INDENT printf("but it will not move the files onto the host filesystem.\n");
+        INDENT printf("Rather, it will keep it in the fakeroot for your viewing pleasure.\n");
+        INDENT printf("The same is true for uninstalling a package. It will simulate\n");
+        INDENT printf("uninstalling the files without actually doing anything.\n\n");
+
+        INDENT printf("Example:\n");
+        INDENT INDENT printf("forge --pretend install malloc-nbytes@earl\n");
+        INDENT INDENT printf("forge -p uninstall malloc-nbytes@earl\n");
+        INDENT INDENT printf("forge -op install malloc-nbytes@ampire malloc-nbytes@earl\n");
+}
+
 void
 forge_flags_help(const char *flag)
 {
@@ -564,6 +580,7 @@ forge_flags_help(const char *flag)
                 help_info,
                 help_only,
                 help_keep_fakeroot,
+                help_pretend,
         };
 
         size_t n = strlen(flag);
@@ -587,6 +604,10 @@ forge_flags_help(const char *flag)
                 hs[33]();
         } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_KEEP_FAKEROOT)) {
                 hs[34]();
+        } else if (n > 3 && flag[0] == '-' && flag[1] == '-' && !strcmp(flag+2, FLAG_2HY_PRETEND)) {
+                hs[35]();
+        } else if (n == 2 && flag[0] == '-' && flag[1] == FLAG_1HY_PRETEND[0]) {
+                hs[35]();
         }
 
         // commands
@@ -721,8 +742,9 @@ forge_flags_usage(void)
         printf(YELLOW BOLD "    -%s, --%s           R"                         RESET  "  rebuild package modules\n", FLAG_1HY_REBUILD, FLAG_2HY_REBUILD);
         printf(YELLOW BOLD "    -%s, --%s              R"                         RESET "  sync the C modules repository\n", FLAG_1HY_SYNC, FLAG_2HY_SYNC);
         printf(YELLOW BOLD "    -%s, --%s              R"                         RESET "  only install the package(s) without dependencies\n", FLAG_1HY_ONLY, FLAG_2HY_ONLY);
+        printf(YELLOW BOLD "    -%s, --%s           "             RESET YELLOW BOLD " N" RESET " pretend install/uninstalling package(s)\n", FLAG_1HY_PRETEND, FLAG_2HY_PRETEND);
         printf(YELLOW BOLD "        --%s              "                         RESET "  force the action if it can\n", FLAG_2HY_FORCE);
-        printf(YELLOW BOLD "        --%s              "                         RESET "  keep the generated fakeroot\n", FLAG_2HY_KEEP_FAKEROOT);
+        printf(YELLOW BOLD "        --%s       "                         RESET " keep the generated fakeroot\n", FLAG_2HY_KEEP_FAKEROOT);
         printf("\nCommands:\n");
         printf(GREEN BOLD "    %s          " RESET                                "             list available packages\n", CMD_LIST);
         printf(GREEN BOLD "    %s <pkg...> "                         RESET "           search for packages\n", CMD_SEARCH);
