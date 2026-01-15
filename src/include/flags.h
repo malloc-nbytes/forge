@@ -24,6 +24,7 @@
 #define FLAG_1HY_REBUILD "r"
 #define FLAG_1HY_SYNC    "s"
 #define FLAG_1HY_ONLY    "o"
+#define FLAG_1HY_PRETEND "p"
 
 #define FLAG_2HY_HELP          "help"
 #define FLAG_2HY_REBUILD       "rebuild"
@@ -31,17 +32,20 @@
 #define FLAG_2HY_FORCE         "force"
 #define FLAG_2HY_ONLY          "only"
 #define FLAG_2HY_KEEP_FAKEROOT "keep-fakeroot"
+#define FLAG_2HY_PRETEND       "pretend"
 
 #define CLI_OPTIONS {                           \
                 "-" FLAG_1HY_HELP,              \
                 "-" FLAG_1HY_REBUILD,           \
                 "-" FLAG_1HY_SYNC,              \
+                "-" FLAG_1HY_PRETEND,           \
                 "--" FLAG_2HY_HELP,             \
                 "--" FLAG_2HY_REBUILD,          \
                 "--" FLAG_2HY_SYNC,             \
                 "--" FLAG_2HY_FORCE,            \
                 "--" FLAG_2HY_ONLY,             \
                 "--" FLAG_2HY_KEEP_FAKEROOT,    \
+                "--" FLAG_2HY_PRETEND,          \
         }
 
 #define CMD_LIST                   "list"
@@ -117,6 +121,7 @@ typedef enum {
         FT_FORCE         = 1 << 2,
         FT_ONLY          = 1 << 3,
         FT_KEEP_FAKEROOT = 1 << 4,
+        FT_PRETEND       = (1 << 5) | FT_KEEP_FAKEROOT,
 } flag_type;
 
 void forge_flags_usage(void);

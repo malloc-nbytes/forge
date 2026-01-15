@@ -1103,7 +1103,11 @@ uninstall_pkg(forge_context *ctx, str_array names, int remove_src)
                 sqlite3_finalize(stmt);
 
                 char *file_count_str = forge_cstr_of_int(files.len);
-                info_builder(0, "Uninstalling ", YELLOW BOLD, name, RESET, " [", YELLOW, file_count_str, RESET, "] files\n\n", NULL);
+                if (g_config.flags & FT_PRETEND) {
+                        info_builder(0, "Pretend uninstalling ", YELLOW BOLD, name, RESET, " [", YELLOW, file_count_str, RESET, "] files\n\n", NULL);
+                } else {
+                        info_builder(0, "Uninstalling ", YELLOW BOLD, name, RESET, " [", YELLOW, file_count_str, RESET, "] files\n\n", NULL);
+                }
                 free(file_count_str);
 
                 // Remove installed files
@@ -1126,14 +1130,14 @@ uninstall_pkg(forge_context *ctx, str_array names, int remove_src)
                                 continue; // Skip dirs
                         }
 
-                        if (unlink(path) != 0 && errno != ENOENT) {
+                        if (((g_config.flags & FT_PRETEND) == 0) && unlink(path) != 0 && errno != ENOENT) {
                                 perror("unlink");
                                 dyn_array_append(failed, strdup(path));
                         }
                 }
 
                 // Delete file entries from DB
-                {
+                if ((g_config.flags & FT_PRETEND) == 0) {
                         const char *del_files = "DELETE FROM Files WHERE pkg_id = ?;";
                         rc = sqlite3_prepare_v2(ctx->db, del_files, -1, &stmt, NULL);
                         CHECK_SQLITE(rc, ctx->db);
@@ -1146,7 +1150,7 @@ uninstall_pkg(forge_context *ctx, str_array names, int remove_src)
                 }
 
                 // Mark as uninstalled and clear source location
-                {
+                if ((g_config.flags & FT_PRETEND) == 0) {
                         const char *update_pkg = NULL;
                         if (remove_src) {
                                 update_pkg = "UPDATE Pkgs SET installed = 0, pkg_src_loc = NULL WHERE id = ?;";
@@ -1164,7 +1168,7 @@ uninstall_pkg(forge_context *ctx, str_array names, int remove_src)
                 }
 
                 // Remove source directory
-                if (pkg_src_loc && remove_src) {
+                if (((g_config.flags & FT_PRETEND) == 0) && pkg_src_loc && remove_src) {
                         char *src_path = forge_cstr_builder(PKG_SOURCE_DIR, "/", forge_io_basename(pkg_src_loc), NULL);
                         info(1, "Removing source directory\n");
                         char *rm_cmd = forge_cstr_builder("rm -rf ", src_path, NULL);
@@ -1190,9 +1194,13 @@ uninstall_pkg(forge_context *ctx, str_array names, int remove_src)
                         goto fail_files;
                 }
 
-                char *succ_msg = forge_cstr_builder("Successfully uninstalled ", YELLOW BOLD, name, RESET, "\n\n", NULL);
-                good(1, succ_msg);
-                free(succ_msg);
+                if ((g_config.flags & FT_PRETEND) == 0) {
+                        char *succ_msg = forge_cstr_builder("Successfully uninstalled ", YELLOW BOLD, name, RESET, "\n\n", NULL);
+                        good(1, succ_msg);
+                        free(succ_msg);
+                } else {
+                        putchar('\n');
+                }
 
                 // Cleanup
                 for (size_t j = 0; j < files.len; ++j) {
@@ -1337,6 +1345,16 @@ display_pkg_msgs(forge_context *ctx,
                                 printf(YELLOW "*" RESET "    %s\n", msgs[k]);
                         }
                 }
+        }
+}
+
+static void
+remove_pkg_source(const char *pkgname)
+{
+        if (cd(PKG_SOURCE_DIR)) {
+                char *rmcmd = forge_cstr_builder("rm -r ", pkgname, NULL);
+                cmd(rmcmd);
+                free(rmcmd);
         }
 }
 
@@ -1587,52 +1605,69 @@ install_pkg(forge_context *ctx,
                 str_array manifest = dyn_array_empty(str_array);
                 build_manifest(&manifest, g_fakeroot);
 
-                // Keep a list of files we successfully installed for possible rollback.
-                str_array installed = dyn_array_empty(str_array);
-                for (size_t i = 0; i < manifest.len; ++i) {
-                        if (i == 0) putchar('\n');
-
-                        char *fakepath = manifest.data[i]; // /tmp/pkg-.../usr/bin/foo
-                        char *realpath = fakepath + strlen(g_fakeroot);   // /usr/bin/foo
-
-                        print_file_progress(realpath, i, manifest.len, /*add=*/1);
-
-                        if (!copy_file_to_root(fakepath, realpath, ctx->db, pkg_id)) {
-                                /* remove everything we already copied */
-                                for (size_t j = 0; j < installed.len; ++j) {
-                                        print_file_progress(installed.data[j], j, installed.len, /*add=*/0);
-                                        unlink(installed.data[j]);
-                                        free(installed.data[j]);
-                                }
-                                dyn_array_free(installed);
-                                char *msg = forge_cstr_builder("copy_file_to_root(", fakepath, ", ", realpath, ", db, pkg_id) FAILURE\n", NULL);
-                                bad(1, msg); free(msg);
-                                bad(0, "removed installed files\n");
-                                msg = forge_cstr_builder("failed to install ", realpath, "\n", NULL);
-                                bad(0, msg); free(msg);
-                                goto bad;
+                if (g_config.flags & FT_PRETEND) {
+                        // We are only pretending to install. We do not want to
+                        // move the installed files in the fakeroot into the host filesystem.
+                        printf(YELLOW BOLD "*" RESET " Pretend installed files to fakeroot [ " YELLOW "%s" RESET " ]:\n", g_fakeroot);
+                        for (size_t i = 0; i < manifest.len; ++i) {
+                                printf(YELLOW BOLD "*" RESET "   %s\n", manifest.data[i]);
                         }
-                        dyn_array_append(installed, strdup(realpath));
+
+                        // Allow the fakeroot to be readable by anyone.
+                        if (chmod(g_fakeroot, 0775) == -1)
+                                perror("chmod");
+                } else {
+                        // We are not pretending, go ahead and install to host filesystem.
+                        // Keep a list of files we successfully installed for possible rollback.
+                        str_array installed = dyn_array_empty(str_array);
+                        for (size_t i = 0; i < manifest.len; ++i) {
+                                if (i == 0) putchar('\n');
+
+                                char *fakepath = manifest.data[i]; // /tmp/pkg-.../usr/bin/foo
+                                char *realpath = fakepath + strlen(g_fakeroot);   // /usr/bin/foo
+
+                                print_file_progress(realpath, i, manifest.len, /*add=*/1);
+
+                                if (!copy_file_to_root(fakepath, realpath, ctx->db, pkg_id)) {
+                                        /* remove everything we already copied */
+                                        for (size_t j = 0; j < installed.len; ++j) {
+                                                print_file_progress(installed.data[j], j, installed.len, /*add=*/0);
+                                                unlink(installed.data[j]);
+                                                free(installed.data[j]);
+                                        }
+                                        dyn_array_free(installed);
+                                        char *msg = forge_cstr_builder("copy_file_to_root(", fakepath, ", ", realpath, ", db, pkg_id) FAILURE\n", NULL);
+                                        bad(1, msg); free(msg);
+                                        bad(0, "removed installed files\n");
+                                        msg = forge_cstr_builder("failed to install ", realpath, "\n", NULL);
+                                        bad(0, msg); free(msg);
+                                        goto bad;
+                                }
+                                dyn_array_append(installed, strdup(realpath));
+                        }
+                        dyn_array_free(installed);
                 }
 
                 // Destroy manifest
                 for (size_t i = 0; i < manifest.len; ++i) {
                         free(manifest.data[i]);
-                } dyn_array_free(manifest); dyn_array_free(installed);
+                } dyn_array_free(manifest);
 
-                // Update pkg_src_loc in datasrc_loc
-                const char *sql_update = "UPDATE Pkgs SET pkg_src_loc = ?, installed = 1 WHERE name = ?;";
-                rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
-                CHECK_SQLITE(rc, ctx->db);
+                if ((g_config.flags & FT_PRETEND) == 0) {
+                        // Update pkg_src_loc in datasrc_loc
+                        const char *sql_update = "UPDATE Pkgs SET pkg_src_loc = ?, installed = 1 WHERE name = ?;";
+                        rc = sqlite3_prepare_v2(ctx->db, sql_update, -1, &stmt, NULL);
+                        CHECK_SQLITE(rc, ctx->db);
 
-                sqlite3_bind_text(stmt, 1, src_loc, -1, SQLITE_STATIC);
-                sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
+                        sqlite3_bind_text(stmt, 1, src_loc, -1, SQLITE_STATIC);
+                        sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
 
-                rc = sqlite3_step(stmt);
-                if (rc != SQLITE_DONE) {
-                        fprintf(stderr, "Update pkg_src_loc error: %s\n", sqlite3_errmsg(ctx->db));
+                        rc = sqlite3_step(stmt);
+                        if (rc != SQLITE_DONE) {
+                                fprintf(stderr, "Update pkg_src_loc error: %s\n", sqlite3_errmsg(ctx->db));
+                        }
+                        sqlite3_finalize(stmt);
                 }
-                sqlite3_finalize(stmt);
 
                 free(pkg_src_loc);
 
@@ -1641,6 +1676,10 @@ install_pkg(forge_context *ctx,
                 free(succ_msg);
 
                 destroy_fakeroot();
+
+                if (g_config.flags & FT_PRETEND) {
+                        remove_pkg_source(pkgname);
+                }
         }
 
         display_pkg_msgs(ctx, names);
@@ -1653,12 +1692,8 @@ install_pkg(forge_context *ctx,
         display_pkg_suggested(ctx, names);
 
         if (failed_pkgname) {
-                if (cd(PKG_SOURCE_DIR)) {
-                        char *rmcmd = forge_cstr_builder("rm -r ", failed_pkgname, NULL);
-                        bad(1, "Removing source due to installation failure\n");
-                        cmd(rmcmd);
-                        free(rmcmd);
-                }
+                bad(1, "Removing source due to installation failure\n");
+                remove_pkg_source(failed_pkgname);
                 destroy_fakeroot();
         }
         return 0;
@@ -3429,6 +3464,7 @@ main(int argc, char **argv)
                                         forge_flags_usage();
                                 }
                                 else if (c == FLAG_1HY_ONLY[0]) g_config.flags |= FT_ONLY;
+                                else if (c == FLAG_1HY_PRETEND[0]) g_config.flags |= FT_PRETEND;
                                 else forge_err_wargs("unknown option `%c`", c);
                         }
                 } else if (arg->h == 2) {
@@ -3447,8 +3483,9 @@ main(int argc, char **argv)
                                 g_config.flags |= FT_ONLY;
                         } else if (streq(arg->s, FLAG_2HY_KEEP_FAKEROOT)) {
                                 g_config.flags |= FT_KEEP_FAKEROOT;
-                        }
-                        else {
+                        } else if (streq(arg->s, FLAG_2HY_PRETEND)) {
+                                g_config.flags |= FT_PRETEND;
+                        } else {
                                 forge_err_wargs("unknown option `%s`", arg->s);
                         }
                 } else {
