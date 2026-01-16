@@ -3499,7 +3499,7 @@ main(int argc, char **argv)
                 } else {
                         char *argcmd = arg->s;
                         arg = arg->n;
-                        if (streq(argcmd, CMD_INSTALL)) {
+                        if (streq(argcmd, CMD_INSTALL) || (argcmd[0] == 'i' && !argcmd[1])) {
                                 str_array pkgs = fold_args(&arg);
                                 int install_ok = install_pkg(&ctx, pkgs, /*is_dep=*/0, /*skip_ask=*/0);
 
@@ -3523,13 +3523,13 @@ main(int argc, char **argv)
                                         perror("execve(/usr/bin/forge.new)");
                                         free(new_argv);
                                 }
-                        } else if (streq(argcmd, CMD_LIST)) {
+                        } else if (streq(argcmd, CMD_LIST) || (argcmd[0] == 'l' && !argcmd[1])) {
                                 list_pkgs(&ctx);
                         } else if (streq(argcmd, CMD_LIB)) {
                                 printf("-lforge\n");
                         } else if (streq(argcmd, CMD_NEW)) {
                                 new_pkg(&ctx, fold_args(&arg));
-                        } else if (streq(argcmd, CMD_UNINSTALL)) {
+                        } else if (streq(argcmd, CMD_UNINSTALL) || (argcmd[0] == 'u' && !argcmd[1])) {
                                 uninstall_pkg(&ctx, fold_args(&arg), 1);
                         } else if (streq(argcmd, CMD_INT)) {
                                 interactive(&ctx);
@@ -3599,13 +3599,13 @@ main(int argc, char **argv)
                                         perror("execve(/usr/bin/forge.new)");
                                         free(new_argv);
                                 }
-                        } else if (streq(argcmd, CMD_SEARCH)) {
+                        } else if (streq(argcmd, CMD_SEARCH) || (argcmd[0] == 's' && !argcmd[1])) {
                                 pkg_search(fold_args(&arg));
                         } else if (streq(argcmd, CMD_COPYING)) {
                                 forge_flags_copying();
-                        } else if (streq(argcmd, CMD_FILES)) {
+                        } else if (streq(argcmd, CMD_FILES) || (argcmd[0] == 'f' && !argcmd[1])) {
                                 show_pkg_files(fold_args(&arg));
-                        } else if (streq(argcmd, CMD_APILIST)) {
+                        } else if (streq(argcmd, CMD_APILIST) || (argcmd[0] == 'a' && !argcmd[1])) {
                                 apilist();
                         } else if (streq(argcmd, CMD_EDITCONF)) {
                                 editconf();
@@ -3620,7 +3620,7 @@ main(int argc, char **argv)
                                 if (!arg->n) forge_err_wargs("flag `%s` requires a repo url", CMD_CREATE_REPO);
                                 create_repo(arg->s, arg->n->s);
                                 arg = arg->n->n;
-                        } else if (streq(argcmd, CMD_REPO_COMPILE_TEMPLATE)) {
+                        } else if (streq(argcmd, CMD_REPO_COMPILE_TEMPLATE) || (argcmd[0] == 't' && !argcmd[1])) {
                                 create_repo_compile_template();
                         } else if (streq(argcmd, CMD_LIST_REPOS)) {
                                 list_repos();
