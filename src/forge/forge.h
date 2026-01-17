@@ -21,6 +21,7 @@
 #include "forge/test.h"
 #include "forge/logger.h"
 #include "forge/set.h"
+#include "forge/trie.h"
 #include "forge/conf.h"
 
 /**
