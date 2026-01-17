@@ -3,19 +3,24 @@
 
 #include <stddef.h>
 
+#if defined(__GNUC__) || defined(__clang__)
+#  define WARN_UNUSED_RESULT  __attribute__((warn_unused_result))
+#else
+#  define WARN_UNUSED_RESULT
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Opaque type, use pointer for this structure.
-typedef struct forge_trie forge_trie;
+// NOTE: The structure for the trie is an opaque type.
 
 /**
- * Returns: a new prefix trie
+ * Returns: a new prefix trie or NULL on failure
  * Description: Allocate a new prefix trie. This datastructure
  *              can be used for autocompletions of strings.
  */
-forge_trie *forge_trie_alloc(void);
+void *forge_trie_alloc(void) WARN_UNUSED_RESULT;
 
 /**
  * Parameter: t    -> the trie
@@ -24,7 +29,7 @@ forge_trie *forge_trie_alloc(void);
  * Description: Insert a new word for autocompletion
  *              into the trie.
  */
-int forge_trie_insert(forge_trie *t, const char *word);
+int forge_trie_insert(void *t, const char *word);
 
 /**
  * Parameter: t           -> the trie
@@ -36,7 +41,7 @@ int forge_trie_insert(forge_trie *t, const char *word);
  * Description: Get an array of all words that can be completed
  *              from the prefix `prefix'.
  */
-char **forge_trie_get_completions(forge_trie *t,
+char **forge_trie_get_completions(void       *t,
                                   const char *prefix,
                                   size_t      max_results,
                                   size_t     *out_count);
@@ -45,7 +50,7 @@ char **forge_trie_get_completions(forge_trie *t,
  * Parameter: t -> the trie
  * Description: Free all memory alloc'd by the trie.
  */
-void forge_trie_destroy(forge_trie *t);
+void forge_trie_destroy(void *t);
 
 #ifdef __cplusplus
 }

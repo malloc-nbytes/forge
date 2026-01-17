@@ -1,5 +1,4 @@
 #include <forge/array.h>
-
 #include <stdlib.h>
 #include <string.h>
 
@@ -13,54 +12,43 @@ struct node {
         node_array children;
 };
 
-typedef struct { node *root; } forge_trie;
-
-forge_trie *
+void *
 forge_trie_alloc(void)
 {
-        forge_trie *t;
-        if (!(t = malloc(sizeof(forge_trie))))
+        node *root;
+        if (!(root = malloc(sizeof(node))))
                 return NULL;
-
-        if (!(t->root = malloc(sizeof(node)))) {
-                free(t);
-                return NULL;
-        }
-
-        t->root->ch             = '\0';
-        t->root->is_end_of_word = 0;
-        t->root->children       = dyn_array_empty(node_array);
-
-        return t;
+        root->ch = '\0';
+        root->is_end_of_word = 0;
+        root->children = dyn_array_empty(node_array);
+        return (void *)root;
 }
 
 static node *
 node_alloc(char ch)
 {
         node *n;
-
         if (!(n = malloc(sizeof(node))))
                 return NULL;
-
-        n->ch             = ch;
+        n->ch = ch;
         n->is_end_of_word = 0;
-        n->children       = dyn_array_empty(node_array);
-
+        n->children = dyn_array_empty(node_array);
         return n;
 }
 
 int
-forge_trie_insert(forge_trie *t,
+forge_trie_insert(void       *trie,
                   const char *word)
 {
-        if (!t || !t->root || !word)
+        if (!trie || !word)
                 return 0;
 
-        node   *current = t->root;
+        node   *root    = (node *)trie;
+        node   *current = root;
         size_t  len     = strlen(word);
 
         for (size_t i = 0; i < len; ++i) {
-                char  ch   = word[i];
+                char ch = word[i];
                 node *next = NULL;
 
                 // Search for child with matching character
@@ -76,37 +64,36 @@ forge_trie_insert(forge_trie *t,
                         next = node_alloc(ch);
                         if (!next)
                                 return 0;
-
                         dyn_array_append(current->children, next);
                 }
-
                 current = next;
+
         }
 
         current->is_end_of_word = 1;
         return 1;
 }
-
 static node *
-trie_find_prefix_node(forge_trie *t,
+trie_find_prefix_node(void       *trie,
                       const char *prefix)
 {
         // Find deepest node matching prefix
 
-        if (!t || !t->root || !prefix) return NULL;
+        if (!trie || !prefix)
+                return NULL;
 
-        node *current = t->root;
-        size_t len = strlen(prefix);
+        node   *root    = (node *)trie;
+        node   *current = root;
+        size_t  len     = strlen(prefix);
 
         for (size_t i = 0; i < len; ++i) {
-                char ch = prefix[i];
-                int found = 0;
-
+                char ch    = prefix[i];
+                int  found = 0;
                 for (size_t j = 0; j < current->children.len; ++j) {
                         node *child = current->children.data[j];
                         if (child->ch == ch) {
                                 current = child;
-                                found = 1;
+                                found   = 1;
                                 break;
                         }
                 }
@@ -117,7 +104,6 @@ trie_find_prefix_node(forge_trie *t,
 
         return current;
 }
-
 static void
 collect_words(node    *n,
               char    *buffer,
@@ -125,9 +111,10 @@ collect_words(node    *n,
               size_t   buf_size,
               char   **results,
               size_t  *count,
-              size_t max_results)
+              size_t   max_results)
 {
-        if (!n || *count >= max_results) return;
+        if (!n || *count >= max_results)
+                return;
 
         if (n->is_end_of_word) {
                 buffer[buf_pos] = '\0';
@@ -139,27 +126,29 @@ collect_words(node    *n,
         for (size_t i = 0; i < n->children.len; ++i) {
                 node *child = n->children.data[i];
                 if (buf_pos + 1 >= buf_size) return;
-
                 buffer[buf_pos] = child->ch;
                 collect_words(child, buffer, buf_pos + 1, buf_size,
                               results, count, max_results);
         }
 }
-
 char **
-forge_trie_get_completions(forge_trie *t,
+forge_trie_get_completions(void       *trie,
                            const char *prefix,
                            size_t      max_results,
                            size_t     *out_count)
 {
         *out_count = 0;
-        if (!t || !prefix) return NULL;
 
-        node *start = trie_find_prefix_node(t, prefix);
-        if (!start) return NULL;
+        if (!trie || !prefix)
+                return NULL;
+
+        node *start = trie_find_prefix_node(trie, prefix);
+        if (!start)
+                return NULL;
 
         char **results = calloc(max_results, sizeof(char *));
-        if (!results) return NULL;
+        if (!results)
+                return NULL;
 
         char buffer[256];
         strncpy(buffer, prefix, sizeof(buffer) - 1);
@@ -172,7 +161,6 @@ forge_trie_get_completions(forge_trie *t,
         *out_count = count;
         return results;
 }
-
 static void
 trie_destroy_node(node *n)
 {
@@ -186,17 +174,11 @@ trie_destroy_node(node *n)
         dyn_array_free(n->children);
         free(n);
 }
-
 void
-forge_trie_destroy(forge_trie *t)
+forge_trie_destroy(void *trie)
 {
-        if (!t)
+        if (!trie)
                 return;
 
-        if (t->root) {
-                trie_destroy_node(t->root);
-                t->root = NULL;
-        }
-
-        free(t);
+        trie_destroy_node((node *)trie);
 }
