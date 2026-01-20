@@ -1840,11 +1840,25 @@ show_pkg_deps(str_array names)
                 } else {
                         for (size_t i = 0; i < rows.len; ++i) {
                                 pkg_info *info = &rows.data[i];
-                                printf("%-*s  %-*s  %*d  %-*s\n",
+                                forge_str ins_fs = forge_str_create();
+
+                                if(info->installed != 0 && info->installed != 1) {
+                                        // Shouldn't ever reach this
+                                        char *ins = forge_cstr_of_int(info->installed);
+                                        forge_str_concat(&ins_fs, ins);
+                                        free(ins);
+                                } else {
+                                        forge_str_concat(&ins_fs,
+                                                        info->installed ? "Yes" : "No");
+                                }
+
+                                printf("%-*s  %-*s  %*s  %-*s\n",
                                        (int)max_name_len, info->name,
                                        (int)max_version_len, info->version,
-                                       (int)max_installed_len, info->installed,
+                                       (int)max_installed_len, ins_fs.data,
                                        (int)max_desc_len, info->description);
+
+                                forge_str_destroy(&ins_fs);
                         }
                 }
 
@@ -1926,11 +1940,32 @@ list_pkgs(const forge_context *ctx)
         } else {
                 for (size_t i = 0; i < rows.len; ++i) {
                         pkg_info *info = &rows.data[i];
-                        printf("%s%-*s%s  %s%-*s%s  %s%*d%s  %s%-*s%s\n",
-                               YELLOW,      (int)max_name_len,      info->name,      RESET,
-                               GRAY,        (int)max_version_len,   info->version,   RESET,
-                               BOLD,        (int)max_installed_len, info->installed, RESET,
-                               PINK,        (int)max_desc_len, info->description,    RESET);
+                        forge_str ins_pfx_fs = forge_str_create();
+                        forge_str ins_fs = forge_str_create();
+
+                        if(info->installed != 0 && info->installed != 1) {
+                                // Shouldn't ever reach this
+                                forge_str_concat(&ins_pfx_fs, BOLD);
+                                forge_str_concat(&ins_pfx_fs, RED);
+
+                                char *ins = forge_cstr_of_int(info->installed);
+                                forge_str_concat(&ins_fs, ins);
+                                free(ins);
+                        } else {
+                                forge_str_concat(&ins_pfx_fs, info->installed ? BOLD : DIM);
+                                forge_str_concat(&ins_pfx_fs, info->installed ? GREEN : GRAY);
+                                forge_str_concat(&ins_fs,
+                                                 info->installed ? "Yes" : "No");
+                        }
+
+                        printf("%s%-*s%s  %s%-*s%s  %s%*s%s  %s%-*s%s\n",
+                               YELLOW,          (int)max_name_len,      info->name,      RESET,
+                               GRAY,            (int)max_version_len,   info->version,   RESET,
+                               ins_pfx_fs.data, (int)max_installed_len, ins_fs.data,     RESET,
+                               PINK,            (int)max_desc_len, info->description,    RESET);
+
+                        forge_str_destroy(&ins_pfx_fs);
+                        forge_str_destroy(&ins_fs);
                 }
         }
 
@@ -2890,11 +2925,25 @@ pkg_search(str_array names)
         } else {
                 for (size_t i = 0; i < rows.len; ++i) {
                         pkg_info *info = &rows.data[i];
-                        printf("%-*s  %-*s  %*d  %-*s\n",
+                        forge_str ins_fs = forge_str_create();
+
+                        if(info->installed != 0 && info->installed != 1) {
+                                // Shouldn't ever reach this
+                                char *ins = forge_cstr_of_int(info->installed);
+                                forge_str_concat(&ins_fs, ins);
+                                free(ins);
+                        } else {
+                                forge_str_concat(&ins_fs,
+                                                info->installed ? "Yes" : "No");
+                        }
+
+                        printf("%-*s  %-*s  %*s  %-*s\n",
                                (int)max_name_len, info->name,
                                (int)max_version_len, info->version,
-                               (int)max_installed_len, info->installed,
+                               (int)max_installed_len, ins_fs.data,
                                (int)max_desc_len, info->description);
+
+                        forge_str_destroy(&ins_fs);
                 }
         }
 
