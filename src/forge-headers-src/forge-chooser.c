@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <termios.h>
 #include <string.h>
+#include <sys/ttydefaults.h>
 
 #include "forge/chooser.h"
 #include "forge/ctrl.h"
