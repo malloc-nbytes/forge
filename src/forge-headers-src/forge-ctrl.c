@@ -96,8 +96,8 @@ forge_ctrl_get_terminal_xy(size_t *win_width,
 
         struct winsize w;
         if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
-                if (win_width)  *win_width = w.ws_col-1;
-                if (win_height) *win_height = w.ws_row-1;
+                if (win_width)  *win_width = w.ws_col;
+                if (win_height) *win_height = w.ws_row;
         } else {
                 return 0;
         }
