@@ -167,6 +167,16 @@ void forge_ctrl_cursor_to_col(int n);
  */
 void forge_ctrl_cursor_to_first_line(void);
 
+/**
+ * Description: Switch to terminal alternate no-scrollback buffer.
+*/
+void forge_ctrl_disable_term_scrollback(void);
+
+/**
+ * Description: Switch to terminal main scrollback buffer.
+*/
+void forge_ctrl_enable_term_scrollback(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -216,3 +216,16 @@ forge_ctrl_cursor_to_first_line(void)
         printf("\033[1;1H");
         fflush(stdout);
 }
+
+void
+forge_ctrl_disable_term_scrollback(void)
+{
+        printf("\x1b[?1049h");
+        fflush(stdout);
+}
+
+void
+forge_ctrl_enable_term_scrollback(void)
+{
+        printf("\x1b[?1049l");
+}
