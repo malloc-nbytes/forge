@@ -37,53 +37,57 @@ forge_ctrl_input_type
 forge_ctrl_get_input(char *c)
 {
         assert(c);
-        while (1) {
-                *c = get_char();
-                if (ESCSEQ(*c)) {
-                        int next0 = get_char();
-                        if (CSI(next0)) {
-                                int next1 = get_char();
-                                if (next1 >= '0' && next1 <= '9') { // Modifier key detected
-                                        int semicolon = get_char();
-                                        if (semicolon == ';') {
-                                                int modifier = get_char();
-                                                int arrow_key = get_char();
-                                                if (modifier == '2') { // Shift modifier
-                                                        switch (arrow_key) {
-                                                        case 'A': *c = UP_ARROW;    return USER_INPUT_TYPE_SHIFT_ARROW;
-                                                        case 'B': *c = DOWN_ARROW;  return USER_INPUT_TYPE_SHIFT_ARROW;
-                                                        case 'C': *c = RIGHT_ARROW; return USER_INPUT_TYPE_SHIFT_ARROW;
-                                                        case 'D': *c = LEFT_ARROW;  return USER_INPUT_TYPE_SHIFT_ARROW;
-                                                        default: return USER_INPUT_TYPE_UNKNOWN;
-                                                        }
-                                                }
-                                        }
-                                        return USER_INPUT_TYPE_UNKNOWN;
-                                } else { // Regular arrow key
-                                        switch (next1) {
-                                        case DOWN_ARROW:
-                                        case RIGHT_ARROW:
-                                        case LEFT_ARROW:
-                                        case UP_ARROW:
-                                                *c = next1;
-                                                return USER_INPUT_TYPE_ARROW;
-                                        default:
-                                                return USER_INPUT_TYPE_UNKNOWN;
-                                        }
-                                }
-                        } else { // [ALT] key
-                                *c = next0;
-                                return USER_INPUT_TYPE_ALT;
-                        }
-                }
-                else if (*c >= CTRL_A && *c <= CTRL_Z && *c != CTRL_J) {
+        *c = get_char();
+
+        if (!ESCSEQ(*c)) {
+                if (*c >= CTRL_A && *c <= CTRL_Z && *c != CTRL_J) {
                         return USER_INPUT_TYPE_CTRL;
                 }
-                else return USER_INPUT_TYPE_NORMAL;
+                return USER_INPUT_TYPE_NORMAL;
         }
-        return USER_INPUT_TYPE_UNKNOWN;
-}
 
+        int next0 = get_char();
+        if(!CSI(next0)) { // [ALT] key
+                *c = next0;
+                return USER_INPUT_TYPE_ALT;
+        }
+
+        int next1 = get_char();
+
+        if (!(next1 >= '0' && next1 <= '9')) {
+                switch (next1) {
+                case DOWN_ARROW:
+                case RIGHT_ARROW:
+                case LEFT_ARROW:
+                case UP_ARROW:
+                        *c = next1;
+                        return USER_INPUT_TYPE_ARROW;
+                default:
+                        return USER_INPUT_TYPE_UNKNOWN;
+                }
+        }
+
+        int semicolon = get_char();
+        if (semicolon != ';') {
+                return USER_INPUT_TYPE_UNKNOWN;
+        }
+
+        int modifier = get_char();
+        int arrow_key = get_char();
+
+
+        if (modifier != '2') { // Not Shift modifier
+                return USER_INPUT_TYPE_UNKNOWN;
+        }
+
+        switch (arrow_key) {
+        case 'A': *c = UP_ARROW;    return USER_INPUT_TYPE_SHIFT_ARROW;
+        case 'B': *c = DOWN_ARROW;  return USER_INPUT_TYPE_SHIFT_ARROW;
+        case 'C': *c = RIGHT_ARROW; return USER_INPUT_TYPE_SHIFT_ARROW;
+        case 'D': *c = LEFT_ARROW;  return USER_INPUT_TYPE_SHIFT_ARROW;
+        default: return USER_INPUT_TYPE_UNKNOWN;
+        }
+}
 
 int
 forge_ctrl_get_terminal_xy(size_t *win_width,
