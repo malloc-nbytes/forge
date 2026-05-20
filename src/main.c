@@ -36,6 +36,7 @@
 #include "forge/str.h"
 #include "forge/utils.h"
 #include "forge/str.h"
+#include "forge/trie.h"
 
 #include "config.h"
 #include "depgraph.h"
@@ -3458,6 +3459,84 @@ list_repos(void)
         dyn_array_free(repos);
 }
 
+static void
+launcher(void)
+{
+        struct termios oldterm;
+        const char *path = getenv("PATH");
+
+        if (!path) {
+                return;
+        }
+
+        void *trie = forge_trie_alloc();
+        forge_str buf = forge_str_create();
+        str_array dirs = dyn_array_empty(str_array);
+        str_array prognames = dyn_array_empty(str_array);
+
+        for (size_t i = 0; path[i]; ++i) {
+                if (path[i] == ':') {
+                        dyn_array_append(dirs, strdup(buf.data));
+                        forge_str_clear(&buf);
+                } else {
+                        forge_str_append(&buf, path[i]);
+                }
+        }
+
+        if (buf.len > 0) {
+                dyn_array_append(dirs, strdup(buf.data));
+        }
+
+        forge_str_destroy(&buf);
+
+        for (size_t i = 0; i < dirs.len; ++i) {
+                const char *path = dirs.data[i];
+
+                if (!forge_io_is_dir(path)) {
+                        continue;
+                }
+
+                char **files = ls(path);
+
+                for (size_t j = 0; files && files[j]; ++j) {
+                        if (!forge_io_is_dir(files[j])) {
+                                dyn_array_append(prognames, strdup(forge_io_basename(files[j])));
+                                (void)forge_trie_insert(trie, prognames.data[prognames.len-1]);
+                        }
+                }
+
+                if (files) free(files);
+        }
+
+        size_t w, h;
+        if (forge_ctrl_get_terminal_xy(&w, &h)) {
+                return;
+        }
+
+        if (!forge_ctrl_enable_raw_terminal(STDIN_FILENO, &oldterm)) {
+                return;
+        }
+        forge_ctrl_enable_term_scrollback();
+
+        while (1) {
+                //void forge_ctrl_clear_line(void);
+                forge_ctrl_clear_terminal();
+                char ch;
+                forge_ctrl_input_type ty;
+
+                switch (ty = forge_ctrl_get_input(&ch)) {
+                case USER_INPUT_TYPE_NORMAL: break;
+                case USER_INPUT_TYPE_CTRL: break;
+                case USER_INPUT_TYPE_ALT: break;
+                case USER_INPUT_TYPE_ARROW: break;
+                default: break;
+                }
+        }
+
+        forge_ctrl_disable_term_scrollback();
+        (void)forge_ctrl_disable_raw_terminal(STDIN_FILENO, &oldterm);
+}
+
 static str_array
 fold_args(forge_arg **hd)
 {
@@ -3675,6 +3754,8 @@ main(int argc, char **argv)
                                 list_repos();
                         } else if (streq(argcmd, CMD_DEPGRAPH)) {
                                 depgraph_dump(&ctx.dg);
+                        } else if (streq(argcmd, CMD_LAUNCHER)) {
+                                launcher();
                         }
 
                         // Solely for BASH completion
