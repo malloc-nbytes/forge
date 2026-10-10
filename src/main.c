@@ -992,6 +992,13 @@ copy_file_to_root(const char *src_abs,
                 return 0;  // block device, fifo, socket, etc.
         }
 
+        if ((S_ISLNK(st.st_mode)
+             ? lchown(dst_abs, st.st_uid, st.st_gid)
+             : chown(dst_abs, st.st_uid, st.st_gid)) == -1) {
+                perror("chown");
+                return 0;
+        }
+
         const char *sql =
                 "INSERT OR REPLACE INTO Files "
                 "(pkg_id, path, size, mode, mtime, type) "
